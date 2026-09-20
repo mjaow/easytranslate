@@ -229,18 +229,31 @@ export function Popup(): React.ReactElement | null {
                       const t = parseNotable(item)
                       if (!t) return null
                       return (
-                        <li key={i} className="flex items-baseline gap-1.5">
-                          <span className="font-medium" style={{ color: 'var(--text)' }}>
-                            {t.term}
-                          </span>
-                          {t.ipa && (
-                            <span className="font-mono text-[11px]" style={{ color: 'var(--text-subtle)' }}>
-                              {t.ipa}
+                        <li key={i}>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-medium" style={{ color: 'var(--text)' }}>
+                              {t.term}
                             </span>
-                          )}
-                          <SpeakButton text={t.term} compact onStatus={setStatus} />
-                          {t.gloss && (
-                            <span style={{ color: 'var(--text-muted)' }}>{t.gloss}</span>
+                            {t.ipa && (
+                              <span
+                                className="font-mono text-[11px]"
+                                style={{ color: 'var(--text-subtle)' }}
+                              >
+                                {t.ipa}
+                              </span>
+                            )}
+                            <SpeakButton text={t.term} compact onStatus={setStatus} />
+                            {t.gloss && (
+                              <span style={{ color: 'var(--text-muted)' }}>{t.gloss}</span>
+                            )}
+                          </div>
+                          {t.example && (
+                            <div className="flex items-baseline gap-1 pl-2 text-[12px]">
+                              <span className="italic" style={{ color: 'var(--text-subtle)' }}>
+                                {t.example}
+                              </span>
+                              <SpeakButton text={t.example} compact onStatus={setStatus} />
+                            </div>
                           )}
                         </li>
                       )

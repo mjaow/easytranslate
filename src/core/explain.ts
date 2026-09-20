@@ -57,11 +57,14 @@ know. Include uncommon or advanced vocabulary, technical terms, idioms, slang, p
 verbs and cultural references — ordinary hard words count, not only idioms.
 Pick the 2 to 5 hardest. Skip anything an intermediate reader already knows.
 One per line, using the middle dot as separator:
-term · /American IPA/ · Chinese meaning
+term · /American IPA/ · Chinese meaning · a short example sentence
+
+The example must be a NEW sentence of your own, not the one being explained, and short
+enough to read at a glance — under about ten words.
 
 For example, given "setting a major oil refinery ablaze", this section would be:
-refinery · /rɪˈfaɪnəri/ · 炼油厂
-ablaze · /əˈbleɪz/ · 着火的，熊熊燃烧的
+refinery · /rɪˈfaɪnəri/ · 炼油厂 · The refinery processes crude oil into fuel.
+ablaze · /əˈbleɪz/ · 着火的，熊熊燃烧的 · Firefighters arrived to find the barn ablaze.
 
 Almost every real passage contains something worth listing. Only write (none) if the
 passage is genuinely all common words.`
