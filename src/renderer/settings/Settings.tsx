@@ -69,6 +69,82 @@ const inputStyle: React.CSSProperties = {
 const inputClass = 'w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none'
 
 /**
+ * Checks the saved key and model against the endpoint, and on a model mismatch
+ * offers the ids that endpoint actually serves.
+ *
+ * A wrong model id returns an opaque 403 or 404 with no hint at the right spelling,
+ * and ids differ between hosts for the very same model. Listing them turns an
+ * unguessable error into a click.
+ */
+function ConnectionTester({
+  onPickModel
+}: {
+  onPickModel: (model: string) => Promise<void>
+}): React.ReactElement {
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<{
+    ok: boolean
+    message: string
+    models?: string[]
+    modelMissing?: boolean
+  } | null>(null)
+
+  const run = async (): Promise<void> => {
+    setBusy(true)
+    setResult(null)
+    try {
+      setResult(await window.easytranslate.testLlm())
+    } catch (err) {
+      setResult({ ok: false, message: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <button
+        onClick={() => void run()}
+        disabled={busy}
+        className="rounded-md border px-3 py-1.5 text-[13px] font-medium disabled:opacity-40"
+        style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+      >
+        {busy ? 'Testing…' : 'Test connection'}
+      </button>
+
+      {result && (
+        <div
+          className="text-[11px] leading-snug"
+          style={{ color: result.ok ? 'var(--text-muted)' : 'var(--danger)' }}
+        >
+          {result.message}
+        </div>
+      )}
+
+      {result?.modelMissing && result.models && result.models.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[11px]" style={{ color: 'var(--text-subtle)' }}>
+            Available here — click one to use it:
+          </div>
+          <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto">
+            {result.models.map((m) => (
+              <button
+                key={m}
+                onClick={() => void onPickModel(m).then(() => setResult(null))}
+                className="rounded border px-1.5 py-0.5 text-[11px]"
+                style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Plays a sample and reports which engine actually produced it.
  *
  * Read-aloud falls back silently when the chosen engine can't be reached, so picking
@@ -476,6 +552,14 @@ export function Settings(): React.ReactElement {
             {note}
           </div>
         )}
+
+        <ConnectionTester
+          onPickModel={(m) =>
+            patch({
+              llm: { ...config.llm, models: { ...config.llm.models, [config.llm.provider]: m } }
+            })
+          }
+        />
       </Card>
 
       <Card title="Read aloud">

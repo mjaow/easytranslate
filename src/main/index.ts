@@ -6,8 +6,9 @@ import { IPC, type AppConfig, type SecretId } from '../shared/types.js'
 import { createPopupWindow, hidePopup, resizePopup, hardenWebContents } from './popup.js'
 import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } from './hotkeys.js'
 import { synthesize, toggleOrExplain, flushCaches } from './session.js'
-import { loadConfig, saveConfig, setSecret, hasSecret } from '../core/config.js'
+import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
+import { probeProvider } from '../providers/llm/probe.js'
 import { isAvailable, getLoadError } from './win32.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -259,6 +260,11 @@ function registerIpc(): void {
       ? checkAvailability(accelerator)
       : { ok: false, why: 'Enter a shortcut.' }
   )
+
+  ipcMain.handle(IPC.llmTest, async () => {
+    const config = loadConfig()
+    return probeProvider(config, getSecret(config.llm.provider))
+  })
 
   ipcMain.handle(IPC.configSecretStatus, () =>
     Object.fromEntries([
