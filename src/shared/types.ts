@@ -79,6 +79,8 @@ export interface AppConfig {
     /** Capture the selection and explain it. The popup handles read-aloud. */
     explain: string
   }
+  /** Double-clicking a line in a YouTube transcript explains it — no shortcut at all. */
+  doubleClickTranscripts: boolean
   llm: {
     provider: LlmProviderId
     /** Per-provider model id. Keys are LlmProviderId. */

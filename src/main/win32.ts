@@ -16,6 +16,7 @@ const VK_MENU = 0x12 // Alt
 const VK_LWIN = 0x5b
 const VK_RWIN = 0x5c
 const VK_C = 0x43
+const VK_LBUTTON = 0x01
 
 const KEYEVENTF_KEYUP = 0x0002
 const INPUT_KEYBOARD = 1
@@ -32,6 +33,8 @@ interface Bindings {
   GetForegroundWindow: () => number | bigint
   GetWindowLongPtrW: (hwnd: bigint, index: number) => number | bigint
   SetWindowLongPtrW: (hwnd: bigint, index: number, value: bigint) => number | bigint
+  GetCursorPos: (out: { x: number; y: number }[]) => number
+  GetWindowTextW: (hwnd: bigint, buffer: Buffer, max: number) => number
   INPUT: unknown
   inputSize: number
 }
@@ -74,6 +77,7 @@ function load(): Bindings | null {
       hi: HARDWAREINPUT
     })
     const INPUT = koffi.struct('INPUT', { type: 'uint32', u: INPUT_UNION })
+    koffi.struct('POINT', { x: 'long', y: 'long' })
 
     const inputSize = koffi.sizeof(INPUT)
 
@@ -85,6 +89,10 @@ function load(): Bindings | null {
       GetWindowLongPtrW: user32.func('intptr __stdcall GetWindowLongPtrW(uintptr hWnd, int nIndex)'),
       SetWindowLongPtrW: user32.func(
         'intptr __stdcall SetWindowLongPtrW(uintptr hWnd, int nIndex, intptr dwNewLong)'
+      ),
+      GetCursorPos: user32.func('int __stdcall GetCursorPos(_Out_ POINT *lpPoint)'),
+      GetWindowTextW: user32.func(
+        'int __stdcall GetWindowTextW(uintptr hWnd, _Out_ uint8 *lpString, int nMaxCount)'
       ),
       INPUT,
       inputSize
@@ -165,6 +173,32 @@ export function sendCopy(): number {
 export function foregroundWindow(): bigint {
   const b = load()
   return b ? BigInt(b.GetForegroundWindow()) : 0n
+}
+
+/** Title of the focused window — a browser's is its active tab's title. */
+export function foregroundWindowTitle(): string {
+  const b = load()
+  if (!b) return ''
+  const hwnd = BigInt(b.GetForegroundWindow())
+  if (hwnd === 0n) return ''
+  const buffer = Buffer.alloc(1024)
+  const length = b.GetWindowTextW(hwnd, buffer, buffer.length / 2)
+  return length > 0 ? buffer.toString('utf16le', 0, length * 2) : ''
+}
+
+/** Whether the left mouse button is physically held right now. */
+export function isLeftButtonDown(): boolean {
+  const b = load()
+  return b ? isDown(b, VK_LBUTTON) : false
+}
+
+/** Pointer position in physical screen pixels. (0,0) when unavailable. */
+export function cursorPosition(): { x: number; y: number } {
+  const b = load()
+  if (!b) return { x: 0, y: 0 }
+  const out = [{ x: 0, y: 0 }]
+  b.GetCursorPos(out)
+  return { x: out[0].x, y: out[0].y }
 }
 
 /**

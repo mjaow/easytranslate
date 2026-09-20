@@ -1,10 +1,13 @@
 /**
  * Orchestrates one lookup: capture → explain → stream into the popup.
  */
-import { app } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
+import { appendFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CaptureFailure, ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
+import { readTranscriptAtPoint } from './uia.js'
+import { foregroundWindowTitle } from './win32.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
 import { detectMode, SectionParser } from '../core/explain.js'
 import { loadConfig, getSecret } from '../core/config.js'
@@ -64,6 +67,70 @@ export async function explainSelection(): Promise<void> {
 
   const mode = detectMode(result.text)
   await run({ mode, text: result.text }, true)
+}
+
+/**
+ * Windows whose double-clicks are worth a look. A browser's title is its active
+ * tab's, so this is "a YouTube tab is in front" — the only place transcripts live.
+ */
+const VIDEO_WINDOW_TITLES = ['YouTube']
+
+/** One accessibility read at a time — clicks can come faster than PowerShell starts. */
+let clickInFlight = false
+
+function isOverOwnWindow(dip: { x: number; y: number }): boolean {
+  return BrowserWindow.getAllWindows().some((win) => {
+    if (win.isDestroyed() || !win.isVisible()) return false
+    const b = win.getBounds()
+    return dip.x >= b.x && dip.x < b.x + b.width && dip.y >= b.y && dip.y < b.y + b.height
+  })
+}
+
+/** Keep recent misses, and start over once the file gets big rather than grow forever. */
+async function logMiss(entry: string): Promise<void> {
+  const file = join(app.getPath('userData'), 'last-click.log')
+  try {
+    const size = await stat(file).then((s) => s.size, () => 0)
+    if (size > 200_000) await writeFile(file, entry)
+    else await appendFile(file, entry)
+  } catch {
+    // Diagnostics must never get in the way of the click itself.
+  }
+}
+
+/**
+ * The user double-clicked somewhere. If it was a transcript line, explain it.
+ *
+ * Nothing is read unless a video page is in front, and nothing is shown unless the
+ * double-click was on a line of transcript, or on the video while a caption is
+ * showing — a related video, the comments, the controls all stay plain clicks. Misses on a video page are written to
+ * last-click.log in the data folder, so a line that fails to register can be
+ * diagnosed rather than guessed at.
+ */
+export async function explainClickedTranscript(click: { x: number; y: number }): Promise<void> {
+  if (clickInFlight) return
+
+  const title = foregroundWindowTitle()
+  if (!VIDEO_WINDOW_TITLES.some((t) => title.includes(t))) return
+  if (isOverOwnWindow(screen.screenToDipPoint(click))) return
+
+  clickInFlight = true
+  try {
+    const { text, read } = await readTranscriptAtPoint(click.x, click.y)
+    if (!text) {
+      const report = read
+        ? [`button: ${read.button ?? '-'}`, `line: ${read.line ?? '-'}`, read.chain].join('\n')
+        : 'the accessibility read returned nothing'
+      void logMiss(
+        [`${new Date().toISOString()}  ${title}`, `at ${click.x},${click.y}`, report, '', ''].join('\n')
+      )
+      return
+    }
+    cancelInFlight()
+    await run({ mode: detectMode(text), text }, true)
+  } finally {
+    clickInFlight = false
+  }
 }
 
 async function run(req: ExplainRequest, isNew: boolean): Promise<void> {

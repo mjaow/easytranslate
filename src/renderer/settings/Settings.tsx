@@ -438,6 +438,15 @@ export function Settings(): React.ReactElement {
           value={config.hotkeys.explain}
           onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, explain: v } })}
         />
+
+        <label className="flex items-center gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            checked={config.doubleClickTranscripts}
+            onChange={(e) => void patch({ doubleClickTranscripts: e.target.checked })}
+          />
+          Double-clicking a YouTube caption or transcript line explains it
+        </label>
         <p className="text-[11px] leading-snug" style={{ color: 'var(--text-subtle)' }}>
           Ctrl+C, Ctrl+V and Ctrl+X can never be bound — EasyTranslate will not be the reason a
           copy or paste stops working. If a shortcut you pick is already owned by another app,
