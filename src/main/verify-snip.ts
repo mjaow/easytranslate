@@ -13,6 +13,7 @@
  */
 import { app, BrowserWindow, screen } from 'electron'
 import { readScreenRegion } from './ocr.js'
+import { pickRegion, cancelPick, openOverlayCount, isPicking } from './overlay.js'
 
 
 const SENTENCE = 'The president calls for federal involvement as opposition grows.'
@@ -38,7 +39,7 @@ function overlap(expected: string, actual: string): number {
   return want.filter((w) => got.has(w)).length / want.length
 }
 
-export async function runSnipVerification(): Promise<void> {
+export async function runSnipVerification(preloadPath: string): Promise<void> {
   console.log('\nEasyTranslate — screen snip self-test\n')
 
   if (process.platform !== 'win32') {
@@ -46,6 +47,33 @@ export async function runSnipVerification(): Promise<void> {
     app.exit(0)
     return
   }
+
+  // Closing the last overlay would otherwise quit the app before the OCR checks
+  // run: Electron's default is to exit when no windows remain, and this mode never
+  // calls main(), which is where the real app opts out of that.
+  app.on('window-all-closed', () => {})
+
+  // --- the picker must stay open until the user acts ------------------------
+  //
+  // It once cancelled itself instantly on any multi-monitor setup: one overlay is
+  // created per display, and the unfocused ones fire blur the moment focus lands
+  // elsewhere — which was being treated as "cancel".
+  void pickRegion(preloadPath)
+  await sleep(1500)
+
+  const openCount = openOverlayCount()
+  const displayCount = screen.getAllDisplays().length
+  check(
+    openCount === displayCount,
+    'picker opens one overlay per display and keeps them open',
+    `${openCount} open across ${displayCount} display(s)`
+  )
+  check(isPicking(), 'picker is still waiting for the user')
+
+  cancelPick()
+  await sleep(400)
+  check(openOverlayCount() === 0, 'cancelling closes every overlay')
+  console.log('')
 
   const display = screen.getPrimaryDisplay()
   const bounds = { x: display.bounds.x + 80, y: display.bounds.y + 80, width: 1000, height: 120 }

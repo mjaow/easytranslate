@@ -5,7 +5,7 @@
  * the explanation popup this one *must* take focus — it needs the Escape key, and it
  * is a deliberate interruption rather than something that appears beside your work.
  */
-import { BrowserWindow, screen, ipcMain } from 'electron'
+import { BrowserWindow, screen, ipcMain, globalShortcut } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { IPC } from '../shared/types.js'
@@ -16,12 +16,17 @@ const here = dirname(fileURLToPath(import.meta.url))
 
 let windows: BrowserWindow[] = []
 let settle: ((region: SnipRegion | null) => void) | null = null
+let escapeHeld = false
 
 function closeAll(): void {
   for (const win of windows) {
     if (!win.isDestroyed()) win.destroy()
   }
   windows = []
+  if (escapeHeld) {
+    globalShortcut.unregister('Escape')
+    escapeHeld = false
+  }
 }
 
 /** Resolve the pending pick exactly once, then tear the overlay down. */
@@ -88,6 +93,10 @@ export function pickRegion(preloadPath: string): Promise<SnipRegion | null> {
       windows.push(win)
     }
 
+    // Escape is registered globally rather than per window: with one overlay per
+    // display, only one of them receives key events at all.
+    escapeHeld = globalShortcut.register('Escape', () => finish(null))
+
     if (windows.length === 0) finish(null)
   })
 }
@@ -132,4 +141,14 @@ export function registerOverlayIpc(): void {
 /** True while the picker is up — used to avoid snipping the overlay itself. */
 export function isPicking(): boolean {
   return settle !== null
+}
+
+/** How many overlay windows are currently open. Used by the self-test. */
+export function openOverlayCount(): number {
+  return windows.filter((w) => !w.isDestroyed() && w.isVisible()).length
+}
+
+/** Dismiss the picker from outside, as Escape would. */
+export function cancelPick(): void {
+  finish(null)
 }

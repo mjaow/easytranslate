@@ -27,13 +27,12 @@ export function Overlay(): React.ReactElement {
       }
     }
     window.addEventListener('keydown', onKey)
-    // Losing focus means the user went elsewhere; leaving a dimmed sheet over their
-    // screen would be worse than cancelling.
-    window.addEventListener('blur', cancel)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('blur', cancel)
-    }
+    return () => window.removeEventListener('keydown', onKey)
+    // Deliberately NOT cancelling on blur. One overlay is created per display, and
+    // only one of them can hold focus — the others blur the moment it is taken, so
+    // treating blur as cancel made the picker close itself instantly on any
+    // multi-monitor setup. Escape is handled globally by main instead, which works
+    // whichever window has focus.
   }, [cancel])
 
   const onMouseDown = (e: React.MouseEvent): void => {

@@ -49,7 +49,7 @@ if (VERIFY_CAPTURE) {
 } else if (VERIFY_SNIP) {
   void app.whenReady().then(async () => {
     const { runSnipVerification } = await import('./verify-snip.js')
-    await runSnipVerification()
+    await runSnipVerification(preloadPath())
   })
 } else if (PROBE_HOTKEYS) {
   void app.whenReady().then(async () => {
