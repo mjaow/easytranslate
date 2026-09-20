@@ -140,11 +140,10 @@ Three ways in, all ending in the same popup:
 - **Nothing selected?** `Ctrl+Alt+E` dims the screen; **drag a box** over the words —
   a subtitle on a video, text in an image — and they are read off the screen (local
   OCR, nothing uploaded). `Esc` cancels.
-- **Watching YouTube?** **Double-click** a line in the transcript panel, or the video
-  itself while captions are showing. No shortcut. The text comes from the page
-  itself, so it is exact. Settings can make it a single click instead, or turn it
-  off. (Double-clicking the video is also YouTube's own fullscreen toggle — for the
-  video, the box is often the calmer choice.)
+- **Watching YouTube with the transcript open?** **Double-click a line.** No
+  shortcut. The text comes from the page itself, so it is exact. The video itself
+  is left alone: double-clicking it stays YouTube's fullscreen toggle. For captions
+  burned into the picture, use the box. Settings can turn the double-click off.
 
 - Three words or fewer → treated as a term: IPA, part of speech, what it means *here*
 - Longer → treated as a passage: natural Chinese, simpler English, idioms worth knowing
@@ -155,7 +154,6 @@ Three ways in, all ending in the same popup:
 | `Ctrl+Alt+E` with a selection | Explain the selection (press again to dismiss) |
 | `Ctrl+Alt+E` with nothing selected | Drag a box over part of the screen and explain it |
 | Double-click a YouTube transcript line | Explain that line |
-| Double-click the YouTube video with captions on | Explain the caption on screen |
 | `Esc` | Close the popup, or cancel the box |
 
 Clicking a transcript line also seeks the video there, exactly as it did before —
@@ -314,9 +312,9 @@ page — not as fact.
   nothing for Ctrl+C to copy. Drag a box over them instead: `Ctrl+Alt+E` with nothing
   selected reads the screen with `Windows.Media.Ocr`. OCR is a guess where a selection
   is exact, so an area that reads as garbage is reported rather than explained.
-- **Click-to-explain is YouTube-specific.** A click is only examined when a window
+- **Double-click-to-explain is YouTube-specific.** A double-click is only examined when a window
   titled "YouTube" is in front, and only a transcript line — a button named with its
-  spoken time — or the video with a caption showing produces a popup. If a line ever fails to register, the data folder's
+  spoken time — produces a popup. If a line ever fails to register, the data folder's
   `last-click.log` holds what the accessibility tree reported for the last miss.
 - **Edge neural TTS is blocked on some networks.** Verified on this machine: the voices
   list endpoint returns 200 over plain HTTPS, but the synthesis WebSocket returns **403**

@@ -103,16 +103,13 @@ function main(): void {
 // ----------------------------------------------------------------- hotkeys
 
 /**
- * Clicking a transcript line is the other way in, and it obeys the same pause as
- * the hotkey — "pause" should mean the app does nothing at all.
+ * Double-clicking a transcript line is the other way in, and it obeys the same
+ * pause as the hotkey — "pause" should mean the app does nothing at all.
  */
 function applyClickWatcher(): void {
-  const gesture = loadConfig().clickToExplain
-  // Always restart: the gesture may have changed, and the watcher is cheap to make.
-  stopClickWatcher()
-  if (gesture !== 'off' && !hotkeysPaused && isAvailable()) {
-    startClickWatcher((click) => void explainClickedTranscript(click), gesture)
-  }
+  const wanted = loadConfig().doubleClickTranscripts && !hotkeysPaused && isAvailable()
+  if (wanted) startClickWatcher((click) => void explainClickedTranscript(click))
+  else stopClickWatcher()
 }
 
 function applyHotkeys(announce = true): void {

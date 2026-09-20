@@ -129,7 +129,7 @@ export async function runClickVerification(): Promise<void> {
 
   const mouse = makeMouse()
   const clicks: Click[] = []
-  startClickWatcher((c) => clicks.push(c), 'double')
+  startClickWatcher((c) => clicks.push(c))
 
   const clickAt = async (point: { x: number; y: number }): Promise<void> => {
     mouse.press(point.x, point.y)
@@ -179,15 +179,11 @@ export async function runClickVerification(): Promise<void> {
     const { text: other } = await readTranscriptAtPoint(plain.x, plain.y)
     check(other === null, 'ordinary text on the page is left alone', other ? `got "${other}"` : '')
 
-    // A click on the video itself, while a caption is showing, reads the caption —
-    // even though the point is nowhere near the caption's own text.
+    // The video itself is YouTube's: a double-click there toggles fullscreen, and
+    // must not also raise a popup — even with a caption showing.
     const video = screen.dipToScreenPoint({ x: bounds.x + 200, y: bounds.y + PLAYER_TOP + 30 })
-    const { text: caption, read: videoRead } = await readTranscriptAtPoint(video.x, video.y)
-    check(
-      caption === CAPTION,
-      'a click on the video reads the caption on screen',
-      caption ? `got "${caption}"` : `got nothing; tree said: ${JSON.stringify(videoRead)}`
-    )
+    const { text: onVideo } = await readTranscriptAtPoint(video.x, video.y)
+    check(onVideo === null, 'the video itself is left to YouTube', onVideo ? `got "${onVideo}"` : '')
 
     // A drag is a selection, not a click.
     const seen = clicks.length

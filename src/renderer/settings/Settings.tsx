@@ -439,23 +439,14 @@ export function Settings(): React.ReactElement {
           onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, explain: v } })}
         />
 
-        <Field
-          label="On YouTube, explain a transcript line or the caption by"
-          hint="No shortcut needed. Double-click on the video is also YouTube's fullscreen toggle; single click is more sensitive."
-        >
-          <select
-            className={inputClass}
-            style={inputStyle}
-            value={config.clickToExplain}
-            onChange={(e) =>
-              void patch({ clickToExplain: e.target.value as AppConfig['clickToExplain'] })
-            }
-          >
-            <option value="double">Double-clicking it</option>
-            <option value="single">Clicking it once</option>
-            <option value="off">Never — I'll use the shortcut</option>
-          </select>
-        </Field>
+        <label className="flex items-center gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            checked={config.doubleClickTranscripts}
+            onChange={(e) => void patch({ doubleClickTranscripts: e.target.checked })}
+          />
+          Double-clicking a line in a YouTube transcript explains it
+        </label>
 
         <p className="text-[11px] leading-snug" style={{ color: 'var(--text-subtle)' }}>
           Ctrl+C, Ctrl+V and Ctrl+X can never be bound — EasyTranslate will not be the reason a

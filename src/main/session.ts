@@ -140,13 +140,13 @@ async function logMiss(entry: string): Promise<void> {
 }
 
 /**
- * The user clicked somewhere. If it was a transcript line, explain it.
+ * The user double-clicked somewhere. If it was a transcript line, explain it.
  *
  * Nothing is read unless a video page is in front, and nothing is shown unless the
- * click was on a line of transcript, or on the video while a caption is showing —
- * clicking a related video, or the comments, stays a click. Misses on a video page
- * are written to last-click.log in the data folder, so a line that fails to register
- * can be diagnosed rather than guessed at.
+ * click was on a line of transcript — the video itself, a related video, the
+ * comments all stay plain clicks. Misses on a video page are written to
+ * last-click.log in the data folder, so a line that fails to register can be
+ * diagnosed rather than guessed at.
  */
 export async function explainClickedTranscript(click: { x: number; y: number }): Promise<void> {
   if (clickInFlight || reading || isPicking()) return

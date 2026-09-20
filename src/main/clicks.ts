@@ -1,11 +1,12 @@
 /**
- * Noticing when the user clicks, anywhere on the desktop.
+ * Noticing when the user double-clicks, anywhere on the desktop.
  *
  * There is no hook here, and nothing injected into any app. The mouse button's state
  * is simply polled — a few microseconds every few milliseconds — and a press followed
  * by a release in the same place is a click. A press that travels is a drag, which is
  * how text gets selected, and is deliberately left alone. Two clicks in the same
- * place in quick succession are a double-click, reported once, on the second.
+ * place in quick succession are a double-click, reported once, on the second; a
+ * single click is how a page is ordinarily used and is never reported.
  */
 import { cursorPosition, isLeftButtonDown } from './win32.js'
 
@@ -27,12 +28,7 @@ export interface Click {
 
 let timer: NodeJS.Timeout | null = null
 
-export type ClickGesture = 'single' | 'double'
-
-export function startClickWatcher(
-  onClick: (click: Click) => void,
-  gesture: ClickGesture = 'single'
-): void {
+export function startClickWatcher(onDoubleClick: (click: Click) => void): void {
   if (timer) return
 
   let wasDown = false
@@ -40,10 +36,6 @@ export function startClickWatcher(
   let lastClick: { x: number; y: number; at: number } | null = null
 
   const report = (click: Click): void => {
-    if (gesture === 'single') {
-      onClick(click)
-      return
-    }
     const now = Date.now()
     const isSecond =
       lastClick !== null &&
@@ -51,7 +43,7 @@ export function startClickWatcher(
       Math.hypot(click.x - lastClick.x, click.y - lastClick.y) <= DOUBLE_CLICK_SLOP_PX
     if (isSecond) {
       lastClick = null
-      onClick(click)
+      onDoubleClick(click)
     } else {
       lastClick = { ...click, at: now }
     }

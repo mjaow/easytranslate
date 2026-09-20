@@ -23,7 +23,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     // Windows (Ctrl) and macOS (Cmd) alike, instead of being tied to where it was set.
     explain: 'CommandOrControl+Alt+E'
   },
-  clickToExplain: 'double',
+  doubleClickTranscripts: true,
   llm: {
     provider: 'claude',
     // Model ids are complete as-is — never append a date suffix.
@@ -73,20 +73,12 @@ function ensureDir(file: string): void {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 }
 
-/** The click gesture, accepting the boolean an earlier build stored. */
-function readGesture(s: Partial<AppConfig> & { clickTranscripts?: boolean }): AppConfig['clickToExplain'] {
-  if (s.clickToExplain === 'off' || s.clickToExplain === 'single' || s.clickToExplain === 'double') {
-    return s.clickToExplain
-  }
-  return s.clickTranscripts === false ? 'off' : DEFAULT_CONFIG.clickToExplain
-}
-
 /** Merge stored values over defaults, one level deep per section. */
 function merge(stored: unknown): AppConfig {
   const s = (stored ?? {}) as Partial<AppConfig>
   return {
     hotkeys: { ...DEFAULT_CONFIG.hotkeys, ...s.hotkeys },
-    clickToExplain: readGesture(s),
+    doubleClickTranscripts: s.doubleClickTranscripts ?? DEFAULT_CONFIG.doubleClickTranscripts,
     llm: {
       ...DEFAULT_CONFIG.llm,
       ...s.llm,
