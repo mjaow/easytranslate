@@ -25,6 +25,15 @@ export interface EndpointPreset {
 
 export const ENDPOINT_PRESETS: EndpointPreset[] = [
   {
+    id: 'qwen-flash',
+    label: 'Qwen 3.7 Flash — cheapest, best Chinese',
+    provider: 'openai',
+    baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen3.7-flash',
+    note: "About $0.00002 a lookup — a few cents a month. Alibaba's own model, so its Chinese is the most idiomatic of the cheap options. Your key is bound to the region it was created in: this is the international endpoint, so swap in dashscope.aliyuncs.com if you registered in mainland China.",
+    keyUrl: 'https://modelstudio.console.alibabacloud.com/'
+  },
+  {
     id: 'groq-free',
     label: 'Groq — free, fastest',
     provider: 'openai',

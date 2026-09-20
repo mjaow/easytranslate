@@ -170,6 +170,7 @@ only the base URL and model differ.
 
 | Preset | Cost at ~100 lookups/day | Notes |
 |---|---|---|
+| **Qwen 3.7 Flash** | **~$0.07/month** | Alibaba's own model — cheapest, and the most idiomatic Chinese |
 | Gemini Flash-Lite | free tier | Best Chinese of the free options |
 | Groq | free tier | Fastest; Llama is the weakest here at Chinese |
 | **Claude Haiku 4.5** | **~$3/month** | Reliable IPA, idiomatic Chinese — the value pick |
