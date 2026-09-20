@@ -23,7 +23,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     // Windows (Ctrl) and macOS (Cmd) alike, instead of being tied to where it was set.
     explain: 'CommandOrControl+Alt+E'
   },
-  snipRegion: null,
+  clickTranscripts: true,
   llm: {
     provider: 'claude',
     // Model ids are complete as-is — never append a date suffix.
@@ -78,7 +78,7 @@ function merge(stored: unknown): AppConfig {
   const s = (stored ?? {}) as Partial<AppConfig>
   return {
     hotkeys: { ...DEFAULT_CONFIG.hotkeys, ...s.hotkeys },
-    snipRegion: s.snipRegion ?? DEFAULT_CONFIG.snipRegion,
+    clickTranscripts: s.clickTranscripts ?? DEFAULT_CONFIG.clickTranscripts,
     llm: {
       ...DEFAULT_CONFIG.llm,
       ...s.llm,

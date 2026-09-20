@@ -1,18 +1,19 @@
 /**
  * Orchestrates one lookup: capture → explain → stream into the popup.
  */
-import { app, screen } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
 import { readScreenRegion } from './ocr.js'
-import { readTextAtPoint } from './uia.js'
-import { pickRegion } from './overlay.js'
-import { regionIsStillValid } from '../core/region.js'
+import { readTranscriptAtPoint } from './uia.js'
+import { pickRegion, isPicking } from './overlay.js'
+import { foregroundWindowTitle } from './win32.js'
 import { assessReadability } from '../core/readable.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
 import { detectMode, SectionParser } from '../core/explain.js'
-import { loadConfig, saveConfig, getSecret } from '../core/config.js'
+import { loadConfig, getSecret } from '../core/config.js'
 import { JsonLruCache, AudioCache, cacheKey } from '../core/cache.js'
 import { createLlmProvider, describeError } from '../providers/llm/registry.js'
 import { speak } from '../providers/tts/registry.js'
@@ -28,8 +29,10 @@ function caches(): { explanations: JsonLruCache<Explanation>; audio: AudioCache 
 }
 
 let inFlight: AbortController | null = null
-/** A snip takes a second or two; a second press should not start a rival one. */
-let snipping = false
+/** Picking and reading takes a second or two; a second press must not start a rival. */
+let reading = false
+/** One accessibility read at a time — clicks can come faster than PowerShell starts. */
+let clickInFlight = false
 
 function cancelInFlight(): void {
   inFlight?.abort()
@@ -41,120 +44,55 @@ function emit(state: ExplainState, isNew: boolean): void {
   else updatePopup(state)
 }
 
-/**
- * The one hotkey: explain the selection, or read the screen when there isn't one.
- *
- * Selecting text and watching a video are the same gesture from the user's side —
- * "explain this" — so they get the same key. A selection always wins; the screen
- * region is what happens when there is nothing selected, which is exactly the case
- * while a video is playing.
- */
-export async function explainOrSnip(preloadPath: string): Promise<void> {
-  cancelInFlight()
-
-  const config = loadConfig()
-  const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds }))
-  const hasRegion = regionIsStillValid(config.snipRegion, displays)
-
-  // 1. A selection, if there is one. Fastest and exactly what was chosen.
-  //
-  // Try hard for it only when nothing else can help; with something to fall back on,
-  // two 700ms attempts before every lookup would make this feel sluggish.
-  const selection = hasRegion ? await captureSelection(400, 1) : await captureSelection(400, 1)
-  if (selection.ok) {
-    await run({ mode: detectMode(selection.text), text: selection.text }, true)
-    return
-  }
-
-  // 2. The text under the pointer, read from the app's own accessibility tree.
-  //
-  // Exact where OCR is a guess, and needs no region: point at a transcript line and
-  // press the key. Most things on screen that are really text can be read this way,
-  // which leaves screen reading for the cases that genuinely are not — video frames
-  // and images.
-  const cursor = screen.getCursorScreenPoint()
-  const physical = screen.dipToScreenPoint(cursor)
-  let underPointer = await readTextAtPoint(physical.x, physical.y)
-
-  // Chromium builds its accessibility tree the first time a client asks, so the very
-  // first read of a window can come back empty even though there is text there. Pay
-  // for one retry only when the alternative is failing outright — with a screen
-  // region set, falling straight through keeps the subtitle loop quick.
-  if (!underPointer && !hasRegion) {
-    underPointer = await readTextAtPoint(physical.x, physical.y)
-  }
-
-  if (underPointer) {
-    await run({ mode: detectMode(underPointer), text: underPointer }, true)
-    return
-  }
-
-  // 3. Read the screen. Only reached when the pixels are all there is.
-  if (hasRegion) {
-    await snipScreen(preloadPath)
-    return
-  }
-
-  showError('Nothing to explain here. Select some text, point at some, or read the screen.', {
-    id: 'read-screen',
-    label: 'Read part of the screen'
-  })
-}
-
 function showError(message: string, action?: ExplainState['action']): void {
   showPopup({ mode: 'passage', text: '', explanation: {}, status: 'error', error: message, action })
 }
 
 /**
- * Read a region of the screen and explain what it says.
+ * The hotkey: explain the selection, or — when nothing is selected — let the user
+ * drag a box over part of the screen and explain what it says.
  *
- * The remembered region is reused when it is still meaningful, which is what makes
- * this one keypress per subtitle line. Everything past the OCR call is the ordinary
- * explain path — a snip and a selection are indistinguishable from there on.
+ * Two gestures, one key. A selection always wins, because it is exact; the screen is
+ * for what cannot be selected, such as subtitles on a video.
  */
-export async function snipScreen(preloadPath: string, forcePick = false): Promise<void> {
-  if (snipping) return
-  snipping = true
+export async function explainOrPick(preloadPath: string): Promise<void> {
+  cancelInFlight()
+
+  const selection = await captureSelection(400, 1)
+  if (selection.ok) {
+    await run({ mode: detectMode(selection.text), text: selection.text }, true)
+    return
+  }
+
+  await pickAndRead(preloadPath)
+}
+
+/**
+ * Drag a box over part of the screen, read the text in it, explain it.
+ *
+ * The region is chosen fresh every time. Everything past the OCR call is the
+ * ordinary explain path — a screen read and a selection are indistinguishable from
+ * there on.
+ */
+export async function pickAndRead(preloadPath: string): Promise<void> {
+  if (reading) return
+  reading = true
   try {
     cancelInFlight()
-    const config = loadConfig()
 
-    const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds }))
-    let region = config.snipRegion
+    const region = await pickRegion(preloadPath)
+    if (!region) return // cancelled — say nothing
 
-    if (forcePick || !regionIsStillValid(region, displays)) {
-      const picked = await pickRegion(preloadPath)
-      if (!picked) return // cancelled — say nothing
-      region = picked
-      saveConfig({ snipRegion: picked })
-      // Let the overlay finish disappearing, or it ends up in its own screenshot.
-      await new Promise((r) => setTimeout(r, 150))
-    }
+    // Let the overlay finish disappearing, or it ends up in its own screenshot.
+    await new Promise((r) => setTimeout(r, 150))
 
-    if (!region) return
-
-    // Acknowledge the keypress immediately. Capture and OCR take over a second, and
-    // without this the hotkey feels like it did nothing at all.
-    showPopup({
-      mode: 'passage',
-      text: 'Reading the screen…',
-      explanation: {},
-      status: 'streaming'
-    })
+    // Acknowledge at once. Capture and OCR take over a second, and without this the
+    // gesture feels like it did nothing at all.
+    showPopup({ mode: 'passage', text: 'Reading the screen…', explanation: {}, status: 'streaming' })
 
     const result = await readScreenRegion(region)
     if (!result.ok) {
-      // Name the area that was read. A remembered region cannot know the video
-      // moved or went full-screen, so the useful thing is to say where it looked
-      // and how to point it somewhere else.
-      // A remembered region cannot know the video went full-screen or the window
-      // moved. Rather than make the user learn a second shortcut for that, say where
-      // it looked and offer the fix as a button.
-      const where = `${region.width}×${region.height} at ${region.x}, ${region.y}`
-      showError(`${result.reason} Looked at a ${where} area.`, {
-        id: 'pick-region',
-        label: 'Pick a different area'
-      })
+      showError(result.reason, { id: 'read-screen', label: 'Try another area' })
       return
     }
 
@@ -163,15 +101,64 @@ export async function snipScreen(preloadPath: string, forcePick = false): Promis
     if (!assessReadability(result.text).readable) {
       showError(
         `That area did not read as text — "${result.text.slice(0, 40)}". ` +
-          'It is probably pointing somewhere other than the words you want.',
-        { id: 'pick-region', label: 'Pick a different area' }
+          'Try drawing the box more tightly around the words.',
+        { id: 'read-screen', label: 'Try another area' }
       )
       return
     }
 
     await run({ mode: detectMode(result.text), text: result.text }, false)
   } finally {
-    snipping = false
+    reading = false
+  }
+}
+
+/**
+ * Windows whose clicks are worth a look. A browser's title is its active tab's, so
+ * this is "a YouTube tab is in front" — the only place transcripts are clicked.
+ */
+const VIDEO_WINDOW_TITLES = ['YouTube']
+
+function isOverOwnWindow(dip: { x: number; y: number }): boolean {
+  return BrowserWindow.getAllWindows().some((win) => {
+    if (win.isDestroyed() || !win.isVisible()) return false
+    const b = win.getBounds()
+    return dip.x >= b.x && dip.x < b.x + b.width && dip.y >= b.y && dip.y < b.y + b.height
+  })
+}
+
+/**
+ * The user clicked somewhere. If it was a transcript line, explain it.
+ *
+ * Nothing is read unless a video page is in front, and nothing is shown unless the
+ * click was on a line of transcript — clicking play, or a related video, stays a
+ * click. The last miss on a video page is written to last-click.log in the data
+ * folder, so a line that fails to register can be diagnosed rather than guessed at.
+ */
+export async function explainClickedTranscript(click: { x: number; y: number }): Promise<void> {
+  if (clickInFlight || reading || isPicking()) return
+
+  const title = foregroundWindowTitle()
+  if (!VIDEO_WINDOW_TITLES.some((t) => title.includes(t))) return
+  if (isOverOwnWindow(screen.screenToDipPoint(click))) return
+
+  clickInFlight = true
+  try {
+    const { text, read } = await readTranscriptAtPoint(click.x, click.y)
+    if (!text) {
+      const report = read
+        ? [`button: ${read.button ?? '-'}`, `line: ${read.line ?? '-'}`, read.chain].join('\n')
+        : 'the accessibility read returned nothing'
+      void writeFile(
+        join(app.getPath('userData'), 'last-click.log'),
+        [`${new Date().toISOString()}  ${title}`, `at ${click.x},${click.y}`, report, ''].join('\n')
+      ).catch(() => {})
+      return
+    }
+    cancelInFlight()
+    await run({ mode: detectMode(text), text }, true)
+  } finally {
+    clickInFlight = false
   }
 }
 
@@ -282,7 +269,7 @@ export function toggleOrExplain(preloadPath: string): void {
     hidePopup()
     return
   }
-  void explainOrSnip(preloadPath)
+  void explainOrPick(preloadPath)
 }
 
 export function flushCaches(): void {

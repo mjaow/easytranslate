@@ -64,7 +64,7 @@ export interface ExplainState {
    * An offer the popup can act on, shown as a button. Used when a failure has one
    * obvious remedy — so the fix is a click rather than a second shortcut to learn.
    */
-  action?: { id: 'pick-region' | 'read-screen'; label: string }
+  action?: { id: 'read-screen'; label: string }
 }
 
 // ---------------------------------------------------------------- config
@@ -82,17 +82,14 @@ export type SecretId = LlmProviderId | 'tts'
 export interface AppConfig {
   hotkeys: {
     /**
-     * The only shortcut. Explains the selection if there is one, and otherwise reads
-     * the remembered screen region — so watching a video and reading a page use the
-     * same key.
+     * The only shortcut. Explains the selection if there is one, and otherwise asks
+     * for an area of the screen to read — so reading a page and watching a video use
+     * the same key.
      */
     explain: string
   }
-  /**
-   * The remembered snip region, in physical screen pixels. Null until one is drawn.
-   * Tied to a display, since it means nothing once that monitor is gone.
-   */
-  snipRegion: { x: number; y: number; width: number; height: number; displayId: number } | null
+  /** Clicking a line in a YouTube transcript explains it, with no shortcut at all. */
+  clickTranscripts: boolean
   llm: {
     provider: LlmProviderId
     /** Per-provider model id. Keys are LlmProviderId. */
@@ -148,8 +145,6 @@ export const IPC = {
   overlayPick: 'overlay:pick',
   /** overlay → main: the user cancelled */
   overlayCancel: 'overlay:cancel',
-  /** settings → main: forget the remembered snip region */
-  snipRegionReset: 'config:snip-region-reset',
   /** popup → main: the user accepted the offered action */
   popupAction: 'popup:action'
 } as const

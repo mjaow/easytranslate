@@ -21,7 +21,7 @@
     "verify:capture": "electron-vite build && electron . --verify-capture",
     "verify:hotkeys": "electron-vite build && electron . --verify-hotkeys",
     "verify:snip": "electron-vite build && electron . --verify-snip",
-    "verify:uia": "electron-vite build && electron . --verify-uia"
+    "verify:click": "electron-vite build && electron . --verify-click"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

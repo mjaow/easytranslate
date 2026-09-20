@@ -382,11 +382,6 @@ export function Settings(): React.ReactElement {
     setSecrets(await window.easytranslate.secretStatus())
   }
 
-  const resetRegion = async (): Promise<void> => {
-    const next = await window.easytranslate.resetSnipRegion()
-    setBoot({ ...boot, config: next })
-  }
-
   const saveTtsKey = async (): Promise<void> => {
     await window.easytranslate.setSecret('tts', ttsKeyDraft)
     setTtsKeyDraft('')
@@ -439,36 +434,19 @@ export function Settings(): React.ReactElement {
 
       <Card title="Hotkeys">
         <HotkeyRecorder
-          label="Explain selection or screen"
+          label="Explain selection, or pick an area of the screen"
           value={config.hotkeys.explain}
           onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, explain: v } })}
         />
 
-        <Field
-          label="Remembered region"
-          hint={
-            config.snipRegion
-              ? 'Reading this area takes one keypress. Reset it, or use the tray menu, to choose somewhere else.'
-              : 'None yet — the first screen read will ask you to drag a box, then remember it.'
-          }
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
-              {config.snipRegion
-                ? `${config.snipRegion.width} × ${config.snipRegion.height} at ${config.snipRegion.x}, ${config.snipRegion.y}`
-                : 'not set'}
-            </span>
-            {config.snipRegion && (
-              <button
-                onClick={() => void resetRegion()}
-                className="rounded-md border px-2 py-1 text-[12px]"
-                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        </Field>
+        <label className="flex items-center gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            checked={config.clickTranscripts}
+            onChange={(e) => void patch({ clickTranscripts: e.target.checked })}
+          />
+          Clicking a line in a YouTube transcript explains it
+        </label>
 
         <p className="text-[11px] leading-snug" style={{ color: 'var(--text-subtle)' }}>
           Ctrl+C, Ctrl+V and Ctrl+X can never be bound — EasyTranslate will not be the reason a

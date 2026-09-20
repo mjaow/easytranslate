@@ -134,16 +134,29 @@ Nothing works until step 1 is done: `Ctrl+Alt+E` will tell you no key is set.
 
 ### Using it
 
-Select text in **any** app, press **`Ctrl+Alt+E`**.
+Three ways in, all ending in the same popup:
+
+- **Select text** in any app, press **`Ctrl+Alt+E`**.
+- **Nothing selected?** `Ctrl+Alt+E` dims the screen; **drag a box** over the words —
+  a subtitle on a video, text in an image — and they are read off the screen (local
+  OCR, nothing uploaded). `Esc` cancels.
+- **Watching YouTube with the transcript open?** Just **click a line**. No shortcut.
+  The line's text comes from the page itself, so it is exact.
 
 - Three words or fewer → treated as a term: IPA, part of speech, what it means *here*
 - Longer → treated as a passage: natural Chinese, simpler English, idioms worth knowing
 - **🔊** reads it aloud, **🐢** reads it slowly, **Esc** or `Ctrl+Alt+E` again closes it
 
-| Hotkey | Action |
+| Gesture | Action |
 |---|---|
-| `Ctrl+Alt+E` | Explain the selection (press again to dismiss) |
-| `Esc` | Close the popup |
+| `Ctrl+Alt+E` with a selection | Explain the selection (press again to dismiss) |
+| `Ctrl+Alt+E` with nothing selected | Drag a box over part of the screen and explain it |
+| Click a YouTube transcript line | Explain that line |
+| `Esc` | Close the popup, or cancel the box |
+
+Clicking a transcript line also seeks the video there, exactly as it did before —
+EasyTranslate watches the click, it does not intercept it. Turn the click off in
+Settings if you would rather it stayed a plain click.
 
 Change the shortcut in Settings by **pressing the keys you want** — it records the
 chord rather than asking you to type accelerator syntax, and stores
@@ -212,6 +225,8 @@ LLM slot often holds a Gemini or Groq key that a speech API would reject.
 npm test               # unit tests — word counting, streaming parser, SSML, CSP
 npm run verify:capture # end-to-end capture self-test
 npm run verify:hotkeys # registration, refusal and fallback assertions
+npm run verify:snip    # the box picker opens on every display, and OCR reads known text
+npm run verify:click   # real OS clicks on a transcript-shaped page come back as lines
 npm run probe:hotkeys  # which shortcuts are free on this machine
 ```
 
@@ -292,9 +307,14 @@ page — not as fact.
   hook (many IMEs, some vendor utilities) won't show as a conflict there and can still
   swallow the key. A combination that probes free yet never fires is almost certainly
   one of those; pick another.
-- **DRM'd text, video subtitles and text baked into images can't be captured** — there's
-  nothing for Ctrl+C to copy. This is what the deferred OCR snip solves; the capture
-  layer is built behind an interface it can slot into.
+- **DRM'd text, video subtitles and text baked into images can't be selected** — there's
+  nothing for Ctrl+C to copy. Drag a box over them instead: `Ctrl+Alt+E` with nothing
+  selected reads the screen with `Windows.Media.Ocr`. OCR is a guess where a selection
+  is exact, so an area that reads as garbage is reported rather than explained.
+- **Click-to-explain is YouTube-specific.** A click is only examined when a window
+  titled "YouTube" is in front, and only a transcript line — a button named with its
+  spoken time — produces a popup. If a line ever fails to register, the data folder's
+  `last-click.log` holds what the accessibility tree reported for the last miss.
 - **Edge neural TTS is blocked on some networks.** Verified on this machine: the voices
   list endpoint returns 200 over plain HTTPS, but the synthesis WebSocket returns **403**
   — with and without the `Sec-MS-GEC` token, which points at the network blocking the WS
@@ -352,5 +372,6 @@ UI — is platform-neutral.
 
 ### Deferred
 
-OCR screen-snip via `Windows.Media.Ocr` · UI Automation context grab · clipboard-watch
-mode · vocabulary history with SQLite and Anki export · macOS support.
+Clipboard-watch mode · vocabulary history with SQLite and Anki export · macOS support
+(the capture, screen-reading and click layers are all Windows-specific and degrade to
+"unavailable" elsewhere; nothing above them is).

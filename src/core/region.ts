@@ -14,12 +14,6 @@ export interface Rect {
   height: number
 }
 
-/** A remembered snip region, tied to the display it was drawn on. */
-export interface SnipRegion extends Rect {
-  /** Which display it belongs to; a region is meaningless once that display is gone. */
-  displayId: number
-}
-
 /** Normalise a drag into a rectangle, whichever direction it was drawn. */
 export function rectFromDrag(
   start: { x: number; y: number },
@@ -61,23 +55,4 @@ export function clampToDisplay(rect: Rect, bounds: Rect): Rect {
     width: Math.max(0, Math.min(rect.width, bounds.x + bounds.width - x)),
     height: Math.max(0, Math.min(rect.height, bounds.y + bounds.height - y))
   }
-}
-
-/**
- * Whether a remembered region can still be used.
- *
- * A region outlives the session that made it, so the display may have been unplugged
- * or rearranged since. Snipping blind would grab whatever now occupies those
- * coordinates, which is worse than asking again.
- */
-export function regionIsStillValid(
-  region: SnipRegion | null,
-  displays: { id: number; bounds: Rect }[]
-): boolean {
-  if (!region || !isUsableRegion(region)) return false
-  const display = displays.find((d) => d.id === region.displayId)
-  if (!display) return false
-
-  const clamped = clampToDisplay(region, display.bounds)
-  return isUsableRegion(clamped)
 }

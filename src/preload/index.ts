@@ -22,7 +22,7 @@ const api = {
     return () => ipcRenderer.removeListener(IPC.popupStop, listener)
   },
 
-  /** Accept the action the popup offered (e.g. re-pick the snip area). */
+  /** Accept the action the popup offered (e.g. read another area of the screen). */
   runAction(id: string): void {
     ipcRenderer.send(IPC.popupAction, id)
   },
@@ -63,11 +63,6 @@ const api = {
   /** Overlay → main: cancelled. */
   overlayCancel(): void {
     ipcRenderer.send(IPC.overlayCancel)
-  },
-
-  /** Forget the remembered snip region, so the next snip asks again. */
-  resetSnipRegion(): Promise<AppConfig> {
-    return ipcRenderer.invoke(IPC.snipRegionReset)
   },
 
   /** Whether an accelerator is bindable, for inline feedback in Settings. */

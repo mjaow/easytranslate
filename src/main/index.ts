@@ -5,12 +5,13 @@ import { existsSync } from 'node:fs'
 import { IPC, type AppConfig, type SecretId } from '../shared/types.js'
 import { createPopupWindow, hidePopup, resizePopup, hardenWebContents } from './popup.js'
 import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } from './hotkeys.js'
-import { synthesize, toggleOrExplain, flushCaches, snipScreen } from './session.js'
+import { synthesize, toggleOrExplain, flushCaches, pickAndRead, explainClickedTranscript } from './session.js'
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
 import { probeProvider } from '../providers/llm/probe.js'
 import { registerOverlayIpc } from './overlay.js'
 import { isAvailable, getLoadError } from './win32.js'
+import { startClickWatcher, stopClickWatcher } from './clicks.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -34,7 +35,7 @@ const VERIFY_CAPTURE = process.argv.includes('--verify-capture')
 const PROBE_HOTKEYS = process.argv.includes('--probe-hotkeys')
 const VERIFY_HOTKEYS = process.argv.includes('--verify-hotkeys')
 const VERIFY_SNIP = process.argv.includes('--verify-snip')
-const VERIFY_UIA = process.argv.includes('--verify-uia')
+const VERIFY_CLICK = process.argv.includes('--verify-click')
 
 if (VERIFY_CAPTURE) {
   // Self-test mode: skip the single-instance lock and the tray entirely.
@@ -52,10 +53,10 @@ if (VERIFY_CAPTURE) {
     const { runSnipVerification } = await import('./verify-snip.js')
     await runSnipVerification(preloadPath())
   })
-} else if (VERIFY_UIA) {
+} else if (VERIFY_CLICK) {
   void app.whenReady().then(async () => {
-    const { runUiaVerification } = await import('./verify-uia.js')
-    await runUiaVerification()
+    const { runClickVerification } = await import('./verify-click.js')
+    await runClickVerification()
   })
 } else if (PROBE_HOTKEYS) {
   void app.whenReady().then(async () => {
@@ -82,6 +83,7 @@ function main(): void {
   registerIpc()
   registerOverlayIpc()
   applyHotkeys()
+  applyClickWatcher()
 
   if (!isAvailable()) {
     // Without the Win32 bindings there is no way to read a selection, so say so
@@ -100,9 +102,20 @@ function main(): void {
 
 // ----------------------------------------------------------------- hotkeys
 
+/**
+ * Clicking a transcript line is the other way in, and it obeys the same pause as
+ * the hotkey — "pause" should mean the app does nothing at all.
+ */
+function applyClickWatcher(): void {
+  const wanted = loadConfig().clickTranscripts && !hotkeysPaused && isAvailable()
+  if (wanted) startClickWatcher((click) => void explainClickedTranscript(click))
+  else stopClickWatcher()
+}
+
 function applyHotkeys(announce = true): void {
   if (hotkeysPaused) {
     unregisterHotkeys()
+    stopClickWatcher()
     refreshTrayMenu()
     return
   }
@@ -171,18 +184,19 @@ function refreshTrayMenu(): void {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: `Explain selection or screen  (${config.hotkeys.explain})`,
+        label: `Explain selection, or pick an area  (${config.hotkeys.explain})`,
         click: () => toggleOrExplain(preloadPath())
       },
-      { label: 'Pick a different area…', click: () => void snipScreen(preloadPath(), true) },
+      { label: 'Read an area of the screen…', click: () => void pickAndRead(preloadPath()) },
       { type: 'separator' },
       {
-        label: 'Pause hotkeys',
+        label: 'Pause',
         type: 'checkbox',
         checked: hotkeysPaused,
         click: (item) => {
           hotkeysPaused = item.checked
           applyHotkeys()
+          applyClickWatcher()
         }
       },
       { label: 'Settings…', click: () => openSettings() },
@@ -194,7 +208,7 @@ function refreshTrayMenu(): void {
       { label: 'Quit EasyTranslate', click: () => app.quit() }
     ])
   )
-  tray.setToolTip(hotkeysPaused ? 'EasyTranslate — hotkeys paused' : 'EasyTranslate')
+  tray.setToolTip(hotkeysPaused ? 'EasyTranslate — paused' : 'EasyTranslate')
 }
 
 // ---------------------------------------------------------------- settings
@@ -236,9 +250,9 @@ function registerIpc(): void {
   ipcMain.on(IPC.popupClose, () => hidePopup())
 
   ipcMain.on(IPC.popupAction, (_e, id: unknown) => {
-    if (id === 'pick-region' || id === 'read-screen') {
+    if (id === 'read-screen') {
       hidePopup()
-      void snipScreen(preloadPath(), id === 'pick-region')
+      void pickAndRead(preloadPath())
     }
   })
 
@@ -268,6 +282,7 @@ function registerIpc(): void {
     // whenever settings change rather than read on demand. No dialog here — Settings
     // reports availability inline as you type.
     applyHotkeys(false)
+    applyClickWatcher()
     app.setLoginItemSettings({ openAtLogin: saved.launchAtLogin })
     // Re-read: applyHotkeys may have reassigned a conflicting shortcut and saved
     // again, and Settings must show what is actually bound, not what was requested.
@@ -286,11 +301,6 @@ function registerIpc(): void {
       : { ok: false, why: 'Enter a shortcut.' }
   )
 
-  ipcMain.handle(IPC.snipRegionReset, () => {
-    saveConfig({ snipRegion: null })
-    return loadConfig()
-  })
-
   ipcMain.handle(IPC.llmTest, async () => {
     const config = loadConfig()
     return probeProvider(config, getSecret(config.llm.provider))
@@ -308,5 +318,6 @@ function registerIpc(): void {
 
 app.on('will-quit', () => {
   unregisterHotkeys()
+  stopClickWatcher()
   flushCaches()
 })

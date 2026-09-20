@@ -9,13 +9,13 @@ import { BrowserWindow, screen, ipcMain, globalShortcut } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { IPC } from '../shared/types.js'
-import { clampToDisplay, isUsableRegion, type Rect, type SnipRegion } from '../core/region.js'
+import { clampToDisplay, isUsableRegion, type Rect } from '../core/region.js'
 import { hardenWebContents } from './popup.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
 let windows: BrowserWindow[] = []
-let settle: ((region: SnipRegion | null) => void) | null = null
+let settle: ((region: Rect | null) => void) | null = null
 let escapeHeld = false
 
 function closeAll(): void {
@@ -30,7 +30,7 @@ function closeAll(): void {
 }
 
 /** Resolve the pending pick exactly once, then tear the overlay down. */
-function finish(region: SnipRegion | null): void {
+function finish(region: Rect | null): void {
   const resolve = settle
   settle = null
   closeAll()
@@ -41,11 +41,11 @@ function finish(region: SnipRegion | null): void {
  * Show the picker and resolve with the chosen region in physical screen pixels,
  * or null if the user cancelled.
  */
-export function pickRegion(preloadPath: string): Promise<SnipRegion | null> {
+export function pickRegion(preloadPath: string): Promise<Rect | null> {
   // A second request supersedes the first rather than stacking overlays.
   if (settle) finish(null)
 
-  return new Promise<SnipRegion | null>((resolve) => {
+  return new Promise<Rect | null>((resolve) => {
     settle = resolve
 
     for (const display of screen.getAllDisplays()) {
@@ -70,9 +70,7 @@ export function pickRegion(preloadPath: string): Promise<SnipRegion | null> {
           preload: preloadPath,
           contextIsolation: true,
           nodeIntegration: false,
-          sandbox: true,
-          // Which display this overlay covers, so a pick can be attributed to it.
-          additionalArguments: [`--display-id=${display.id}`]
+          sandbox: true
         }
       })
 
@@ -130,9 +128,7 @@ export function registerOverlayIpc(): void {
     // where a display's physical origin bears no simple relation to its DIP origin.
     const physical = screen.dipToScreenRect(null, clamped)
 
-    finish(
-      isUsableRegion(physical) ? { ...physical, displayId: display.id } : null
-    )
+    finish(isUsableRegion(physical) ? physical : null)
   })
 
   ipcMain.on(IPC.overlayCancel, () => finish(null))
