@@ -34,6 +34,7 @@ const VERIFY_CAPTURE = process.argv.includes('--verify-capture')
 const PROBE_HOTKEYS = process.argv.includes('--probe-hotkeys')
 const VERIFY_HOTKEYS = process.argv.includes('--verify-hotkeys')
 const VERIFY_SNIP = process.argv.includes('--verify-snip')
+const VERIFY_UIA = process.argv.includes('--verify-uia')
 
 if (VERIFY_CAPTURE) {
   // Self-test mode: skip the single-instance lock and the tray entirely.
@@ -50,6 +51,11 @@ if (VERIFY_CAPTURE) {
   void app.whenReady().then(async () => {
     const { runSnipVerification } = await import('./verify-snip.js')
     await runSnipVerification(preloadPath())
+  })
+} else if (VERIFY_UIA) {
+  void app.whenReady().then(async () => {
+    const { runUiaVerification } = await import('./verify-uia.js')
+    await runUiaVerification()
   })
 } else if (PROBE_HOTKEYS) {
   void app.whenReady().then(async () => {

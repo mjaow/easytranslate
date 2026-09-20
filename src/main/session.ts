@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import type { ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
 import { readScreenRegion } from './ocr.js'
+import { readTextAtPoint } from './uia.js'
 import { pickRegion } from './overlay.js'
 import { regionIsStillValid } from '../core/region.js'
 import { assessReadability } from '../core/readable.js'
@@ -53,34 +54,48 @@ export async function explainOrSnip(preloadPath: string): Promise<void> {
 
   const config = loadConfig()
   const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds }))
-  const canFallBack = regionIsStillValid(config.snipRegion, displays)
+  const hasRegion = regionIsStillValid(config.snipRegion, displays)
 
-  // Try hard for a selection when that is the only chance of getting anything, but
-  // fail fast when a screen region is waiting — two 700ms attempts before every
-  // subtitle lookup would make the video case feel sluggish.
-  const result = canFallBack ? await captureSelection(400, 1) : await captureSelection()
-
-  if (result.ok) {
-    await run({ mode: detectMode(result.text), text: result.text }, true)
+  // 1. A selection, if there is one. Fastest and exactly what was chosen.
+  //
+  // Try hard for it only when nothing else can help; with something to fall back on,
+  // two 700ms attempts before every lookup would make this feel sluggish.
+  const selection = hasRegion ? await captureSelection(400, 1) : await captureSelection(400, 1)
+  if (selection.ok) {
+    await run({ mode: detectMode(selection.text), text: selection.text }, true)
     return
   }
 
-  if (canFallBack) {
+  // 2. The text under the pointer, read from the app's own accessibility tree.
+  //
+  // Exact where OCR is a guess, and needs no region: point at a transcript line and
+  // press the key. Most things on screen that are really text can be read this way,
+  // which leaves screen reading for the cases that genuinely are not — video frames
+  // and images.
+  const cursor = screen.getCursorScreenPoint()
+  const physical = screen.dipToScreenPoint(cursor)
+  let underPointer = await readTextAtPoint(physical.x, physical.y)
+
+  // Chromium builds its accessibility tree the first time a client asks, so the very
+  // first read of a window can come back empty even though there is text there. Pay
+  // for one retry only when the alternative is failing outright — with a screen
+  // region set, falling straight through keeps the subtitle loop quick.
+  if (!underPointer && !hasRegion) {
+    underPointer = await readTextAtPoint(physical.x, physical.y)
+  }
+
+  if (underPointer) {
+    await run({ mode: detectMode(underPointer), text: underPointer }, true)
+    return
+  }
+
+  // 3. Read the screen. Only reached when the pixels are all there is.
+  if (hasRegion) {
     await snipScreen(preloadPath)
     return
   }
 
-  // Nothing selected and no region set yet.
-  //
-  // The capture messages are written for "I selected text and it failed", which is
-  // the wrong story here: pressing the key while watching a video is not a mistake
-  // to explain, it is a request that just needs somewhere to look. Keep it to one
-  // line and let the button carry the meaning.
-  // Every failure here leads to the same offer, and the reasons are not reliably
-  // distinguishable anyway: with nothing selected the copy leaves whatever was
-  // already on the clipboard, so a stale image reads as "you selected an image".
-  // One message, and let the button carry the meaning.
-  showError('Nothing selected to explain. Read part of the screen instead?', {
+  showError('Nothing to explain here. Select some text, point at some, or read the screen.', {
     id: 'read-screen',
     label: 'Read part of the screen'
   })
