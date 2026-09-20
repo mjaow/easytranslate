@@ -49,11 +49,22 @@ Sections, in this exact order:
 A natural Chinese translation. Convey the meaning as a Chinese speaker would say it —
 do not translate word by word.
 ## EN
-The same thing restated in simpler English, for a learner who found the original hard.
+The same passage restated in SIMPLER ENGLISH. This section must be in English, never
+Chinese — its whole purpose is to give the reader an easier English version.
 ## NOTABLE
-Any idioms, slang, phrasal verbs or cultural references a learner would likely miss.
-One per line, formatted exactly: term — brief Chinese gloss
-If there are none, write: (none)`
+The words and phrases in this passage an intermediate learner is most likely NOT to
+know. Include uncommon or advanced vocabulary, technical terms, idioms, slang, phrasal
+verbs and cultural references — ordinary hard words count, not only idioms.
+Pick the 2 to 5 hardest. Skip anything an intermediate reader already knows.
+One per line, using the middle dot as separator:
+term · /American IPA/ · Chinese meaning
+
+For example, given "setting a major oil refinery ablaze", this section would be:
+refinery · /rɪˈfaɪnəri/ · 炼油厂
+ablaze · /əˈbleɪz/ · 着火的，熊熊燃烧的
+
+Almost every real passage contains something worth listing. Only write (none) if the
+passage is genuinely all common words.`
 
 export function systemPrompt(mode: ExplainMode): string {
   return mode === 'word' ? WORD_PROMPT : PASSAGE_PROMPT

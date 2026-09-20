@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ExplainState } from '@shared/types'
+import { parseNotable } from '@core/notable'
 
 /**
  * The English half of an example.
@@ -222,13 +223,28 @@ export function Popup(): React.ReactElement | null {
                 </Section>
               )}
               {ex.notable && ex.notable.length > 0 && (
-                <Section label="worth knowing">
-                  <ul className="space-y-0.5">
-                    {ex.notable.map((item, i) => (
-                      <li key={i} style={{ color: 'var(--text-muted)' }}>
-                        {item}
-                      </li>
-                    ))}
+                <Section label="words worth knowing">
+                  <ul className="space-y-1">
+                    {ex.notable.map((item, i) => {
+                      const t = parseNotable(item)
+                      if (!t) return null
+                      return (
+                        <li key={i} className="flex items-baseline gap-1.5">
+                          <span className="font-medium" style={{ color: 'var(--text)' }}>
+                            {t.term}
+                          </span>
+                          {t.ipa && (
+                            <span className="font-mono text-[11px]" style={{ color: 'var(--text-subtle)' }}>
+                              {t.ipa}
+                            </span>
+                          )}
+                          <SpeakButton text={t.term} compact onStatus={setStatus} />
+                          {t.gloss && (
+                            <span style={{ color: 'var(--text-muted)' }}>{t.gloss}</span>
+                          )}
+                        </li>
+                      )
+                    })}
                   </ul>
                 </Section>
               )}

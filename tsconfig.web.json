@@ -24,6 +24,7 @@
     "src/renderer/**/*",
     "src/shared/**/*",
     "src/core/tokenize.ts",
+    "src/core/notable.ts",
     "src/preload/index.ts"
   ]
 }
