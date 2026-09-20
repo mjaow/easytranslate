@@ -134,11 +134,12 @@ Nothing works until step 1 is done: `Ctrl+Alt+E` will tell you no key is set.
 
 ### Using it
 
-Select text in **any** app, press **`Ctrl+Alt+E`**. Watching YouTube with the
-transcript open? **Double-click a line** — no shortcut. The text comes from the page
-itself, so it is exact; the video, and everything else on the page, stays a plain
-click. (Selecting transcript text and pressing the shortcut works too, timestamps
-and all.)
+Select text in **any** app, press **`Ctrl+Alt+E`**. Watching YouTube? **Double-click
+the video while captions are on**, or a line in the transcript panel — no shortcut.
+The words come from the page itself, so they are exact. Everything else on the page
+stays a plain click. Note that YouTube treats a double-click on the video as its
+fullscreen toggle; double-clicking on the caption text itself avoids that.
+(Selecting transcript text and pressing the shortcut works too, timestamps and all.)
 
 - Three words or fewer → treated as a term: IPA, part of speech, what it means *here*
 - Longer → treated as a passage: natural Chinese, simpler English, idioms worth knowing
@@ -147,6 +148,7 @@ and all.)
 | Hotkey | Action |
 |---|---|
 | `Ctrl+Alt+E` | Explain the selection (press again to dismiss) |
+| Double-click the YouTube video with captions on | Explain the caption on screen |
 | Double-click a YouTube transcript line | Explain that line |
 | `Esc` | Close the popup |
 
@@ -302,7 +304,7 @@ page — not as fact.
   nothing for Ctrl+C to copy.
 - **Double-click-to-explain is YouTube-specific.** A double-click is only examined
   when a window titled "YouTube" is in front, and only a transcript line — a button
-  named with its spoken time — produces a popup. If a line ever fails to register,
+  named with its spoken time — or the player with a caption showing produces a popup. If a line ever fails to register,
   the data folder's `last-click.log` holds what the accessibility tree reported.
 - **Edge neural TTS is blocked on some networks.** Verified on this machine: the voices
   list endpoint returns 200 over plain HTTPS, but the synthesis WebSocket returns **403**

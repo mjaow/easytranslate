@@ -2,8 +2,9 @@
  * Self-test for click-to-explain: `npm run verify:click`.
  *
  * Puts a page on screen built the way YouTube builds its transcript panel — a list
- * of buttons named "<spoken time> <text>" — then sends real mouse clicks through the
- * OS and checks that each line, and only a line, comes back. This exercises the
+ * of buttons named "<spoken time> <text>" — and its player, with a caption window,
+ * then sends real mouse clicks through the OS and checks that each line, and only a
+ * line, comes back. This exercises the
  * click watcher, the accessibility read and the transcript rules together, so a
  * broken script or a missed click fails here rather than silently in daily use.
  *
@@ -179,11 +180,17 @@ export async function runClickVerification(): Promise<void> {
     const { text: other } = await readTranscriptAtPoint(plain.x, plain.y)
     check(other === null, 'ordinary text on the page is left alone', other ? `got "${other}"` : '')
 
-    // The video itself is YouTube's: a double-click there toggles fullscreen, and
-    // must not also raise a popup — even with a caption showing.
+    // A double-click on the video, while a caption is showing, reads the caption —
+    // even though the point is nowhere near the caption's own text. This is the
+    // shape of YouTube's real player: a "caption-window" group holding the words as
+    // separate text nodes, confirmed against a live page.
     const video = screen.dipToScreenPoint({ x: bounds.x + 200, y: bounds.y + PLAYER_TOP + 30 })
-    const { text: onVideo } = await readTranscriptAtPoint(video.x, video.y)
-    check(onVideo === null, 'the video itself is left to YouTube', onVideo ? `got "${onVideo}"` : '')
+    const { text: caption } = await readTranscriptAtPoint(video.x, video.y)
+    check(
+      caption === CAPTION,
+      'a click on the video reads the caption on screen',
+      caption ? `got "${caption}"` : 'got nothing'
+    )
 
     // A drag is a selection, not a click.
     const seen = clicks.length

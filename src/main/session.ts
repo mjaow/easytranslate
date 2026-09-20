@@ -102,8 +102,8 @@ async function logMiss(entry: string): Promise<void> {
  * The user double-clicked somewhere. If it was a transcript line, explain it.
  *
  * Nothing is read unless a video page is in front, and nothing is shown unless the
- * double-click was on a line of transcript — the video itself, a related video, the
- * comments all stay plain clicks. Misses on a video page are written to
+ * double-click was on a line of transcript, or on the video while a caption is
+ * showing — a related video, the comments, the controls all stay plain clicks. Misses on a video page are written to
  * last-click.log in the data folder, so a line that fails to register can be
  * diagnosed rather than guessed at.
  */

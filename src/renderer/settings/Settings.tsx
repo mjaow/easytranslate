@@ -445,7 +445,7 @@ export function Settings(): React.ReactElement {
             checked={config.doubleClickTranscripts}
             onChange={(e) => void patch({ doubleClickTranscripts: e.target.checked })}
           />
-          Double-clicking a line in a YouTube transcript explains it
+          Double-clicking a YouTube caption or transcript line explains it
         </label>
         <p className="text-[11px] leading-snug" style={{ color: 'var(--text-subtle)' }}>
           Ctrl+C, Ctrl+V and Ctrl+X can never be bound — EasyTranslate will not be the reason a
