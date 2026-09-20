@@ -2,7 +2,7 @@
  * Orchestrates one lookup: capture → explain → stream into the popup.
  */
 import { app, BrowserWindow, screen } from 'electron'
-import { writeFile } from 'node:fs/promises'
+import { appendFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
@@ -127,13 +127,26 @@ function isOverOwnWindow(dip: { x: number; y: number }): boolean {
   })
 }
 
+/** Keep recent misses, and start over once the file gets big rather than grow forever. */
+async function logMiss(entry: string): Promise<void> {
+  const file = join(app.getPath('userData'), 'last-click.log')
+  try {
+    const size = await stat(file).then((s) => s.size, () => 0)
+    if (size > 200_000) await writeFile(file, entry)
+    else await appendFile(file, entry)
+  } catch {
+    // Diagnostics must never get in the way of the click itself.
+  }
+}
+
 /**
  * The user clicked somewhere. If it was a transcript line, explain it.
  *
  * Nothing is read unless a video page is in front, and nothing is shown unless the
- * click was on a line of transcript — clicking play, or a related video, stays a
- * click. The last miss on a video page is written to last-click.log in the data
- * folder, so a line that fails to register can be diagnosed rather than guessed at.
+ * click was on a line of transcript, or on the video while a caption is showing —
+ * clicking a related video, or the comments, stays a click. Misses on a video page
+ * are written to last-click.log in the data folder, so a line that fails to register
+ * can be diagnosed rather than guessed at.
  */
 export async function explainClickedTranscript(click: { x: number; y: number }): Promise<void> {
   if (clickInFlight || reading || isPicking()) return
@@ -149,10 +162,9 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
       const report = read
         ? [`button: ${read.button ?? '-'}`, `line: ${read.line ?? '-'}`, read.chain].join('\n')
         : 'the accessibility read returned nothing'
-      void writeFile(
-        join(app.getPath('userData'), 'last-click.log'),
-        [`${new Date().toISOString()}  ${title}`, `at ${click.x},${click.y}`, report, ''].join('\n')
-      ).catch(() => {})
+      void logMiss(
+        [`${new Date().toISOString()}  ${title}`, `at ${click.x},${click.y}`, report, '', ''].join('\n')
+      )
       return
     }
     cancelInFlight()

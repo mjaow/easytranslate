@@ -24,6 +24,10 @@ const LINES = [
 
 const ROW_TOP = 56
 const ROW_HEIGHT = 48
+/** The video area sits below the rows and the plain paragraph. */
+const PLAYER_TOP = ROW_TOP + 3 * ROW_HEIGHT + 60
+const PLAYER_HEIGHT = 140
+const CAPTION = 'so I quickly ran around and tried all the other doors'
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
@@ -75,7 +79,7 @@ export async function runClickVerification(): Promise<void> {
   app.on('window-all-closed', () => {})
 
   const display = screen.getPrimaryDisplay()
-  const bounds = { x: display.bounds.x + 100, y: display.bounds.y + 100, width: 900, height: 320 }
+  const bounds = { x: display.bounds.x + 100, y: display.bounds.y + 100, width: 900, height: 480 }
 
   const win = new BrowserWindow({
     ...bounds,
@@ -103,7 +107,19 @@ export async function runClickVerification(): Promise<void> {
          <body style="margin:0;background:#fff;font:18px 'Segoe UI'">
            <h2 style="margin:16px 20px;height:24px;font-size:16px">Transcript</h2>
            ${rows.join('')}
-           <p style="margin:16px 20px">Related: How to stay calm when stressed</p>
+           <p style="margin:16px 20px;height:28px">Related: How to stay calm when stressed</p>
+           <div id="movie_player" class="html5-video-player ytp-fullscreen" tabindex="-1" aria-label="YouTube Video Player"
+                style="position:relative;margin:0 20px;height:${PLAYER_HEIGHT}px;background:#000">
+             <video class="video-stream html5-main-video" style="position:absolute;inset:0;width:100%;height:100%"></video>
+             <div class="ytp-caption-window-container">
+               <div id="caption-window-1" class="caption-window ytp-caption-window-bottom" tabindex="0" draggable="true" lang="en"
+                    style="position:absolute;left:0;right:0;bottom:16px;text-align:center">
+                 <span class="captions-text"><span class="caption-visual-line">
+                   <span class="ytp-caption-segment" style="background:#000;color:#fff;padding:2px 6px">${CAPTION}</span>
+                 </span></span>
+               </div>
+             </div>
+           </div>
          </body>`
       )
   )
@@ -152,6 +168,16 @@ export async function runClickVerification(): Promise<void> {
     })
     const { text: other } = await readTranscriptAtPoint(plain.x, plain.y)
     check(other === null, 'ordinary text on the page is left alone', other ? `got "${other}"` : '')
+
+    // A click on the video itself, while a caption is showing, reads the caption —
+    // even though the point is nowhere near the caption's own text.
+    const video = screen.dipToScreenPoint({ x: bounds.x + 200, y: bounds.y + PLAYER_TOP + 30 })
+    const { text: caption, read: videoRead } = await readTranscriptAtPoint(video.x, video.y)
+    check(
+      caption === CAPTION,
+      'a click on the video reads the caption on screen',
+      caption ? `got "${caption}"` : `got nothing; tree said: ${JSON.stringify(videoRead)}`
+    )
 
     // A drag is a selection, not a click.
     const seen = clicks.length

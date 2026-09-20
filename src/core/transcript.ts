@@ -8,6 +8,8 @@
  * YouTube's transcript panel is a list of buttons — one per line — whose accessible
  * name is the spoken time followed by the text: "1 minute, 5 seconds  and so on".
  * The time-and-text button is the signature; nothing else on a page looks like it.
+ * A click on the video itself, with captions showing, counts too: the caption on
+ * screen is the line being spoken.
  */
 
 /** What the accessibility read found under the point. */
@@ -16,6 +18,8 @@ export interface PointRead {
   button: string | null
   /** The line of text under the point, if the app exposes text there. */
   line: string | null
+  /** The caption currently drawn on a video player the point is inside, if any. */
+  caption: string | null
   /** Ancestor chain, one element per line, for diagnostics and weaker matching. */
   chain: string
 }
@@ -48,6 +52,10 @@ export function transcriptLineAt(read: PointRead): string | null {
   const spoken = stripPrefix(read.button, SPOKEN_TIME)
   if (spoken) return spoken
 
+  // A click on the video while captions are showing: the caption is the transcript.
+  const caption = read.caption?.trim() ?? ''
+  if (caption.length >= 2) return caption
+
   // A line or button that begins with a clock timestamp — other players' transcripts.
   const clocked = stripPrefix(read.line, CLOCK_TIME) ?? stripPrefix(read.button, CLOCK_TIME)
   if (clocked) return clocked
@@ -63,11 +71,12 @@ export function transcriptLineAt(read: PointRead): string | null {
 
 /** Parse the PowerShell script's output into a PointRead. */
 export function parsePointRead(stdout: string): PointRead {
-  const read: PointRead = { button: null, line: null, chain: '' }
+  const read: PointRead = { button: null, line: null, caption: null, chain: '' }
   const chain: string[] = []
   for (const raw of stdout.split(/\r?\n/)) {
     if (raw.startsWith('BUTTON:')) read.button = raw.slice(7)
     else if (raw.startsWith('LINE:')) read.line = raw.slice(5)
+    else if (raw.startsWith('CAPTION:')) read.caption = raw.slice(8)
     else if (raw.startsWith('CHAIN:')) chain.push(raw.slice(6))
   }
   read.chain = chain.join('\n')

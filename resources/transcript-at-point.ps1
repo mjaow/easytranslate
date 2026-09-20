@@ -5,6 +5,7 @@
 # Prints, one per line:
 #   BUTTON:<name>   accessible name of the nearest button up the tree, if any
 #   LINE:<text>     the line of text under the point, if the app exposes text there
+#   CAPTION:<text>  the caption drawn on a video player the point is inside, if any
 #   CHAIN:<...>     one line per ancestor, for diagnostics
 #
 # Deciding whether that is a transcript line happens in the caller
@@ -27,6 +28,21 @@ function Out-Line([string]$prefix, [string]$text) {
   if ($flat.Length -gt 0) { [Console]::Out.WriteLine($prefix + $flat) }
 }
 
+# An element's own name, or the names of the text nodes inside it. Chromium gives a
+# plain container no name of its own; its text lives in the child text nodes.
+function Get-TextUnder($element) {
+  $own = $element.Current.Name
+  if ($own -and $own.Trim().Length -gt 0) { return $own }
+  $textType = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::Text)
+  $parts = @()
+  foreach ($node in $element.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textType)) {
+    if ($node.Current.Name) { $parts += $node.Current.Name }
+  }
+  return ($parts -join ' ')
+}
+
 try {
   $element = [System.Windows.Automation.AutomationElement]::FromPoint($point)
   if ($null -eq $element) { exit 0 }
@@ -36,6 +52,7 @@ try {
   $current = $element
   $textPattern = $null
   $button = $null
+  $player = $null
   $depth = 0
 
   while ($null -ne $current -and $depth -lt 12) {
@@ -44,6 +61,9 @@ try {
 
     # The nearest button: a transcript line is a button named "<time> <text>".
     if ($null -eq $button -and $c.ControlType -eq $buttonType -and $c.Name) { $button = $c.Name }
+
+    # YouTube's player. The HTML class attribute comes through as the UIA class name.
+    if ($null -eq $player -and $c.ClassName -and $c.ClassName.Contains('html5-video-player')) { $player = $current }
 
     # In Chromium the leaf under the pointer is usually a plain container; TextPattern
     # lives on the document above it, so keep walking until something exposes it.
@@ -56,6 +76,31 @@ try {
   }
 
   if ($null -ne $button) { Out-Line 'BUTTON:' $button }
+
+  # Inside the player: the caption currently on screen. YouTube draws it in a
+  # focusable "caption-window" element, and focusable elements are always in the
+  # tree, whereas the plain spans inside it may be pruned — so look for the window
+  # and gather whatever text sits under it.
+  if ($null -ne $player) {
+    $everything = [System.Windows.Automation.Condition]::TrueCondition
+    $parts = @()
+    $shown = 0
+    foreach ($node in $player.FindAll([System.Windows.Automation.TreeScope]::Descendants, $everything)) {
+      $n = $node.Current
+      $isCaption = ($n.ClassName -and $n.ClassName.Contains('caption-window')) -or
+                   ($n.AutomationId -and $n.AutomationId.StartsWith('caption-window'))
+      if ($isCaption) {
+        $text = Get-TextUnder $node
+        if ($text) { $parts += $text }
+      }
+      # A sketch of the player's subtree, for the miss log: text and anything caption-like.
+      if ($shown -lt 40 -and ($isCaption -or $n.ControlType -eq [System.Windows.Automation.ControlType]::Text -or ($n.ClassName -and $n.ClassName.Contains('caption')))) {
+        Out-Line 'CHAIN:' ("player> {0} id='{1}' class='{2}' name='{3}'" -f $n.ControlType.ProgrammaticName, $n.AutomationId, $n.ClassName, $n.Name)
+        $shown++
+      }
+    }
+    if ($parts.Count -gt 0) { Out-Line 'CAPTION:' ($parts -join ' ') }
+  }
 
   if ($null -ne $textPattern) {
     $range = $textPattern.RangeFromPoint($point)
