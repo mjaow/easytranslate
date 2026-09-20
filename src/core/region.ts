@@ -40,22 +40,16 @@ export function isUsableRegion(rect: Rect): boolean {
   return rect.width >= MIN_REGION && rect.height >= MIN_REGION
 }
 
-/**
- * Convert a rectangle from device-independent to physical pixels.
+/*
+ * There is deliberately no DIP-to-physical conversion here.
  *
- * Coordinates are relative to the whole virtual desktop, so the display's own origin
- * has to be taken out before scaling and put back afterwards — scaling the absolute
- * coordinate instead would displace regions on any non-primary monitor.
+ * An earlier version computed it as `origin + (x - origin) * scaleFactor`, which is
+ * only correct for a primary display at (0,0). With several monitors — especially one
+ * at negative coordinates, which Windows uses for a display to the left — a display's
+ * physical origin is not its DIP origin at all, and regions landed somewhere else
+ * entirely. Electron's screen.dipToScreenRect() knows the whole desktop layout and is
+ * used instead, in src/main/overlay.ts.
  */
-export function dipToPhysical(rect: Rect, display: { bounds: Rect; scaleFactor: number }): Rect {
-  const { bounds, scaleFactor: scale } = display
-  return {
-    x: Math.round(bounds.x + (rect.x - bounds.x) * scale),
-    y: Math.round(bounds.y + (rect.y - bounds.y) * scale),
-    width: Math.round(rect.width * scale),
-    height: Math.round(rect.height * scale)
-  }
-}
 
 /** Clamp a rectangle so it cannot extend past the display it belongs to. */
 export function clampToDisplay(rect: Rect, bounds: Rect): Rect {

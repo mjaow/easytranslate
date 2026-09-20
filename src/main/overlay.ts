@@ -9,7 +9,7 @@ import { BrowserWindow, screen, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { IPC } from '../shared/types.js'
-import { dipToPhysical, clampToDisplay, isUsableRegion, type Rect, type SnipRegion } from '../core/region.js'
+import { clampToDisplay, isUsableRegion, type Rect, type SnipRegion } from '../core/region.js'
 import { hardenWebContents } from './popup.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -115,7 +115,11 @@ export function registerOverlayIpc(): void {
     }
 
     const clamped = clampToDisplay(inDesktopDip, display.bounds)
-    const physical = dipToPhysical(clamped, display)
+
+    // Electron's own conversion, not arithmetic of ours: it knows the whole desktop
+    // layout, including displays at negative coordinates and mixed scale factors,
+    // where a display's physical origin bears no simple relation to its DIP origin.
+    const physical = screen.dipToScreenRect(null, clamped)
 
     finish(
       isUsableRegion(physical) ? { ...physical, displayId: display.id } : null

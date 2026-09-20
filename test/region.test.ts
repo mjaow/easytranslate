@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   rectFromDrag,
   isUsableRegion,
-  dipToPhysical,
   clampToDisplay,
   regionIsStillValid
 } from '../src/core/region.js'
@@ -29,41 +28,6 @@ describe('isUsableRegion', () => {
     expect(isUsableRegion({ x: 0, y: 0, width: 2, height: 200 })).toBe(false)
     expect(isUsableRegion({ x: 0, y: 0, width: 0, height: 0 })).toBe(false)
     expect(isUsableRegion({ x: 0, y: 0, width: 400, height: 60 })).toBe(true)
-  })
-})
-
-describe('dipToPhysical', () => {
-  it('leaves an unscaled display untouched', () => {
-    const r = { x: 100, y: 200, width: 400, height: 60 }
-    expect(dipToPhysical(r, primary)).toEqual(r)
-  })
-
-  it('scales size and offset within the display', () => {
-    const r = { x: 100, y: 200, width: 400, height: 60 }
-    expect(dipToPhysical(r, { bounds: primary.bounds, scaleFactor: 2 })).toEqual({
-      x: 200,
-      y: 400,
-      width: 800,
-      height: 120
-    })
-  })
-
-  it('takes the display origin out before scaling', () => {
-    // The bug this pins: scaling the absolute x would give 1920+... and land the
-    // region far off the right-hand monitor. Only the offset *within* it scales.
-    const r = { x: 1920 + 100, y: 50, width: 200, height: 40 }
-    expect(dipToPhysical(r, secondary)).toEqual({
-      x: 1920 + 150,
-      y: 75,
-      width: 300,
-      height: 60
-    })
-  })
-
-  it('keeps a region at the display origin at the origin', () => {
-    const r = { x: 1920, y: 0, width: 100, height: 100 }
-    expect(dipToPhysical(r, secondary).x).toBe(1920)
-    expect(dipToPhysical(r, secondary).y).toBe(0)
   })
 })
 

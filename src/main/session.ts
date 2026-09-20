@@ -75,12 +75,14 @@ export async function explainOrSnip(preloadPath: string): Promise<void> {
   // the wrong story here: pressing the key while watching a video is not a mistake
   // to explain, it is a request that just needs somewhere to look. Keep it to one
   // line and let the button carry the meaning.
-  showError(
-    result.reason === 'not-text'
-      ? 'That looks like an image. Reading part of the screen works for that.'
-      : 'Nothing is selected — or this page blocks copying. Reading part of the screen works either way.',
-    { id: 'read-screen', label: 'Read part of the screen' }
-  )
+  // Every failure here leads to the same offer, and the reasons are not reliably
+  // distinguishable anyway: with nothing selected the copy leaves whatever was
+  // already on the clipboard, so a stale image reads as "you selected an image".
+  // One message, and let the button carry the meaning.
+  showError('Nothing selected to explain. Read part of the screen instead?', {
+    id: 'read-screen',
+    label: 'Read part of the screen'
+  })
 }
 
 function showError(message: string, action?: ExplainState['action']): void {

@@ -13,7 +13,7 @@
  */
 import { app, BrowserWindow, screen } from 'electron'
 import { readScreenRegion } from './ocr.js'
-import { dipToPhysical } from '../core/region.js'
+
 
 const SENTENCE = 'The president calls for federal involvement as opposition grows.'
 
@@ -77,7 +77,7 @@ export async function runSnipVerification(): Promise<void> {
   // Give the compositor time to actually paint before screenshotting it.
   await sleep(900)
 
-  const physical = dipToPhysical(bounds, display)
+  const physical = screen.dipToScreenRect(null, bounds)
   console.log(`  region: ${physical.width}x${physical.height} at ${physical.x},${physical.y}`)
   console.log(`  display scale factor: ${display.scaleFactor}\n`)
 
