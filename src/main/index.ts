@@ -103,28 +103,14 @@ function applyHotkeys(announce = true): void {
 
   const config = loadConfig()
   const result = registerHotkeys(
-    bindingsFor(config, {
-      explain: toggleOrExplain,
-      snip: () => void snipScreen(preloadPath()),
-      snipRegion: () => void snipScreen(preloadPath(), true)
-    })
+    bindingsFor(config, { explain: () => toggleOrExplain(preloadPath()) })
   )
 
   // A reassignment is only useful if it sticks, so persist what actually bound —
   // otherwise the same conflict would be rediscovered on every launch.
-  const { explain, snip, snipRegion } = result.resolved
-  if (
-    (explain && explain !== config.hotkeys.explain) ||
-    (snip && snip !== config.hotkeys.snip) ||
-    (snipRegion && snipRegion !== config.hotkeys.snipRegion)
-  ) {
-    saveConfig({
-      hotkeys: {
-        explain: explain || config.hotkeys.explain,
-        snip: snip || config.hotkeys.snip,
-        snipRegion: snipRegion || config.hotkeys.snipRegion
-      }
-    })
+  const { explain } = result.resolved
+  if (explain && explain !== config.hotkeys.explain) {
+    saveConfig({ hotkeys: { explain } })
   }
 
   refreshTrayMenu()
@@ -178,15 +164,11 @@ function refreshTrayMenu(): void {
 
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `Explain selection  (${config.hotkeys.explain})`, click: () => toggleOrExplain() },
       {
-        label: `Read screen region  (${config.hotkeys.snip})`,
-        click: () => void snipScreen(preloadPath())
+        label: `Explain selection or screen  (${config.hotkeys.explain})`,
+        click: () => toggleOrExplain(preloadPath())
       },
-      {
-        label: 'Pick screen region…',
-        click: () => void snipScreen(preloadPath(), true)
-      },
+      { label: 'Pick a different area…', click: () => void snipScreen(preloadPath(), true) },
       { type: 'separator' },
       {
         label: 'Pause hotkeys',
@@ -246,6 +228,13 @@ function openSettings(): void {
 
 function registerIpc(): void {
   ipcMain.on(IPC.popupClose, () => hidePopup())
+
+  ipcMain.on(IPC.popupAction, (_e, id: unknown) => {
+    if (id === 'pick-region' || id === 'read-screen') {
+      hidePopup()
+      void snipScreen(preloadPath(), id === 'pick-region')
+    }
+  })
 
   ipcMain.on(IPC.popupResize, (_e, height: unknown) => {
     if (typeof height === 'number' && Number.isFinite(height)) resizePopup(height)

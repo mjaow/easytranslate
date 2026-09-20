@@ -108,7 +108,10 @@ async function waitForClipboardWrite(before: number, timeoutMs: number): Promise
 /**
  * Grab the current selection. Always leaves the clipboard exactly as it found it.
  */
-export async function captureSelection(timeoutMs = COPY_TIMEOUT_MS): Promise<CaptureResult> {
+export async function captureSelection(
+  timeoutMs = COPY_TIMEOUT_MS,
+  attempts = COPY_ATTEMPTS
+): Promise<CaptureResult> {
   const started = Date.now()
 
   if (!isAvailable()) {
@@ -119,7 +122,7 @@ export async function captureSelection(timeoutMs = COPY_TIMEOUT_MS): Promise<Cap
   const seqBefore = clipboardSequence()
 
   let wrote = false
-  for (let attempt = 0; attempt < COPY_ATTEMPTS && !wrote; attempt++) {
+  for (let attempt = 0; attempt < attempts && !wrote; attempt++) {
     sendCopy()
     wrote = await waitForClipboardWrite(seqBefore, timeoutMs)
   }

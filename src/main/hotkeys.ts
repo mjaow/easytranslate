@@ -8,7 +8,7 @@
 import { globalShortcut } from 'electron'
 import type { AppConfig } from '../shared/types.js'
 
-export type HotkeyId = 'explain' | 'snip' | 'snipRegion'
+export type HotkeyId = 'explain'
 
 /**
  * Accelerators we refuse to bind, whatever the config says.
@@ -44,20 +44,6 @@ export const FALLBACKS: Record<HotkeyId, string[]> = {
     'Alt+E',
     'F8',
     'CommandOrControl+F8'
-  ],
-  snip: [
-    'CommandOrControl+Alt+D',
-    'CommandOrControl+Alt+G',
-    'CommandOrControl+Shift+D',
-    'Alt+D',
-    'F10',
-    'CommandOrControl+F10'
-  ],
-  snipRegion: [
-    'CommandOrControl+Alt+Shift+D',
-    'CommandOrControl+Alt+Shift+G',
-    'CommandOrControl+Shift+F10',
-    'Alt+Shift+D'
   ]
 }
 
@@ -108,7 +94,7 @@ function tryRegister(accelerator: string, handler: () => void): string | null {
 export function registerHotkeys(bindings: HotkeyBinding[]): RegistrationResult {
   unregisterHotkeys()
   const result: RegistrationResult = {
-    resolved: { explain: '', snip: '', snipRegion: '' },
+    resolved: { explain: '' },
     reassigned: [],
     failed: []
   }
@@ -158,7 +144,7 @@ export function checkAvailability(accelerator: string): { ok: boolean; why?: str
 
 export function bindingsFor(
   config: AppConfig,
-  handlers: { explain: () => void; snip: () => void; snipRegion: () => void }
+  handlers: { explain: () => void }
 ): HotkeyBinding[] {
   return [
     {
@@ -166,18 +152,6 @@ export function bindingsFor(
       accelerator: config.hotkeys.explain,
       handler: handlers.explain,
       description: 'Explain selection'
-    },
-    {
-      id: 'snip',
-      accelerator: config.hotkeys.snip,
-      handler: handlers.snip,
-      description: 'Read screen region'
-    },
-    {
-      id: 'snipRegion',
-      accelerator: config.hotkeys.snipRegion,
-      handler: handlers.snipRegion,
-      description: 'Pick screen region'
     }
   ]
 }

@@ -60,6 +60,11 @@ export interface ExplainState {
   explanation: Explanation
   status: 'streaming' | 'done' | 'error'
   error?: string
+  /**
+   * An offer the popup can act on, shown as a button. Used when a failure has one
+   * obvious remedy — so the fix is a click rather than a second shortcut to learn.
+   */
+  action?: { id: 'pick-region' | 'read-screen'; label: string }
 }
 
 // ---------------------------------------------------------------- config
@@ -76,12 +81,12 @@ export type SecretId = LlmProviderId | 'tts'
 
 export interface AppConfig {
   hotkeys: {
-    /** Capture the selection and explain it. The popup handles read-aloud. */
+    /**
+     * The only shortcut. Explains the selection if there is one, and otherwise reads
+     * the remembered screen region — so watching a video and reading a page use the
+     * same key.
+     */
     explain: string
-    /** Read the remembered screen region, or pick one on first use. */
-    snip: string
-    /** Draw a new screen region. */
-    snipRegion: string
   }
   /**
    * The remembered snip region, in physical screen pixels. Null until one is drawn.
@@ -144,5 +149,7 @@ export const IPC = {
   /** overlay → main: the user cancelled */
   overlayCancel: 'overlay:cancel',
   /** settings → main: forget the remembered snip region */
-  snipRegionReset: 'config:snip-region-reset'
+  snipRegionReset: 'config:snip-region-reset',
+  /** popup → main: the user accepted the offered action */
+  popupAction: 'popup:action'
 } as const

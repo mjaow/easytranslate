@@ -439,26 +439,16 @@ export function Settings(): React.ReactElement {
 
       <Card title="Hotkeys">
         <HotkeyRecorder
-          label="Explain selection"
+          label="Explain selection or screen"
           value={config.hotkeys.explain}
           onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, explain: v } })}
-        />
-        <HotkeyRecorder
-          label="Read screen region"
-          value={config.hotkeys.snip}
-          onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, snip: v } })}
-        />
-        <HotkeyRecorder
-          label="Pick a new screen region"
-          value={config.hotkeys.snipRegion}
-          onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, snipRegion: v } })}
         />
 
         <Field
           label="Remembered region"
           hint={
             config.snipRegion
-              ? 'Reading this area takes one keypress. Reset it to pick a new one, or use the pick hotkey above.'
+              ? 'Reading this area takes one keypress. Reset it, or use the tray menu, to choose somewhere else.'
               : 'None yet — the first screen read will ask you to drag a box, then remember it.'
           }
         >

@@ -51,28 +51,46 @@ function emit(state: ExplainState, isNew: boolean): void {
   else updatePopup(state)
 }
 
-/** Hotkey handler: read the selection and explain it. */
-export async function explainSelection(): Promise<void> {
+/**
+ * The one hotkey: explain the selection, or read the screen when there isn't one.
+ *
+ * Selecting text and watching a video are the same gesture from the user's side —
+ * "explain this" — so they get the same key. A selection always wins; the screen
+ * region is what happens when there is nothing selected, which is exactly the case
+ * while a video is playing.
+ */
+export async function explainOrSnip(preloadPath: string): Promise<void> {
   cancelInFlight()
 
-  const result = await captureSelection()
-  if (!result.ok) {
-    showPopup({
-      mode: 'passage',
-      text: '',
-      explanation: {},
-      status: 'error',
-      error: CAPTURE_MESSAGES[result.reason]
-    })
+  const config = loadConfig()
+  const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds }))
+  const canFallBack = regionIsStillValid(config.snipRegion, displays)
+
+  // Try hard for a selection when that is the only chance of getting anything, but
+  // fail fast when a screen region is waiting — two 700ms attempts before every
+  // subtitle lookup would make the video case feel sluggish.
+  const result = canFallBack ? await captureSelection(400, 1) : await captureSelection()
+
+  if (result.ok) {
+    await run({ mode: detectMode(result.text), text: result.text }, true)
     return
   }
 
-  const mode = detectMode(result.text)
-  await run({ mode, text: result.text }, true)
+  if (canFallBack) {
+    await snipScreen(preloadPath)
+    return
+  }
+
+  // Nothing selected and no region set yet. Offer the screen reader rather than
+  // leaving a dead end — this is how the feature gets discovered at all.
+  showError(CAPTURE_MESSAGES[result.reason], {
+    id: 'read-screen',
+    label: 'Read part of the screen instead'
+  })
 }
 
-function showError(message: string): void {
-  showPopup({ mode: 'passage', text: '', explanation: {}, status: 'error', error: message })
+function showError(message: string, action?: ExplainState['action']): void {
+  showPopup({ mode: 'passage', text: '', explanation: {}, status: 'error', error: message, action })
 }
 
 /**
@@ -117,11 +135,14 @@ export async function snipScreen(preloadPath: string, forcePick = false): Promis
       // Name the area that was read. A remembered region cannot know the video
       // moved or went full-screen, so the useful thing is to say where it looked
       // and how to point it somewhere else.
+      // A remembered region cannot know the video went full-screen or the window
+      // moved. Rather than make the user learn a second shortcut for that, say where
+      // it looked and offer the fix as a button.
       const where = `${region.width}×${region.height} at ${region.x}, ${region.y}`
-      showError(
-        `${result.reason} Looked at a ${where} area — if that is the wrong place, ` +
-          `press ${loadConfig().hotkeys.snipRegion} to pick a new one.`
-      )
+      showError(`${result.reason} Looked at a ${where} area.`, {
+        id: 'pick-region',
+        label: 'Pick a different area'
+      })
       return
     }
 
@@ -232,13 +253,13 @@ export async function synthesize(
 }
 
 /** Pressing the hotkey while the popup is open dismisses it. */
-export function toggleOrExplain(): void {
+export function toggleOrExplain(preloadPath: string): void {
   if (isPopupVisible()) {
     cancelInFlight()
     hidePopup()
     return
   }
-  void explainSelection()
+  void explainOrSnip(preloadPath)
 }
 
 export function flushCaches(): void {

@@ -22,6 +22,11 @@ const api = {
     return () => ipcRenderer.removeListener(IPC.popupStop, listener)
   },
 
+  /** Accept the action the popup offered (e.g. re-pick the snip area). */
+  runAction(id: string): void {
+    ipcRenderer.send(IPC.popupAction, id)
+  },
+
   close(): void {
     ipcRenderer.send(IPC.popupClose)
   },

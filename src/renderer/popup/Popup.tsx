@@ -199,8 +199,19 @@ export function Popup(): React.ReactElement | null {
         {/* ------------------------------------------------------------ body */}
         <div className="space-y-2.5 px-3 py-2.5">
           {state.status === 'error' ? (
-            <div className="text-[13px] leading-snug" style={{ color: 'var(--danger)' }}>
-              {state.error}
+            <div className="space-y-2">
+              <div className="text-[13px] leading-snug" style={{ color: 'var(--danger)' }}>
+                {state.error}
+              </div>
+              {state.action && (
+                <button
+                  onClick={() => window.easytranslate.runAction(state.action!.id)}
+                  className="rounded-md border px-2.5 py-1 text-[12px] font-medium"
+                  style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
+                >
+                  {state.action.label}
+                </button>
+              )}
             </div>
           ) : (
             <>
