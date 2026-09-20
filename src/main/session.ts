@@ -38,6 +38,8 @@ function caches(): { explanations: JsonLruCache<Explanation>; audio: AudioCache 
 }
 
 let inFlight: AbortController | null = null
+/** A snip takes a second or two; a second press should not start a rival one. */
+let snipping = false
 
 function cancelInFlight(): void {
   inFlight?.abort()
@@ -81,29 +83,52 @@ function showError(message: string): void {
  * explain path — a snip and a selection are indistinguishable from there on.
  */
 export async function snipScreen(preloadPath: string, forcePick = false): Promise<void> {
-  cancelInFlight()
-  const config = loadConfig()
+  if (snipping) return
+  snipping = true
+  try {
+    cancelInFlight()
+    const config = loadConfig()
 
-  const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds }))
-  let region = config.snipRegion
+    const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds }))
+    let region = config.snipRegion
 
-  if (forcePick || !regionIsStillValid(region, displays)) {
-    const picked = await pickRegion(preloadPath)
-    if (!picked) return // cancelled — say nothing
-    region = picked
-    saveConfig({ snipRegion: picked })
-    // Let the overlay finish disappearing, or it ends up in its own screenshot.
-    await new Promise((r) => setTimeout(r, 120))
+    if (forcePick || !regionIsStillValid(region, displays)) {
+      const picked = await pickRegion(preloadPath)
+      if (!picked) return // cancelled — say nothing
+      region = picked
+      saveConfig({ snipRegion: picked })
+      // Let the overlay finish disappearing, or it ends up in its own screenshot.
+      await new Promise((r) => setTimeout(r, 150))
+    }
+
+    if (!region) return
+
+    // Acknowledge the keypress immediately. Capture and OCR take over a second, and
+    // without this the hotkey feels like it did nothing at all.
+    showPopup({
+      mode: 'passage',
+      text: 'Reading the screen…',
+      explanation: {},
+      status: 'streaming'
+    })
+
+    const result = await readScreenRegion(region)
+    if (!result.ok) {
+      // Name the area that was read. A remembered region cannot know the video
+      // moved or went full-screen, so the useful thing is to say where it looked
+      // and how to point it somewhere else.
+      const where = `${region.width}×${region.height} at ${region.x}, ${region.y}`
+      showError(
+        `${result.reason} Looked at a ${where} area — if that is the wrong place, ` +
+          `press ${loadConfig().hotkeys.snipRegion} to pick a new one.`
+      )
+      return
+    }
+
+    await run({ mode: detectMode(result.text), text: result.text }, false)
+  } finally {
+    snipping = false
   }
-
-  if (!region) return
-  const result = await readScreenRegion(region)
-  if (!result.ok) {
-    showError(result.reason)
-    return
-  }
-
-  await run({ mode: detectMode(result.text), text: result.text }, true)
 }
 
 async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
