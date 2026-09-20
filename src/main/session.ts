@@ -3,7 +3,7 @@
  */
 import { app, screen } from 'electron'
 import { join } from 'node:path'
-import type { CaptureFailure, ExplainRequest, ExplainState } from '../shared/types.js'
+import type { ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
 import { readScreenRegion } from './ocr.js'
 import { pickRegion } from './overlay.js'
@@ -15,18 +15,6 @@ import { JsonLruCache, AudioCache, cacheKey } from '../core/cache.js'
 import { createLlmProvider, describeError } from '../providers/llm/registry.js'
 import { speak } from '../providers/tts/registry.js'
 import type { Explanation } from '../shared/types.js'
-
-const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
-  // The most common real cause is an elevated target window: Windows silently drops
-  // synthetic input sent to a higher-integrity process (UIPI), so we say so rather
-  // than failing mutely.
-  'no-response':
-    "Couldn't copy the selection. Try pressing Ctrl+C yourself: if that doesn't work either, " +
-    'this page blocks copying. Some news sites do. (It can also mean nothing is selected, or ' +
-    'that the app is running as administrator.)',
-  empty: 'Nothing was selected.',
-  'not-text': 'That selection is an image. Text capture only, for now.'
-}
 
 let explanationCache: JsonLruCache<Explanation> | null = null
 let audioCache: AudioCache | null = null
@@ -81,12 +69,18 @@ export async function explainOrSnip(preloadPath: string): Promise<void> {
     return
   }
 
-  // Nothing selected and no region set yet. Offer the screen reader rather than
-  // leaving a dead end — this is how the feature gets discovered at all.
-  showError(CAPTURE_MESSAGES[result.reason], {
-    id: 'read-screen',
-    label: 'Read part of the screen instead'
-  })
+  // Nothing selected and no region set yet.
+  //
+  // The capture messages are written for "I selected text and it failed", which is
+  // the wrong story here: pressing the key while watching a video is not a mistake
+  // to explain, it is a request that just needs somewhere to look. Keep it to one
+  // line and let the button carry the meaning.
+  showError(
+    result.reason === 'not-text'
+      ? 'That looks like an image. Reading part of the screen works for that.'
+      : 'Nothing is selected — or this page blocks copying. Reading part of the screen works either way.',
+    { id: 'read-screen', label: 'Read part of the screen' }
+  )
 }
 
 function showError(message: string, action?: ExplainState['action']): void {
