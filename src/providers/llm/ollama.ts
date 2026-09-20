@@ -12,6 +12,31 @@ export class OllamaProvider implements LlmProvider {
 
   constructor(private readonly opts: ProviderOptions) {}
 
+  async ping(signal: AbortSignal): Promise<void> {
+    const base = (this.opts.baseUrl ?? 'http://localhost:11434').replace(/\/$/, '')
+    let res: Response
+    try {
+      res = await fetch(`${base}/api/chat`, {
+        method: 'POST',
+        signal,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: this.opts.model,
+          stream: false,
+          messages: [{ role: 'user', content: 'hi' }]
+        })
+      })
+    } catch {
+      throw new ProviderError('Could not reach Ollama.', `Is it running at ${base}?`)
+    }
+    if (!res.ok) {
+      throw new ProviderError(
+        `Ollama returned ${res.status}.`,
+        res.status === 404 ? `Model "${this.opts.model}" may not be pulled yet.` : undefined
+      )
+    }
+  }
+
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
     const base = (this.opts.baseUrl ?? 'http://localhost:11434').replace(/\/$/, '')
 

@@ -1,89 +1,100 @@
 /**
- * Connection test: does this key work, and does this endpoint actually serve the
- * model we're asking for?
+ * Connection test: does this key actually work with this model, right now?
  *
- * Model ids drift constantly and differ between hosts — the same Qwen model is
- * `qwen3.7-flash` on one endpoint and `qwen/qwen3.7-flash` on another. When it's
- * wrong you get an opaque 403 or 404 with no hint at the right spelling, which is
- * unguessable. Asking the endpoint what it serves turns that into a list to pick from.
+ * It sends the smallest real request the provider accepts, through the same client
+ * a lookup uses. An earlier version only listed models and checked the configured id
+ * appeared — which passed while every real lookup returned 403, because a listing is
+ * a *catalogue*, not a statement of what your account may call. Alibaba, Google and
+ * OpenAI all list models you must separately activate or be granted access to.
+ *
+ * Only when that real call fails do we fetch the listing, to suggest alternatives.
  */
 import type { AppConfig } from '../../shared/types.js'
+import { createLlmProvider, describeError } from './registry.js'
 
 export interface ProbeResult {
   ok: boolean
   message: string
-  /** Model ids the endpoint reports, when it offers a listing. */
+  /** Suggestions, only gathered when the real call failed on the model. */
   models?: string[]
-  /** True when the key works but the configured model isn't in the list. */
+  /** True when the key works but this model can't be used. */
   modelMissing?: boolean
 }
 
-const TIMEOUT_MS = 15000
+const TIMEOUT_MS = 20000
 
 export async function probeProvider(config: AppConfig, apiKey: string | null): Promise<ProbeResult> {
-  const provider = config.llm.provider
-  const model = config.llm.models[provider] ?? ''
-  const base = (config.llm.baseUrls[provider] ?? '').replace(/\/$/, '')
+  const providerId = config.llm.provider
+  const model = config.llm.models[providerId] ?? ''
 
-  if (provider !== 'ollama' && !apiKey) {
-    return { ok: false, message: 'No API key saved for this provider.' }
+  let provider
+  try {
+    provider = createLlmProvider(config, apiKey)
+  } catch (err) {
+    const e = describeError(providerId, err)
+    return { ok: false, message: [e.message, e.hint].filter(Boolean).join(' ') }
   }
 
-  const { url, headers } = request(provider, base, apiKey)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
   try {
-    const res = await fetch(url, { headers, signal: controller.signal })
+    await provider.ping(controller.signal)
+    return { ok: true, message: `Working. "${model}" answered a real request.` }
+  } catch (err) {
+    const status = statusOf(err)
+    const e = describeError(providerId, err)
+    const detail = [e.message, e.hint].filter(Boolean).join(' ')
 
-    if (!res.ok) {
-      return { ok: false, message: explainStatus(res.status, await safeBody(res)) }
-    }
-
-    const models = extractModelIds(await res.json())
-
-    // Some endpoints don't offer a listing. A 200 still proves the key works.
-    if (models.length === 0) {
-      return { ok: true, message: 'The key works. This endpoint does not list its models.' }
-    }
-
-    if (model && !models.includes(model)) {
+    // 403/404 on a request that carried a model id is nearly always the model, not
+    // the key — so offer what else this endpoint will serve.
+    if (status === 403 || status === 404) {
+      const models = await listModels(config, apiKey)
       return {
         ok: false,
-        modelMissing: true,
+        modelMissing: models.length > 0,
         models,
-        message: `The key works, but "${model}" is not among the ${models.length} models it can use.`
+        message:
+          status === 403
+            ? `"${model}" was refused (403). The key is valid but not entitled to this model — ` +
+              `many providers require activating a model in their console first. It can also mean ` +
+              `the key belongs to a different region than the base URL.`
+            : `"${model}" was not found (404). Check the model id and the base URL.`
       }
     }
-
-    return { ok: true, models, message: `Connected. "${model}" is available.` }
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      return { ok: false, message: 'The endpoint did not respond in time.' }
-    }
-    return { ok: false, message: `Could not reach ${base || 'the endpoint'}.` }
+    return { ok: false, message: detail }
   } finally {
     clearTimeout(timer)
   }
 }
 
-function request(
-  provider: string,
-  base: string,
-  apiKey: string | null
-): { url: string; headers: Record<string, string> } {
-  if (provider === 'claude') {
-    return {
-      url: `${base}/v1/models`,
-      headers: { 'x-api-key': apiKey ?? '', 'anthropic-version': '2023-06-01' }
-    }
+function statusOf(err: unknown): number | undefined {
+  const s = (err as { status?: unknown })?.status
+  return typeof s === 'number' ? s : undefined
+}
+
+/** Best-effort catalogue, purely to suggest alternatives after a failure. */
+async function listModels(config: AppConfig, apiKey: string | null): Promise<string[]> {
+  const provider = config.llm.provider
+  const base = (config.llm.baseUrls[provider] ?? '').replace(/\/$/, '')
+
+  const { url, headers } =
+    provider === 'claude'
+      ? {
+          url: `${base}/v1/models`,
+          headers: { 'x-api-key': apiKey ?? '', 'anthropic-version': '2023-06-01' }
+        }
+      : provider === 'ollama'
+        ? { url: `${base}/api/tags`, headers: {} }
+        : { url: `${base}/models`, headers: { Authorization: `Bearer ${apiKey ?? ''}` } }
+
+  try {
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) })
+    if (!res.ok) return []
+    return extractModelIds(await res.json())
+  } catch {
+    return []
   }
-  if (provider === 'ollama') {
-    // Ollama's own listing endpoint; it has no /models under the OpenAI shim.
-    return { url: `${base}/api/tags`, headers: {} }
-  }
-  // Everything OpenAI-compatible: OpenAI, Gemini, Groq, Qwen, OpenRouter, ...
-  return { url: `${base}/models`, headers: { Authorization: `Bearer ${apiKey ?? ''}` } }
 }
 
 /** Pull model ids out of the several shapes these endpoints return. */
@@ -94,38 +105,10 @@ function extractModelIds(body: unknown): string[] {
     .map((row) => {
       const r = row as { id?: unknown; name?: unknown }
       // Gemini reports "models/gemini-3.1-flash-lite"; strip the prefix so the id
-      // matches what you actually put in the model field.
+      // matches what actually goes in the model field.
       const id = typeof r?.id === 'string' ? r.id : typeof r?.name === 'string' ? r.name : ''
       return id.startsWith('models/') ? id.slice(7) : id
     })
     .filter(Boolean)
     .sort()
-}
-
-async function safeBody(res: Response): Promise<string> {
-  try {
-    return (await res.text()).slice(0, 300)
-  } catch {
-    return ''
-  }
-}
-
-function explainStatus(status: number, body: string): string {
-  const detail = body ? ` — ${body.replace(/\s+/g, ' ').trim()}` : ''
-  switch (status) {
-    case 401:
-      return `The API key was rejected (401).${detail}`
-    case 403:
-      // The common causes, in the order they actually happen.
-      return (
-        `Access denied (403). The key is probably valid but not entitled to this model, ` +
-        `or it belongs to a different region than the base URL.${detail}`
-      )
-    case 404:
-      return `Not found (404). The base URL is likely wrong for this provider.${detail}`
-    case 429:
-      return `Rate limited (429). Try again shortly.${detail}`
-    default:
-      return `The endpoint returned ${status}.${detail}`
-  }
 }

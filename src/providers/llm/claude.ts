@@ -18,6 +18,13 @@ export class ClaudeProvider implements LlmProvider {
     this.client = new Anthropic({ apiKey: opts.apiKey, baseURL: opts.baseUrl })
   }
 
+  async ping(signal: AbortSignal): Promise<void> {
+    await this.client.messages.create(
+      { model: this.opts.model, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] },
+      { signal }
+    )
+  }
+
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
     const stream = this.client.messages.stream(
       {
