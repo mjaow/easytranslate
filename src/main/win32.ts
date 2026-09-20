@@ -1,0 +1,202 @@
+/**
+ * Thin koffi bindings over the handful of Win32 calls EasyTranslate needs.
+ *
+ * koffi ships prebuilt binaries, so this needs no node-gyp and no VS Build Tools.
+ * Everything here is Windows-only and degrades to a no-op elsewhere, so the rest of
+ * the app (and the test suite) can run on any platform.
+ */
+import koffi from 'koffi'
+
+export const IS_WINDOWS = process.platform === 'win32'
+
+// --- virtual key codes ------------------------------------------------------
+const VK_CONTROL = 0x11
+const VK_SHIFT = 0x10
+const VK_MENU = 0x12 // Alt
+const VK_LWIN = 0x5b
+const VK_RWIN = 0x5c
+const VK_C = 0x43
+
+const KEYEVENTF_KEYUP = 0x0002
+const INPUT_KEYBOARD = 1
+
+// --- window styles ----------------------------------------------------------
+const GWL_EXSTYLE = -20
+const WS_EX_NOACTIVATE = 0x08000000
+const WS_EX_TOOLWINDOW = 0x00000080
+
+interface Bindings {
+  GetClipboardSequenceNumber: () => number
+  SendInput: (count: number, inputs: unknown[], size: number) => number
+  GetAsyncKeyState: (vk: number) => number
+  GetForegroundWindow: () => number | bigint
+  GetWindowLongPtrW: (hwnd: bigint, index: number) => number | bigint
+  SetWindowLongPtrW: (hwnd: bigint, index: number, value: bigint) => number | bigint
+  INPUT: unknown
+  inputSize: number
+}
+
+let bindings: Bindings | null = null
+let loadError: string | null = null
+
+function load(): Bindings | null {
+  if (!IS_WINDOWS) return null
+  if (bindings || loadError) return bindings
+
+  try {
+    const user32 = koffi.load('user32.dll')
+
+    // INPUT is a tagged union. We only ever send keyboard events, but the union has
+    // to be laid out in full or SendInput rejects the struct size (40 bytes on x64).
+    const KEYBDINPUT = koffi.struct('KEYBDINPUT', {
+      wVk: 'uint16',
+      wScan: 'uint16',
+      dwFlags: 'uint32',
+      time: 'uint32',
+      dwExtraInfo: 'uintptr'
+    })
+    const MOUSEINPUT = koffi.struct('MOUSEINPUT', {
+      dx: 'int32',
+      dy: 'int32',
+      mouseData: 'uint32',
+      dwFlags: 'uint32',
+      time: 'uint32',
+      dwExtraInfo: 'uintptr'
+    })
+    const HARDWAREINPUT = koffi.struct('HARDWAREINPUT', {
+      uMsg: 'uint32',
+      wParamL: 'uint16',
+      wParamH: 'uint16'
+    })
+    const INPUT_UNION = koffi.union('INPUT_UNION', {
+      mi: MOUSEINPUT,
+      ki: KEYBDINPUT,
+      hi: HARDWAREINPUT
+    })
+    const INPUT = koffi.struct('INPUT', { type: 'uint32', u: INPUT_UNION })
+
+    const inputSize = koffi.sizeof(INPUT)
+
+    bindings = {
+      GetClipboardSequenceNumber: user32.func('uint32 __stdcall GetClipboardSequenceNumber()'),
+      SendInput: user32.func('uint32 __stdcall SendInput(uint32 cInputs, INPUT *pInputs, int cbSize)'),
+      GetAsyncKeyState: user32.func('int16 __stdcall GetAsyncKeyState(int vKey)'),
+      GetForegroundWindow: user32.func('uintptr __stdcall GetForegroundWindow()'),
+      GetWindowLongPtrW: user32.func('intptr __stdcall GetWindowLongPtrW(uintptr hWnd, int nIndex)'),
+      SetWindowLongPtrW: user32.func(
+        'intptr __stdcall SetWindowLongPtrW(uintptr hWnd, int nIndex, intptr dwNewLong)'
+      ),
+      INPUT,
+      inputSize
+    }
+    return bindings
+  } catch (err) {
+    loadError = err instanceof Error ? err.message : String(err)
+    console.error('[win32] failed to load user32 bindings:', loadError)
+    return null
+  }
+}
+
+/** True when the native bindings are available and usable. */
+export function isAvailable(): boolean {
+  return load() !== null
+}
+
+export function getLoadError(): string | null {
+  load()
+  return loadError
+}
+
+/**
+ * Monotonic counter Windows bumps on every clipboard write, by any process.
+ * Watching this is how we know a copy actually landed, instead of sleeping and hoping.
+ * Returns 0 when unavailable.
+ */
+export function clipboardSequence(): number {
+  const b = load()
+  return b ? b.GetClipboardSequenceNumber() : 0
+}
+
+function keyEvent(vk: number, up: boolean): Record<string, unknown> {
+  return {
+    type: INPUT_KEYBOARD,
+    u: { ki: { wVk: vk, wScan: 0, dwFlags: up ? KEYEVENTF_KEYUP : 0, time: 0, dwExtraInfo: 0 } }
+  }
+}
+
+function isDown(b: Bindings, vk: number): boolean {
+  // High bit of the SHORT means "currently held".
+  return (b.GetAsyncKeyState(vk) & 0x8000) !== 0
+}
+
+/**
+ * Send a clean Ctrl+C to whatever window currently has focus.
+ *
+ * The subtlety: our hotkey is itself a chord (Ctrl+Alt+Space), so at the moment it
+ * fires the user is still *physically holding* Ctrl and Alt. A naive Ctrl+C would
+ * reach the target as Ctrl+Alt+C and copy nothing. So we first synthesise key-ups for
+ * every modifier the OS thinks is down, then send the copy — all in one SendInput
+ * batch, which Windows guarantees won't be interleaved with other input.
+ *
+ * We deliberately do NOT re-press those modifiers afterwards: the user's fingers are
+ * still on them, so releasing generates real key-ups. Re-pressing risks a stuck key.
+ *
+ * @returns number of events accepted by Windows, or -1 if the bindings are unavailable.
+ */
+export function sendCopy(): number {
+  const b = load()
+  if (!b) return -1
+
+  const events: Record<string, unknown>[] = []
+
+  for (const vk of [VK_MENU, VK_SHIFT, VK_LWIN, VK_RWIN, VK_CONTROL]) {
+    if (isDown(b, vk)) events.push(keyEvent(vk, true))
+  }
+
+  events.push(keyEvent(VK_CONTROL, false))
+  events.push(keyEvent(VK_C, false))
+  events.push(keyEvent(VK_C, true))
+  events.push(keyEvent(VK_CONTROL, true))
+
+  return b.SendInput(events.length, events, b.inputSize)
+}
+
+/** HWND of the focused window, as an integer handle. 0n when unavailable. */
+export function foregroundWindow(): bigint {
+  const b = load()
+  return b ? BigInt(b.GetForegroundWindow()) : 0n
+}
+
+/**
+ * Stamp WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW onto a window.
+ *
+ * Electron's `focusable: false` is unreliable on Windows (electron#11049) — windows
+ * still steal focus on show(). Setting the extended style ourselves is what actually
+ * guarantees the popup never takes focus, which is what keeps the user's selection
+ * alive and their Ctrl+V working. TOOLWINDOW additionally keeps it out of Alt-Tab.
+ *
+ * @param handle Buffer from BrowserWindow.getNativeWindowHandle()
+ */
+export function makeNonActivating(handle: Buffer): boolean {
+  const b = load()
+  if (!b) return false
+  try {
+    const hwnd = handle.length >= 8 ? handle.readBigUInt64LE(0) : BigInt(handle.readUInt32LE(0))
+    if (hwnd === 0n) return false
+    // Coerce explicitly: koffi returns a Number here whenever the style fits in
+    // a double, and mixing that with BigInt throws.
+    const current = BigInt(b.GetWindowLongPtrW(hwnd, GWL_EXSTYLE))
+    const next = current | BigInt(WS_EX_NOACTIVATE) | BigInt(WS_EX_TOOLWINDOW)
+    b.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next)
+
+    // Read it back. This flag is what keeps the user's selection alive and their
+    // Ctrl+V working, so "we called the setter" isn't good enough — confirm it stuck.
+    const applied = BigInt(b.GetWindowLongPtrW(hwnd, GWL_EXSTYLE))
+    const stuck = (applied & BigInt(WS_EX_NOACTIVATE)) !== 0n
+    if (!stuck) console.error('[win32] WS_EX_NOACTIVATE did not stick; popup may steal focus')
+    return stuck
+  } catch (err) {
+    console.error('[win32] makeNonActivating failed:', err)
+    return false
+  }
+}

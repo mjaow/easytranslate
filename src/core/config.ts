@@ -1,0 +1,192 @@
+/**
+ * Config + secret storage. Main-process only (it touches `app` and `safeStorage`).
+ *
+ * Settings live in plain JSON so they're inspectable and hand-editable. API keys do
+ * NOT — they go through Electron's safeStorage, which on Windows means DPAPI, so the
+ * ciphertext is bound to the user account and useless if the file is copied elsewhere.
+ */
+import { app, safeStorage } from 'electron'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import type { AppConfig, LlmProviderId, SecretId } from '../shared/types.js'
+
+export const DEFAULT_CONFIG: AppConfig = {
+  hotkeys: {
+    // Deliberately not anything that shadows Ctrl+C / Ctrl+V / Ctrl+X — see the
+    // copy-safety contract.
+    //
+    // Ctrl+Alt+Space and Ctrl+Alt+R look like the obvious picks but are commonly
+    // taken: the first by Chinese/Japanese IMEs, the second by screen recorders and
+    // conferencing apps. E (explain) and S (speak) are both free far more often, and
+    // registerHotkeys() falls back automatically if they aren't.
+    // CommandOrControl rather than Control: one stored shortcut is then correct on
+    // Windows (Ctrl) and macOS (Cmd) alike, instead of being tied to where it was set.
+    explain: 'CommandOrControl+Alt+E'
+  },
+  llm: {
+    provider: 'claude',
+    // Model ids are complete as-is — never append a date suffix.
+    // Opus 5 is the default; Settings offers claude-haiku-4-5 for snappier,
+    // cheaper lookups, which is a reasonable trade for dictionary-style work.
+    models: {
+      claude: 'claude-opus-5',
+      openai: 'gpt-4.1-mini',
+      ollama: 'qwen2.5:7b'
+    },
+    // Note the differing conventions: the Anthropic SDK appends /v1/messages to its
+    // base URL, while the OpenAI SDK appends /chat/completions — so the OpenAI one
+    // must already include /v1 or every request 404s.
+    baseUrls: {
+      claude: 'https://api.anthropic.com',
+      openai: 'https://api.openai.com/v1',
+      ollama: 'http://localhost:11434'
+    }
+  },
+  tts: {
+    // Online by default: the Windows voices are noticeably robotic, and hearing a
+    // natural American accent is the point of read-aloud for a learner.
+    provider: 'online',
+    systemVoice: '',
+    azureRegion: 'eastus',
+    azureVoice: 'en-US-AvaMultilingualNeural',
+    slowRate: -40,
+    autoPlay: false
+  },
+  launchAtLogin: false
+}
+
+let cached: AppConfig | null = null
+
+function configPath(): string {
+  return join(app.getPath('userData'), 'config.json')
+}
+
+function secretsPath(): string {
+  return join(app.getPath('userData'), 'secrets.json')
+}
+
+function ensureDir(file: string): void {
+  const dir = dirname(file)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+}
+
+/** Merge stored values over defaults, one level deep per section. */
+function merge(stored: unknown): AppConfig {
+  const s = (stored ?? {}) as Partial<AppConfig>
+  return {
+    hotkeys: { ...DEFAULT_CONFIG.hotkeys, ...s.hotkeys },
+    llm: {
+      ...DEFAULT_CONFIG.llm,
+      ...s.llm,
+      models: { ...DEFAULT_CONFIG.llm.models, ...s.llm?.models },
+      baseUrls: { ...DEFAULT_CONFIG.llm.baseUrls, ...s.llm?.baseUrls }
+    },
+    tts: { ...DEFAULT_CONFIG.tts, ...s.tts },
+    launchAtLogin: s.launchAtLogin ?? DEFAULT_CONFIG.launchAtLogin
+  }
+}
+
+export function loadConfig(): AppConfig {
+  if (cached) return cached
+  try {
+    const file = configPath()
+    cached = existsSync(file) ? merge(JSON.parse(readFileSync(file, 'utf8'))) : { ...DEFAULT_CONFIG }
+  } catch (err) {
+    // A corrupt config shouldn't stop the app booting — fall back to defaults and
+    // let the user fix it in settings.
+    console.error('[config] unreadable, using defaults:', err)
+    cached = { ...DEFAULT_CONFIG }
+  }
+  return cached
+}
+
+export function saveConfig(patch: Partial<AppConfig>): AppConfig {
+  const next = merge({ ...loadConfig(), ...patch })
+  cached = next
+  try {
+    const file = configPath()
+    ensureDir(file)
+    writeFileSync(file, JSON.stringify(next, null, 2), 'utf8')
+  } catch (err) {
+    console.error('[config] save failed:', err)
+  }
+  return next
+}
+
+// ------------------------------------------------------------------ secrets
+
+type SecretStore = Record<string, string>
+
+function readSecrets(): SecretStore {
+  try {
+    const file = secretsPath()
+    if (!existsSync(file)) return {}
+    return JSON.parse(readFileSync(file, 'utf8')) as SecretStore
+  } catch {
+    return {}
+  }
+}
+
+function writeSecrets(store: SecretStore): void {
+  const file = secretsPath()
+  ensureDir(file)
+  writeFileSync(file, JSON.stringify(store, null, 2), 'utf8')
+}
+
+/**
+ * Store an API key encrypted at rest.
+ *
+ * If the OS can't provide encryption we refuse rather than silently writing the key
+ * in plaintext — a user who typed a key into a settings box has a reasonable
+ * expectation it isn't sitting readable on disk.
+ */
+export function setSecret(provider: SecretId, value: string): { ok: boolean; error?: string } {
+  const store = readSecrets()
+  if (!value) {
+    delete store[provider]
+    writeSecrets(store)
+    return { ok: true }
+  }
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ok: false, error: 'OS encryption unavailable; refusing to store the key in plaintext.' }
+  }
+  try {
+    store[provider] = safeStorage.encryptString(value).toString('base64')
+    writeSecrets(store)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export function getSecret(provider: SecretId): string | null {
+  // Env vars win, so power users can run without ever typing a key into the UI.
+  const fromEnv =
+    provider === 'claude'
+      ? process.env.ANTHROPIC_API_KEY
+      : provider === 'openai' || provider === 'tts'
+        ? process.env.OPENAI_API_KEY
+        : undefined
+  if (fromEnv) return fromEnv
+
+  const raw = readSecrets()[provider]
+  if (!raw) return null
+  try {
+    return safeStorage.decryptString(Buffer.from(raw, 'base64'))
+  } catch (err) {
+    console.error(`[config] could not decrypt ${provider} key:`, err)
+    return null
+  }
+}
+
+/** Unused import guard — LlmProviderId still names the LLM half of the id space. */
+export type { LlmProviderId }
+
+export function hasSecret(provider: SecretId): boolean {
+  return getSecret(provider) !== null
+}
+
+/** Test seam: drop the in-memory cache so the next load re-reads disk. */
+export function __resetCache(): void {
+  cached = null
+}

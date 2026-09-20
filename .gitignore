@@ -1,0 +1,15 @@
+node_modules/
+out/
+dist/
+*.log
+.DS_Store
+
+# Local runtime data — config, encrypted keys, caches. These live in %APPDATA%,
+# but keep them out of the repo in case anyone points the app at the project dir.
+config.json
+secrets.json
+explanations.json
+audio/
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo

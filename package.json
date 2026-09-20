@@ -1,0 +1,49 @@
+{
+  "name": "easytranslate",
+  "version": "0.1.0",
+  "description": "Select text in any Windows app and get it explained in English and Chinese, with American-accent read-aloud.",
+  "main": "./out/main/index.js",
+  "author": "mijun",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run typecheck && electron-vite build",
+    "dev": "electron-vite dev",
+    "dist": "npm run build && electron-builder --win nsis",
+    "fix:electron": "node scripts/fix-electron-install.mjs",
+    "postinstall": "node scripts/fix-electron-install.mjs",
+    "probe:hotkeys": "electron-vite build && electron . --probe-hotkeys",
+    "start": "electron-vite build && electron .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "verify:capture": "electron-vite build && electron . --verify-capture",
+    "verify:hotkeys": "electron-vite build && electron . --verify-hotkeys"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
+    "koffi": "^2.14.0",
+    "openai": "^7.15.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^44.3.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.8.3",
+    "vite": "^5.4.20",
+    "vitest": "^2.1.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mjaow/easytranslate.git"
+  }
+}
