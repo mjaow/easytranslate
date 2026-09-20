@@ -1,13 +1,16 @@
 /**
  * Orchestrates one lookup: capture → explain → stream into the popup.
  */
-import { app } from 'electron'
+import { app, screen } from 'electron'
 import { join } from 'node:path'
 import type { CaptureFailure, ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
+import { readScreenRegion } from './ocr.js'
+import { pickRegion } from './overlay.js'
+import { regionIsStillValid } from '../core/region.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
 import { detectMode, SectionParser } from '../core/explain.js'
-import { loadConfig, getSecret } from '../core/config.js'
+import { loadConfig, saveConfig, getSecret } from '../core/config.js'
 import { JsonLruCache, AudioCache, cacheKey } from '../core/cache.js'
 import { createLlmProvider, describeError } from '../providers/llm/registry.js'
 import { speak } from '../providers/tts/registry.js'
@@ -64,6 +67,43 @@ export async function explainSelection(): Promise<void> {
 
   const mode = detectMode(result.text)
   await run({ mode, text: result.text }, true)
+}
+
+function showError(message: string): void {
+  showPopup({ mode: 'passage', text: '', explanation: {}, status: 'error', error: message })
+}
+
+/**
+ * Read a region of the screen and explain what it says.
+ *
+ * The remembered region is reused when it is still meaningful, which is what makes
+ * this one keypress per subtitle line. Everything past the OCR call is the ordinary
+ * explain path — a snip and a selection are indistinguishable from there on.
+ */
+export async function snipScreen(preloadPath: string, forcePick = false): Promise<void> {
+  cancelInFlight()
+  const config = loadConfig()
+
+  const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds }))
+  let region = config.snipRegion
+
+  if (forcePick || !regionIsStillValid(region, displays)) {
+    const picked = await pickRegion(preloadPath)
+    if (!picked) return // cancelled — say nothing
+    region = picked
+    saveConfig({ snipRegion: picked })
+    // Let the overlay finish disappearing, or it ends up in its own screenshot.
+    await new Promise((r) => setTimeout(r, 120))
+  }
+
+  if (!region) return
+  const result = await readScreenRegion(region)
+  if (!result.ok) {
+    showError(result.reason)
+    return
+  }
+
+  await run({ mode: detectMode(result.text), text: result.text }, true)
 }
 
 async function run(req: ExplainRequest, isNew: boolean): Promise<void> {

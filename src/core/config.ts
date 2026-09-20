@@ -21,8 +21,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     // registerHotkeys() falls back automatically if they aren't.
     // CommandOrControl rather than Control: one stored shortcut is then correct on
     // Windows (Ctrl) and macOS (Cmd) alike, instead of being tied to where it was set.
-    explain: 'CommandOrControl+Alt+E'
+    explain: 'CommandOrControl+Alt+E',
+    // D for "drag". Probed free on a typical Windows machine, and already the second
+    // entry in the explain fallback list, so the conflict machinery knows it.
+    snip: 'CommandOrControl+Alt+D',
+    snipRegion: 'CommandOrControl+Alt+Shift+D'
   },
+  snipRegion: null,
   llm: {
     provider: 'claude',
     // Model ids are complete as-is — never append a date suffix.
@@ -77,6 +82,7 @@ function merge(stored: unknown): AppConfig {
   const s = (stored ?? {}) as Partial<AppConfig>
   return {
     hotkeys: { ...DEFAULT_CONFIG.hotkeys, ...s.hotkeys },
+    snipRegion: s.snipRegion ?? DEFAULT_CONFIG.snipRegion,
     llm: {
       ...DEFAULT_CONFIG.llm,
       ...s.llm,

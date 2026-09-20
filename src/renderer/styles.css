@@ -91,3 +91,11 @@ body.settings {
 .et-pulse {
   animation: et-pulse 1.3s ease-in-out infinite;
 }
+
+/* The region picker covers a whole display and must not scroll or select text. */
+body.overlay {
+  background: transparent;
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+}

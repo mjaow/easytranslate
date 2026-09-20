@@ -78,7 +78,16 @@ export interface AppConfig {
   hotkeys: {
     /** Capture the selection and explain it. The popup handles read-aloud. */
     explain: string
+    /** Read the remembered screen region, or pick one on first use. */
+    snip: string
+    /** Draw a new screen region. */
+    snipRegion: string
   }
+  /**
+   * The remembered snip region, in physical screen pixels. Null until one is drawn.
+   * Tied to a display, since it means nothing once that monitor is gone.
+   */
+  snipRegion: { x: number; y: number; width: number; height: number; displayId: number } | null
   llm: {
     provider: LlmProviderId
     /** Per-provider model id. Keys are LlmProviderId. */
@@ -129,5 +138,11 @@ export const IPC = {
   /** settings → main: can this accelerator be bound right now? */
   hotkeyCheck: 'config:hotkey-check',
   /** settings → main: does the configured key and model actually work? */
-  llmTest: 'config:llm-test'
+  llmTest: 'config:llm-test',
+  /** overlay → main: the user drew a region */
+  overlayPick: 'overlay:pick',
+  /** overlay → main: the user cancelled */
+  overlayCancel: 'overlay:cancel',
+  /** settings → main: forget the remembered snip region */
+  snipRegionReset: 'config:snip-region-reset'
 } as const

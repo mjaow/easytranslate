@@ -4,7 +4,8 @@ import type { AppConfig } from '../src/shared/types.js'
 
 function cfg(baseUrl: string, model = 'nonexistent-model'): AppConfig {
   return {
-    hotkeys: { explain: '' },
+    hotkeys: { explain: '', snip: '', snipRegion: '' },
+    snipRegion: null,
     llm: {
       provider: 'ollama',
       models: { ollama: model },

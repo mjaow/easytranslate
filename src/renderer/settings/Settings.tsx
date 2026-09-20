@@ -382,6 +382,11 @@ export function Settings(): React.ReactElement {
     setSecrets(await window.easytranslate.secretStatus())
   }
 
+  const resetRegion = async (): Promise<void> => {
+    const next = await window.easytranslate.resetSnipRegion()
+    setBoot({ ...boot, config: next })
+  }
+
   const saveTtsKey = async (): Promise<void> => {
     await window.easytranslate.setSecret('tts', ttsKeyDraft)
     setTtsKeyDraft('')
@@ -438,6 +443,43 @@ export function Settings(): React.ReactElement {
           value={config.hotkeys.explain}
           onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, explain: v } })}
         />
+        <HotkeyRecorder
+          label="Read screen region"
+          value={config.hotkeys.snip}
+          onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, snip: v } })}
+        />
+        <HotkeyRecorder
+          label="Pick a new screen region"
+          value={config.hotkeys.snipRegion}
+          onCommit={(v) => patch({ hotkeys: { ...config.hotkeys, snipRegion: v } })}
+        />
+
+        <Field
+          label="Remembered region"
+          hint={
+            config.snipRegion
+              ? 'Reading this area takes one keypress. Reset it to pick a new one, or use the pick hotkey above.'
+              : 'None yet — the first screen read will ask you to drag a box, then remember it.'
+          }
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+              {config.snipRegion
+                ? `${config.snipRegion.width} × ${config.snipRegion.height} at ${config.snipRegion.x}, ${config.snipRegion.y}`
+                : 'not set'}
+            </span>
+            {config.snipRegion && (
+              <button
+                onClick={() => void resetRegion()}
+                className="rounded-md border px-2 py-1 text-[12px]"
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </Field>
+
         <p className="text-[11px] leading-snug" style={{ color: 'var(--text-subtle)' }}>
           Ctrl+C, Ctrl+V and Ctrl+X can never be bound — EasyTranslate will not be the reason a
           copy or paste stops working. If a shortcut you pick is already owned by another app,

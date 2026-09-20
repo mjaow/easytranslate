@@ -50,6 +50,21 @@ const api = {
     return ipcRenderer.invoke(IPC.configSecretSet, { provider, value })
   },
 
+  /** Overlay → main: the region the user drew, in window coordinates. */
+  overlayPick(rect: { x: number; y: number; width: number; height: number }): void {
+    ipcRenderer.send(IPC.overlayPick, rect)
+  },
+
+  /** Overlay → main: cancelled. */
+  overlayCancel(): void {
+    ipcRenderer.send(IPC.overlayCancel)
+  },
+
+  /** Forget the remembered snip region, so the next snip asks again. */
+  resetSnipRegion(): Promise<AppConfig> {
+    return ipcRenderer.invoke(IPC.snipRegionReset)
+  },
+
   /** Whether an accelerator is bindable, for inline feedback in Settings. */
   checkHotkey(accelerator: string): Promise<{ ok: boolean; why?: string }> {
     return ipcRenderer.invoke(IPC.hotkeyCheck, accelerator)

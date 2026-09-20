@@ -8,7 +8,7 @@
 import { globalShortcut } from 'electron'
 import type { AppConfig } from '../shared/types.js'
 
-export type HotkeyId = 'explain'
+export type HotkeyId = 'explain' | 'snip' | 'snipRegion'
 
 /**
  * Accelerators we refuse to bind, whatever the config says.
@@ -39,13 +39,26 @@ const FORBIDDEN = new Set([
 export const FALLBACKS: Record<HotkeyId, string[]> = {
   explain: [
     'CommandOrControl+Alt+E',
-    'CommandOrControl+Alt+D',
     'CommandOrControl+Alt+Q',
     'CommandOrControl+Shift+E',
     'Alt+E',
     'F8',
     'CommandOrControl+F8'
   ],
+  snip: [
+    'CommandOrControl+Alt+D',
+    'CommandOrControl+Alt+G',
+    'CommandOrControl+Shift+D',
+    'Alt+D',
+    'F10',
+    'CommandOrControl+F10'
+  ],
+  snipRegion: [
+    'CommandOrControl+Alt+Shift+D',
+    'CommandOrControl+Alt+Shift+G',
+    'CommandOrControl+Shift+F10',
+    'Alt+Shift+D'
+  ]
 }
 
 export interface HotkeyBinding {
@@ -95,7 +108,7 @@ function tryRegister(accelerator: string, handler: () => void): string | null {
 export function registerHotkeys(bindings: HotkeyBinding[]): RegistrationResult {
   unregisterHotkeys()
   const result: RegistrationResult = {
-    resolved: { explain: '' },
+    resolved: { explain: '', snip: '', snipRegion: '' },
     reassigned: [],
     failed: []
   }
@@ -145,7 +158,7 @@ export function checkAvailability(accelerator: string): { ok: boolean; why?: str
 
 export function bindingsFor(
   config: AppConfig,
-  handlers: { explain: () => void }
+  handlers: { explain: () => void; snip: () => void; snipRegion: () => void }
 ): HotkeyBinding[] {
   return [
     {
@@ -153,6 +166,18 @@ export function bindingsFor(
       accelerator: config.hotkeys.explain,
       handler: handlers.explain,
       description: 'Explain selection'
+    },
+    {
+      id: 'snip',
+      accelerator: config.hotkeys.snip,
+      handler: handlers.snip,
+      description: 'Read screen region'
+    },
+    {
+      id: 'snipRegion',
+      accelerator: config.hotkeys.snipRegion,
+      handler: handlers.snipRegion,
+      description: 'Pick screen region'
     }
   ]
 }

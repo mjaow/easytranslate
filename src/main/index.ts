@@ -5,10 +5,11 @@ import { existsSync } from 'node:fs'
 import { IPC, type AppConfig, type SecretId } from '../shared/types.js'
 import { createPopupWindow, hidePopup, resizePopup, hardenWebContents } from './popup.js'
 import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } from './hotkeys.js'
-import { synthesize, toggleOrExplain, flushCaches } from './session.js'
+import { synthesize, toggleOrExplain, flushCaches, snipScreen } from './session.js'
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
 import { probeProvider } from '../providers/llm/probe.js'
+import { registerOverlayIpc } from './overlay.js'
 import { isAvailable, getLoadError } from './win32.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -32,6 +33,7 @@ function preloadPath(): string {
 const VERIFY_CAPTURE = process.argv.includes('--verify-capture')
 const PROBE_HOTKEYS = process.argv.includes('--probe-hotkeys')
 const VERIFY_HOTKEYS = process.argv.includes('--verify-hotkeys')
+const VERIFY_SNIP = process.argv.includes('--verify-snip')
 
 if (VERIFY_CAPTURE) {
   // Self-test mode: skip the single-instance lock and the tray entirely.
@@ -43,6 +45,11 @@ if (VERIFY_CAPTURE) {
   void app.whenReady().then(async () => {
     const { runHotkeyVerification } = await import('./verify-hotkeys.js')
     runHotkeyVerification()
+  })
+} else if (VERIFY_SNIP) {
+  void app.whenReady().then(async () => {
+    const { runSnipVerification } = await import('./verify-snip.js')
+    await runSnipVerification()
   })
 } else if (PROBE_HOTKEYS) {
   void app.whenReady().then(async () => {
@@ -67,6 +74,7 @@ function main(): void {
   createPopupWindow(preloadPath())
   createTray()
   registerIpc()
+  registerOverlayIpc()
   applyHotkeys()
 
   if (!isAvailable()) {
@@ -95,14 +103,28 @@ function applyHotkeys(announce = true): void {
 
   const config = loadConfig()
   const result = registerHotkeys(
-    bindingsFor(config, { explain: toggleOrExplain })
+    bindingsFor(config, {
+      explain: toggleOrExplain,
+      snip: () => void snipScreen(preloadPath()),
+      snipRegion: () => void snipScreen(preloadPath(), true)
+    })
   )
 
   // A reassignment is only useful if it sticks, so persist what actually bound —
   // otherwise the same conflict would be rediscovered on every launch.
-  const { explain } = result.resolved
-  if (explain && explain !== config.hotkeys.explain) {
-    saveConfig({ hotkeys: { explain } })
+  const { explain, snip, snipRegion } = result.resolved
+  if (
+    (explain && explain !== config.hotkeys.explain) ||
+    (snip && snip !== config.hotkeys.snip) ||
+    (snipRegion && snipRegion !== config.hotkeys.snipRegion)
+  ) {
+    saveConfig({
+      hotkeys: {
+        explain: explain || config.hotkeys.explain,
+        snip: snip || config.hotkeys.snip,
+        snipRegion: snipRegion || config.hotkeys.snipRegion
+      }
+    })
   }
 
   refreshTrayMenu()
@@ -157,6 +179,14 @@ function refreshTrayMenu(): void {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: `Explain selection  (${config.hotkeys.explain})`, click: () => toggleOrExplain() },
+      {
+        label: `Read screen region  (${config.hotkeys.snip})`,
+        click: () => void snipScreen(preloadPath())
+      },
+      {
+        label: 'Pick screen region…',
+        click: () => void snipScreen(preloadPath(), true)
+      },
       { type: 'separator' },
       {
         label: 'Pause hotkeys',
@@ -260,6 +290,11 @@ function registerIpc(): void {
       ? checkAvailability(accelerator)
       : { ok: false, why: 'Enter a shortcut.' }
   )
+
+  ipcMain.handle(IPC.snipRegionReset, () => {
+    saveConfig({ snipRegion: null })
+    return loadConfig()
+  })
 
   ipcMain.handle(IPC.llmTest, async () => {
     const config = loadConfig()
