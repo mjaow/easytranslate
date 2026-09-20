@@ -164,13 +164,16 @@ with a Chinese or Japanese IME — `ChsIME` claims it.
 
 Swappable in Settings; each keeps its own model and base URL.
 
-Settings has a **Quick setup** picker that sets provider, model and base URL together.
+Settings has a **Quick setup** picker that sets provider, model and base URL together,
+and a **Test connection** button that issues a real request and — when the model is
+refused — lists the ids that key can actually call. Model ids differ between hosts for
+the very same model, so that list is the fastest way to the right one.
 Groq and Gemini speak the OpenAI protocol, so the `openai` provider reaches them too —
 only the base URL and model differ.
 
 | Preset | Cost at ~100 lookups/day | Notes |
 |---|---|---|
-| **Qwen 3.7 Flash** | **~$0.07/month** | Alibaba's own model — cheapest, and the most idiomatic Chinese |
+| **Qwen Flash** | **~$0.07/month** | Alibaba's own model — cheapest, and the most idiomatic Chinese |
 | Gemini Flash-Lite | free tier | Best Chinese of the free options |
 | Groq | free tier | Fastest; Llama is the weakest here at Chinese |
 | **Claude Haiku 4.5** | **~$3/month** | Reliable IPA, idiomatic Chinese — the value pick |

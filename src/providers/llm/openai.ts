@@ -17,6 +17,13 @@ export class OpenAiProvider implements LlmProvider {
     this.client = new OpenAI({ apiKey: opts.apiKey, baseURL: opts.baseUrl })
   }
 
+  async ping(signal: AbortSignal): Promise<void> {
+    await this.client.chat.completions.create(
+      { model: this.opts.model, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] },
+      { signal }
+    )
+  }
+
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
     const stream = await this.client.chat.completions.create(
       {

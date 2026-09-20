@@ -26,19 +26,21 @@ export const DEFAULT_CONFIG: AppConfig = {
   llm: {
     provider: 'claude',
     // Model ids are complete as-is — never append a date suffix.
-    // Opus 5 is the default; Settings offers claude-haiku-4-5 for snappier,
-    // cheaper lookups, which is a reasonable trade for dictionary-style work.
+    //
+    // These are the cheap-but-good picks for each provider, because the work is
+    // short dictionary-style lookups where a flagship model earns little. Settings
+    // lists pricier options, and Quick setup switches all three fields at once.
     models: {
-      claude: 'claude-opus-5',
-      openai: 'gpt-4.1-mini',
-      ollama: 'qwen2.5:7b'
+      claude: 'claude-haiku-4-5',
+      openai: 'qwen-flash',
+      ollama: 'qwen2.5:3b'
     },
     // Note the differing conventions: the Anthropic SDK appends /v1/messages to its
     // base URL, while the OpenAI SDK appends /chat/completions — so the OpenAI one
     // must already include /v1 or every request 404s.
     baseUrls: {
       claude: 'https://api.anthropic.com',
-      openai: 'https://api.openai.com/v1',
+      openai: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
       ollama: 'http://localhost:11434'
     }
   },

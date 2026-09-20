@@ -48,6 +48,11 @@ const api = {
     return ipcRenderer.invoke(IPC.hotkeyCheck, accelerator)
   },
 
+  /** Check the saved key and model against the configured endpoint. */
+  testLlm(): Promise<{ ok: boolean; message: string; models?: string[]; modelMissing?: boolean }> {
+    return ipcRenderer.invoke(IPC.llmTest)
+  },
+
   /** Which providers have a key stored. Never returns the keys themselves. */
   secretStatus(): Promise<Record<string, boolean>> {
     return ipcRenderer.invoke(IPC.configSecretStatus)

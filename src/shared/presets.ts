@@ -26,11 +26,15 @@ export interface EndpointPreset {
 export const ENDPOINT_PRESETS: EndpointPreset[] = [
   {
     id: 'qwen-flash',
-    label: 'Qwen 3.7 Flash — cheapest, best Chinese',
+    label: 'Qwen Flash — cheapest, best Chinese',
     provider: 'openai',
     baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-    model: 'qwen3.7-flash',
-    note: "About $0.00002 a lookup — a few cents a month. Alibaba's own model, so its Chinese is the most idiomatic of the cheap options. Your key is bound to the region it was created in: this is the international endpoint, so swap in dashscope.aliyuncs.com if you registered in mainland China.",
+    model: 'qwen-flash',
+    // `qwen-flash` is DashScope's stable alias for the current Flash model, so it
+    // follows new releases on its own. Versioned ids like `qwen3.7-flash` are what
+    // other hosts (OpenRouter) use and are rejected here — use Test connection to
+    // see the exact ids a key can call.
+    note: "A few cents a month. Alibaba's own model, so its Chinese is the most idiomatic of the cheap options. Your key is bound to the region it was created in: this is the international endpoint, so swap in dashscope.aliyuncs.com if you registered in mainland China — that endpoint is also substantially cheaper. New accounts get a free token allowance before any billing starts.",
     keyUrl: 'https://modelstudio.console.alibabacloud.com/'
   },
   {

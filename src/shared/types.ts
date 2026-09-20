@@ -125,5 +125,7 @@ export const IPC = {
   configSecretSet: 'config:secret-set',
   configSecretStatus: 'config:secret-status',
   /** settings → main: can this accelerator be bound right now? */
-  hotkeyCheck: 'config:hotkey-check'
+  hotkeyCheck: 'config:hotkey-check',
+  /** settings → main: does the configured key and model actually work? */
+  llmTest: 'config:llm-test'
 } as const
