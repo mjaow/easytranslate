@@ -192,7 +192,11 @@ export function resizePopup(contentHeight: number): void {
 
 export function hidePopup(): void {
   unregisterEscape()
-  if (win && !win.isDestroyed() && win.isVisible()) win.hide()
+  if (!win || win.isDestroyed()) return
+  // Hiding the window does not stop its audio, so a long clip would carry on
+  // talking to an empty screen.
+  win.webContents.send(IPC.popupStop)
+  if (win.isVisible()) win.hide()
 }
 
 export function isPopupVisible(): boolean {

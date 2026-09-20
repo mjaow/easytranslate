@@ -12,7 +12,12 @@ const RUN = process.env.BENCH === '1'
 const MODEL = process.env.BENCH_MODEL ?? 'qwen2.5:3b'
 
 const CASES = [
-  { label: 'PASSAGE', text: "He's just grandstanding for the base." },
+  {
+    label: 'PASSAGE',
+    text:
+      'Ukraine has hit Moscow with what local authorities said was the largest ever ' +
+      'drone attack on the Russian capital, setting a major oil refinery ablaze.'
+  },
   { label: 'WORD', text: 'grandstanding', context: "He's just grandstanding for the base." }
 ]
 

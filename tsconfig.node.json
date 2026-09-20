@@ -30,5 +30,8 @@
     "src/providers/**/*",
     "src/shared/**/*",
     "test/**/*"
-  ]
+  ],
+  // Renderer tests are type-checked by tsconfig.web.json instead: they import DOM
+  // code, and the main process has no DOM lib.
+  "exclude": ["test/player.test.ts"]
 }

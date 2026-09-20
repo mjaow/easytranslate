@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ExplainState } from '@shared/types'
+import { parseNotable } from '@core/notable'
+import { playAudio, stopAudio } from './player'
 
 /**
  * The English half of an example.
@@ -34,9 +36,17 @@ function SpeakButton({
   onStatus: (msg: string | null) => void
 }): React.ReactElement {
   const [busy, setBusy] = useState(false)
+  const [playing, setPlaying] = useState(false)
 
-  const play = useCallback(async () => {
+  const click = useCallback(async () => {
+    // While this clip is playing the button becomes a stop button — a long passage
+    // is exactly when you want to cut it short.
+    if (playing) {
+      stopAudio()
+      return
+    }
     if (busy || !text.trim()) return
+
     setBusy(true)
     onStatus(null)
     try {
@@ -46,28 +56,33 @@ function SpeakButton({
         return
       }
       if (res.fallbackReason) onStatus('Using the Windows voice — the online voice is unavailable.')
-      const audio = new Audio(res.url)
-      await audio.play()
+      setPlaying(true)
+      await playAudio(res.url, () => setPlaying(false))
     } catch (err) {
+      setPlaying(false)
       onStatus(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
     }
-  }, [busy, text, slow, onStatus])
+  }, [busy, playing, text, slow, onStatus])
+
+  const label = playing ? 'Stop' : slow ? 'Read slowly' : 'Read aloud'
 
   return (
     <button
-      onClick={() => void play()}
-      disabled={busy}
-      title={slow ? 'Read slowly' : 'Read aloud'}
+      onClick={() => void click()}
+      // Never disabled while playing, or there would be no way to stop it.
+      disabled={busy && !playing}
+      title={label}
+      aria-label={label}
       className={`rounded-md leading-none transition-colors disabled:opacity-40 ${
         compact ? 'px-1 py-0.5 text-[11px]' : 'px-1.5 py-1 text-[13px]'
       }`}
-      style={{ color: 'var(--text-muted)' }}
+      style={{ color: playing ? 'var(--accent)' : 'var(--text-muted)' }}
       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-muted)')}
       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
     >
-      {slow ? '🐢' : '🔊'}
+      {playing ? '⏹' : slow ? '🐢' : '🔊'}
     </button>
   )
 }
@@ -106,10 +121,16 @@ export function Popup(): React.ReactElement | null {
 
   useEffect(() => {
     return window.easytranslate.onUpdate(({ state: next }) => {
+      // A new lookup replaces the old one, so its audio should not linger.
+      stopAudio()
       setState(next)
       setStatus(null)
     })
   }, [])
+
+  // The window only hides, it is never destroyed, so playback has to be stopped
+  // explicitly when it goes away.
+  useEffect(() => window.easytranslate.onStopAudio(() => stopAudio()), [])
 
   // Size the window to whatever the content actually needs.
   useEffect(() => {
@@ -222,13 +243,41 @@ export function Popup(): React.ReactElement | null {
                 </Section>
               )}
               {ex.notable && ex.notable.length > 0 && (
-                <Section label="worth knowing">
-                  <ul className="space-y-0.5">
-                    {ex.notable.map((item, i) => (
-                      <li key={i} style={{ color: 'var(--text-muted)' }}>
-                        {item}
-                      </li>
-                    ))}
+                <Section label="words worth knowing">
+                  <ul className="space-y-1">
+                    {ex.notable.map((item, i) => {
+                      const t = parseNotable(item)
+                      if (!t) return null
+                      return (
+                        <li key={i}>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-medium" style={{ color: 'var(--text)' }}>
+                              {t.term}
+                            </span>
+                            {t.ipa && (
+                              <span
+                                className="font-mono text-[11px]"
+                                style={{ color: 'var(--text-subtle)' }}
+                              >
+                                {t.ipa}
+                              </span>
+                            )}
+                            <SpeakButton text={t.term} compact onStatus={setStatus} />
+                            {t.gloss && (
+                              <span style={{ color: 'var(--text-muted)' }}>{t.gloss}</span>
+                            )}
+                          </div>
+                          {t.example && (
+                            <div className="flex items-baseline gap-1 pl-2 text-[12px]">
+                              <span className="italic" style={{ color: 'var(--text-subtle)' }}>
+                                {t.example}
+                              </span>
+                              <SpeakButton text={t.example} compact onStatus={setStatus} />
+                            </div>
+                          )}
+                        </li>
+                      )
+                    })}
                   </ul>
                 </Section>
               )}
