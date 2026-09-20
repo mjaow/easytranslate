@@ -15,6 +15,13 @@ const api = {
     return () => ipcRenderer.removeListener(IPC.popupUpdate, listener)
   },
 
+  /** Main asks the popup to silence playback. Returns an unsubscribe function. */
+  onStopAudio(callback: () => void): () => void {
+    const listener = (): void => callback()
+    ipcRenderer.on(IPC.popupStop, listener)
+    return () => ipcRenderer.removeListener(IPC.popupStop, listener)
+  },
+
   close(): void {
     ipcRenderer.send(IPC.popupClose)
   },

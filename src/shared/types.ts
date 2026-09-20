@@ -113,6 +113,8 @@ export interface PopupPayload {
 export const IPC = {
   /** main → popup: new or updated explanation state */
   popupUpdate: 'popup:update',
+  /** main → popup: silence any playback (the popup is going away) */
+  popupStop: 'popup:stop-audio',
   /** popup → main: close me */
   popupClose: 'popup:close',
   /** popup → main: report content height so the window can size to fit */
