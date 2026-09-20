@@ -39,12 +39,13 @@ const FORBIDDEN = new Set([
 export const FALLBACKS: Record<HotkeyId, string[]> = {
   explain: [
     'CommandOrControl+Alt+E',
+    'CommandOrControl+Alt+D',
     'CommandOrControl+Alt+Q',
     'CommandOrControl+Shift+E',
     'Alt+E',
     'F8',
     'CommandOrControl+F8'
-  ]
+  ],
 }
 
 export interface HotkeyBinding {

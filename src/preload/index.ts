@@ -22,11 +22,6 @@ const api = {
     return () => ipcRenderer.removeListener(IPC.popupStop, listener)
   },
 
-  /** Accept the action the popup offered (e.g. read another area of the screen). */
-  runAction(id: string): void {
-    ipcRenderer.send(IPC.popupAction, id)
-  },
-
   close(): void {
     ipcRenderer.send(IPC.popupClose)
   },
@@ -53,16 +48,6 @@ const api = {
 
   setSecret(provider: SecretId, value: string): Promise<{ ok: boolean; error?: string }> {
     return ipcRenderer.invoke(IPC.configSecretSet, { provider, value })
-  },
-
-  /** Overlay → main: the region the user drew, in window coordinates. */
-  overlayPick(rect: { x: number; y: number; width: number; height: number }): void {
-    ipcRenderer.send(IPC.overlayPick, rect)
-  },
-
-  /** Overlay → main: cancelled. */
-  overlayCancel(): void {
-    ipcRenderer.send(IPC.overlayCancel)
   },
 
   /** Whether an accelerator is bindable, for inline feedback in Settings. */

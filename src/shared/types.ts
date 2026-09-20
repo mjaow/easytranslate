@@ -60,11 +60,6 @@ export interface ExplainState {
   explanation: Explanation
   status: 'streaming' | 'done' | 'error'
   error?: string
-  /**
-   * An offer the popup can act on, shown as a button. Used when a failure has one
-   * obvious remedy — so the fix is a click rather than a second shortcut to learn.
-   */
-  action?: { id: 'read-screen'; label: string }
 }
 
 // ---------------------------------------------------------------- config
@@ -81,11 +76,7 @@ export type SecretId = LlmProviderId | 'tts'
 
 export interface AppConfig {
   hotkeys: {
-    /**
-     * The only shortcut. Explains the selection if there is one, and otherwise asks
-     * for an area of the screen to read — so reading a page and watching a video use
-     * the same key.
-     */
+    /** Capture the selection and explain it. The popup handles read-aloud. */
     explain: string
   }
   /** Double-clicking a line in a YouTube transcript explains it — no shortcut at all. */
@@ -140,11 +131,5 @@ export const IPC = {
   /** settings → main: can this accelerator be bound right now? */
   hotkeyCheck: 'config:hotkey-check',
   /** settings → main: does the configured key and model actually work? */
-  llmTest: 'config:llm-test',
-  /** overlay → main: the user drew a region */
-  overlayPick: 'overlay:pick',
-  /** overlay → main: the user cancelled */
-  overlayCancel: 'overlay:cancel',
-  /** popup → main: the user accepted the offered action */
-  popupAction: 'popup:action'
+  llmTest: 'config:llm-test'
 } as const

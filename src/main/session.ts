@@ -4,13 +4,10 @@
 import { app, BrowserWindow, screen } from 'electron'
 import { appendFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ExplainRequest, ExplainState } from '../shared/types.js'
+import type { CaptureFailure, ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
-import { readScreenRegion } from './ocr.js'
 import { readTranscriptAtPoint } from './uia.js'
-import { pickRegion, isPicking } from './overlay.js'
 import { foregroundWindowTitle } from './win32.js'
-import { assessReadability } from '../core/readable.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
 import { detectMode, SectionParser } from '../core/explain.js'
 import { loadConfig, getSecret } from '../core/config.js'
@@ -18,6 +15,18 @@ import { JsonLruCache, AudioCache, cacheKey } from '../core/cache.js'
 import { createLlmProvider, describeError } from '../providers/llm/registry.js'
 import { speak } from '../providers/tts/registry.js'
 import type { Explanation } from '../shared/types.js'
+
+const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
+  // The most common real cause is an elevated target window: Windows silently drops
+  // synthetic input sent to a higher-integrity process (UIPI), so we say so rather
+  // than failing mutely.
+  'no-response':
+    "Couldn't copy the selection. Try pressing Ctrl+C yourself: if that doesn't work either, " +
+    'this page blocks copying. Some news sites do. (It can also mean nothing is selected, or ' +
+    'that the app is running as administrator.)',
+  empty: 'Nothing was selected.',
+  'not-text': 'That selection is an image. Text capture only, for now.'
+}
 
 let explanationCache: JsonLruCache<Explanation> | null = null
 let audioCache: AudioCache | null = null
@@ -29,10 +38,6 @@ function caches(): { explanations: JsonLruCache<Explanation>; audio: AudioCache 
 }
 
 let inFlight: AbortController | null = null
-/** Picking and reading takes a second or two; a second press must not start a rival. */
-let reading = false
-/** One accessibility read at a time — clicks can come faster than PowerShell starts. */
-let clickInFlight = false
 
 function cancelInFlight(): void {
   inFlight?.abort()
@@ -44,80 +49,34 @@ function emit(state: ExplainState, isNew: boolean): void {
   else updatePopup(state)
 }
 
-function showError(message: string, action?: ExplainState['action']): void {
-  showPopup({ mode: 'passage', text: '', explanation: {}, status: 'error', error: message, action })
-}
-
-/**
- * The hotkey: explain the selection, or — when nothing is selected — let the user
- * drag a box over part of the screen and explain what it says.
- *
- * Two gestures, one key. A selection always wins, because it is exact; the screen is
- * for what cannot be selected, such as subtitles on a video.
- */
-export async function explainOrPick(preloadPath: string): Promise<void> {
+/** Hotkey handler: read the selection and explain it. */
+export async function explainSelection(): Promise<void> {
   cancelInFlight()
 
-  const selection = await captureSelection(400, 1)
-  if (selection.ok) {
-    await run({ mode: detectMode(selection.text), text: selection.text }, true)
+  const result = await captureSelection()
+  if (!result.ok) {
+    showPopup({
+      mode: 'passage',
+      text: '',
+      explanation: {},
+      status: 'error',
+      error: CAPTURE_MESSAGES[result.reason]
+    })
     return
   }
 
-  await pickAndRead(preloadPath)
+  const mode = detectMode(result.text)
+  await run({ mode, text: result.text }, true)
 }
 
 /**
- * Drag a box over part of the screen, read the text in it, explain it.
- *
- * The region is chosen fresh every time. Everything past the OCR call is the
- * ordinary explain path — a screen read and a selection are indistinguishable from
- * there on.
- */
-export async function pickAndRead(preloadPath: string): Promise<void> {
-  if (reading) return
-  reading = true
-  try {
-    cancelInFlight()
-
-    const region = await pickRegion(preloadPath)
-    if (!region) return // cancelled — say nothing
-
-    // Let the overlay finish disappearing, or it ends up in its own screenshot.
-    await new Promise((r) => setTimeout(r, 150))
-
-    // Acknowledge at once. Capture and OCR take over a second, and without this the
-    // gesture feels like it did nothing at all.
-    showPopup({ mode: 'passage', text: 'Reading the screen…', explanation: {}, status: 'streaming' })
-
-    const result = await readScreenRegion(region)
-    if (!result.ok) {
-      showError(result.reason, { id: 'read-screen', label: 'Try another area' })
-      return
-    }
-
-    // A misread is worse than a failure: the model will explain nonsense with a
-    // straight face, and it reads like a real answer. Say so instead.
-    if (!assessReadability(result.text).readable) {
-      showError(
-        `That area did not read as text — "${result.text.slice(0, 40)}". ` +
-          'Try drawing the box more tightly around the words.',
-        { id: 'read-screen', label: 'Try another area' }
-      )
-      return
-    }
-
-    await run({ mode: detectMode(result.text), text: result.text }, false)
-  } finally {
-    reading = false
-  }
-}
-
-/**
- * Windows whose clicks are worth a look. A browser's title is its active tab's, so
- * this is "a YouTube tab is in front" — the only place transcripts are clicked.
+ * Windows whose double-clicks are worth a look. A browser's title is its active
+ * tab's, so this is "a YouTube tab is in front" — the only place transcripts live.
  */
 const VIDEO_WINDOW_TITLES = ['YouTube']
+
+/** One accessibility read at a time — clicks can come faster than PowerShell starts. */
+let clickInFlight = false
 
 function isOverOwnWindow(dip: { x: number; y: number }): boolean {
   return BrowserWindow.getAllWindows().some((win) => {
@@ -143,13 +102,13 @@ async function logMiss(entry: string): Promise<void> {
  * The user double-clicked somewhere. If it was a transcript line, explain it.
  *
  * Nothing is read unless a video page is in front, and nothing is shown unless the
- * click was on a line of transcript — the video itself, a related video, the
+ * double-click was on a line of transcript — the video itself, a related video, the
  * comments all stay plain clicks. Misses on a video page are written to
  * last-click.log in the data folder, so a line that fails to register can be
  * diagnosed rather than guessed at.
  */
 export async function explainClickedTranscript(click: { x: number; y: number }): Promise<void> {
-  if (clickInFlight || reading || isPicking()) return
+  if (clickInFlight) return
 
   const title = foregroundWindowTitle()
   if (!VIDEO_WINDOW_TITLES.some((t) => title.includes(t))) return
@@ -275,13 +234,13 @@ export async function synthesize(
 }
 
 /** Pressing the hotkey while the popup is open dismisses it. */
-export function toggleOrExplain(preloadPath: string): void {
+export function toggleOrExplain(): void {
   if (isPopupVisible()) {
     cancelInFlight()
     hidePopup()
     return
   }
-  void explainOrPick(preloadPath)
+  void explainSelection()
 }
 
 export function flushCaches(): void {

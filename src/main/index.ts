@@ -5,11 +5,10 @@ import { existsSync } from 'node:fs'
 import { IPC, type AppConfig, type SecretId } from '../shared/types.js'
 import { createPopupWindow, hidePopup, resizePopup, hardenWebContents } from './popup.js'
 import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } from './hotkeys.js'
-import { synthesize, toggleOrExplain, flushCaches, pickAndRead, explainClickedTranscript } from './session.js'
+import { synthesize, toggleOrExplain, flushCaches, explainClickedTranscript } from './session.js'
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
 import { probeProvider } from '../providers/llm/probe.js'
-import { registerOverlayIpc } from './overlay.js'
 import { isAvailable, getLoadError } from './win32.js'
 import { startClickWatcher, stopClickWatcher } from './clicks.js'
 
@@ -34,7 +33,6 @@ function preloadPath(): string {
 const VERIFY_CAPTURE = process.argv.includes('--verify-capture')
 const PROBE_HOTKEYS = process.argv.includes('--probe-hotkeys')
 const VERIFY_HOTKEYS = process.argv.includes('--verify-hotkeys')
-const VERIFY_SNIP = process.argv.includes('--verify-snip')
 const VERIFY_CLICK = process.argv.includes('--verify-click')
 
 if (VERIFY_CAPTURE) {
@@ -47,11 +45,6 @@ if (VERIFY_CAPTURE) {
   void app.whenReady().then(async () => {
     const { runHotkeyVerification } = await import('./verify-hotkeys.js')
     runHotkeyVerification()
-  })
-} else if (VERIFY_SNIP) {
-  void app.whenReady().then(async () => {
-    const { runSnipVerification } = await import('./verify-snip.js')
-    await runSnipVerification(preloadPath())
   })
 } else if (VERIFY_CLICK) {
   void app.whenReady().then(async () => {
@@ -81,7 +74,6 @@ function main(): void {
   createPopupWindow(preloadPath())
   createTray()
   registerIpc()
-  registerOverlayIpc()
   applyHotkeys()
   applyClickWatcher()
 
@@ -122,7 +114,7 @@ function applyHotkeys(announce = true): void {
 
   const config = loadConfig()
   const result = registerHotkeys(
-    bindingsFor(config, { explain: () => toggleOrExplain(preloadPath()) })
+    bindingsFor(config, { explain: toggleOrExplain })
   )
 
   // A reassignment is only useful if it sticks, so persist what actually bound —
@@ -183,11 +175,7 @@ function refreshTrayMenu(): void {
 
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      {
-        label: `Explain selection, or pick an area  (${config.hotkeys.explain})`,
-        click: () => toggleOrExplain(preloadPath())
-      },
-      { label: 'Read an area of the screen…', click: () => void pickAndRead(preloadPath()) },
+      { label: `Explain selection  (${config.hotkeys.explain})`, click: () => toggleOrExplain() },
       { type: 'separator' },
       {
         label: 'Pause',
@@ -248,13 +236,6 @@ function openSettings(): void {
 
 function registerIpc(): void {
   ipcMain.on(IPC.popupClose, () => hidePopup())
-
-  ipcMain.on(IPC.popupAction, (_e, id: unknown) => {
-    if (id === 'read-screen') {
-      hidePopup()
-      void pickAndRead(preloadPath())
-    }
-  })
 
   ipcMain.on(IPC.popupResize, (_e, height: unknown) => {
     if (typeof height === 'number' && Number.isFinite(height)) resizePopup(height)
