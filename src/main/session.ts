@@ -8,6 +8,7 @@ import { captureSelection } from './capture.js'
 import { readScreenRegion } from './ocr.js'
 import { pickRegion } from './overlay.js'
 import { regionIsStillValid } from '../core/region.js'
+import { assessReadability } from '../core/readable.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
 import { detectMode, SectionParser } from '../core/explain.js'
 import { loadConfig, saveConfig, getSecret } from '../core/config.js'
@@ -139,6 +140,17 @@ export async function snipScreen(preloadPath: string, forcePick = false): Promis
         id: 'pick-region',
         label: 'Pick a different area'
       })
+      return
+    }
+
+    // A misread is worse than a failure: the model will explain nonsense with a
+    // straight face, and it reads like a real answer. Say so instead.
+    if (!assessReadability(result.text).readable) {
+      showError(
+        `That area did not read as text — "${result.text.slice(0, 40)}". ` +
+          'It is probably pointing somewhere other than the words you want.',
+        { id: 'pick-region', label: 'Pick a different area' }
+      )
       return
     }
 

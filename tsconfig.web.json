@@ -26,6 +26,7 @@
     "src/core/tokenize.ts",
     "src/core/notable.ts",
     "src/core/region.ts",
+    "src/core/readable.ts",
     "src/preload/index.ts",
     "test/player.test.ts"
   ]
