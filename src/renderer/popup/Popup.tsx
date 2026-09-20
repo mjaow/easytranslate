@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ExplainState } from '@shared/types'
 
+/**
+ * The English half of an example.
+ *
+ * The model returns the sentence then its Chinese translation on the next line.
+ * Only the first line should be spoken — an American English voice handed Chinese
+ * text produces nonsense.
+ */
+function exampleEnglish(example: string): string {
+  return example.split('\n')[0]?.trim() ?? ''
+}
+
 /** Feels like "still working" rather than "broken" while the first tokens land. */
 function Skeleton(): React.ReactElement {
   return (
@@ -14,10 +25,12 @@ function Skeleton(): React.ReactElement {
 function SpeakButton({
   text,
   slow = false,
+  compact = false,
   onStatus
 }: {
   text: string
   slow?: boolean
+  compact?: boolean
   onStatus: (msg: string | null) => void
 }): React.ReactElement {
   const [busy, setBusy] = useState(false)
@@ -47,7 +60,9 @@ function SpeakButton({
       onClick={() => void play()}
       disabled={busy}
       title={slow ? 'Read slowly' : 'Read aloud'}
-      className="rounded-md px-1.5 py-1 text-[13px] leading-none transition-colors disabled:opacity-40"
+      className={`rounded-md leading-none transition-colors disabled:opacity-40 ${
+        compact ? 'px-1 py-0.5 text-[11px]' : 'px-1.5 py-1 text-[13px]'
+      }`}
       style={{ color: 'var(--text-muted)' }}
       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-muted)')}
       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -59,19 +74,24 @@ function SpeakButton({
 
 function Section({
   label,
+  action,
   children
 }: {
   label?: string
+  action?: React.ReactNode
   children: React.ReactNode
 }): React.ReactElement {
   return (
     <div className="space-y-0.5">
-      {label && (
-        <div
-          className="text-[10px] font-medium uppercase tracking-wider"
-          style={{ color: 'var(--text-subtle)' }}
-        >
-          {label}
+      {(label || action) && (
+        <div className="flex items-center gap-1">
+          <div
+            className="text-[10px] font-medium uppercase tracking-wider"
+            style={{ color: 'var(--text-subtle)' }}
+          >
+            {label}
+          </div>
+          {action}
         </div>
       )}
       <div className="text-[13px] leading-snug">{children}</div>
@@ -167,7 +187,10 @@ export function Popup(): React.ReactElement | null {
 
               {ex.zh && <div className="text-[15px] font-medium leading-snug">{ex.zh}</div>}
               {ex.en && (
-                <Section>
+                <Section
+                  label="in plain english"
+                  action={<SpeakButton text={ex.en} compact onStatus={setStatus} />}
+                >
                   <span style={{ color: 'var(--text-muted)' }}>{ex.en}</span>
                 </Section>
               )}
@@ -177,7 +200,20 @@ export function Popup(): React.ReactElement | null {
                 </Section>
               )}
               {ex.example && (
-                <Section label="example">
+                <Section
+                  label="example"
+                  action={
+                    <>
+                      <SpeakButton text={exampleEnglish(ex.example)} compact onStatus={setStatus} />
+                      <SpeakButton
+                        text={exampleEnglish(ex.example)}
+                        slow
+                        compact
+                        onStatus={setStatus}
+                      />
+                    </>
+                  }
+                >
                   {ex.example.split('\n').map((line, i) => (
                     <div key={i} style={{ color: i === 0 ? 'var(--text)' : 'var(--text-muted)' }}>
                       {line}
