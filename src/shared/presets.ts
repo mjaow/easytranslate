@@ -34,7 +34,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     // follows new releases on its own. Versioned ids like `qwen3.7-flash` are what
     // other hosts (OpenRouter) use and are rejected here — use Test connection to
     // see the exact ids a key can call.
-    note: "A few cents a month. Alibaba's own model, so its Chinese is the most idiomatic of the cheap options. Your key is bound to the region it was created in: this is the international endpoint, so swap in dashscope.aliyuncs.com if you registered in mainland China.",
+    note: "A few cents a month. Alibaba's own model, so its Chinese is the most idiomatic of the cheap options. Your key is bound to the region it was created in: this is the international endpoint, so swap in dashscope.aliyuncs.com if you registered in mainland China — that endpoint is also substantially cheaper. New accounts get a free token allowance before any billing starts.",
     keyUrl: 'https://modelstudio.console.alibabacloud.com/'
   },
   {
