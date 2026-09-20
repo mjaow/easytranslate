@@ -170,8 +170,7 @@ async function clipboardHasAnything(): Promise<boolean> {
  * paragraph breaks.
  */
 export function normalize(raw: string): string {
-  return raw
-    .replace(/\r\n?/g, '\n')
+  return stripTimestamps(raw.replace(/\r\n?/g, '\n'))
     .replace(/ /g, ' ')
     // A single newline inside a paragraph is almost always hard-wrapping; two or more
     // is a real break. Collapse the former, keep the latter.
@@ -181,4 +180,17 @@ export function normalize(raw: string): string {
     .trim()
 }
 
-export const __testing = { snapshot, restore, normalize }
+/**
+ * Drop the leading timestamp from each line of a video transcript.
+ *
+ * Selecting from a transcript panel — YouTube's, or any player's — gives lines like
+ * "0:15  you're on a campus and". The timestamps are noise to a reader and worse to a
+ * model, which will dutifully try to account for them; they also clutter the popup
+ * headline. Only a timestamp at the very start of a line is removed, so a time
+ * mentioned within a sentence survives.
+ */
+function stripTimestamps(raw: string): string {
+  return raw.replace(/^[ \t]*\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?[ \t]+(?=\S)/gm, '')
+}
+
+export const __testing = { snapshot, restore, normalize, stripTimestamps }
