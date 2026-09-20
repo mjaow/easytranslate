@@ -5,7 +5,7 @@ import type { AppConfig } from '../src/shared/types.js'
 function cfg(baseUrl: string, model = 'nonexistent-model'): AppConfig {
   return {
     hotkeys: { explain: '' },
-    clickTranscripts: true,
+    clickToExplain: 'double',
     llm: {
       provider: 'ollama',
       models: { ollama: model },

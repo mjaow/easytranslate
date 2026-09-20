@@ -107,9 +107,12 @@ function main(): void {
  * the hotkey — "pause" should mean the app does nothing at all.
  */
 function applyClickWatcher(): void {
-  const wanted = loadConfig().clickTranscripts && !hotkeysPaused && isAvailable()
-  if (wanted) startClickWatcher((click) => void explainClickedTranscript(click))
-  else stopClickWatcher()
+  const gesture = loadConfig().clickToExplain
+  // Always restart: the gesture may have changed, and the watcher is cheap to make.
+  stopClickWatcher()
+  if (gesture !== 'off' && !hotkeysPaused && isAvailable()) {
+    startClickWatcher((click) => void explainClickedTranscript(click), gesture)
+  }
 }
 
 function applyHotkeys(announce = true): void {

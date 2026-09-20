@@ -140,10 +140,11 @@ Three ways in, all ending in the same popup:
 - **Nothing selected?** `Ctrl+Alt+E` dims the screen; **drag a box** over the words —
   a subtitle on a video, text in an image — and they are read off the screen (local
   OCR, nothing uploaded). `Esc` cancels.
-- **Watching YouTube?** Just **click** — a line in the transcript panel, or the video
+- **Watching YouTube?** **Double-click** a line in the transcript panel, or the video
   itself while captions are showing. No shortcut. The text comes from the page
-  itself, so it is exact. (A single click; a double-click is YouTube's own
-  fullscreen toggle.)
+  itself, so it is exact. Settings can make it a single click instead, or turn it
+  off. (Double-clicking the video is also YouTube's own fullscreen toggle — for the
+  video, the box is often the calmer choice.)
 
 - Three words or fewer → treated as a term: IPA, part of speech, what it means *here*
 - Longer → treated as a passage: natural Chinese, simpler English, idioms worth knowing
@@ -153,13 +154,12 @@ Three ways in, all ending in the same popup:
 |---|---|
 | `Ctrl+Alt+E` with a selection | Explain the selection (press again to dismiss) |
 | `Ctrl+Alt+E` with nothing selected | Drag a box over part of the screen and explain it |
-| Click a YouTube transcript line | Explain that line |
-| Click the YouTube video with captions on | Explain the caption on screen |
+| Double-click a YouTube transcript line | Explain that line |
+| Double-click the YouTube video with captions on | Explain the caption on screen |
 | `Esc` | Close the popup, or cancel the box |
 
 Clicking a transcript line also seeks the video there, exactly as it did before —
-EasyTranslate watches the click, it does not intercept it. Turn the click off in
-Settings if you would rather it stayed a plain click.
+EasyTranslate watches the click, it does not intercept it.
 
 Change the shortcut in Settings by **pressing the keys you want** — it records the
 chord rather than asking you to type accelerator syntax, and stores

@@ -70,6 +70,7 @@ export interface ExplainState {
 // ---------------------------------------------------------------- config
 
 export type LlmProviderId = 'claude' | 'openai' | 'ollama'
+export type ClickGesture = 'off' | 'single' | 'double'
 export type TtsProviderId = 'online' | 'system'
 
 /**
@@ -88,8 +89,12 @@ export interface AppConfig {
      */
     explain: string
   }
-  /** Clicking a line in a YouTube transcript explains it, with no shortcut at all. */
-  clickTranscripts: boolean
+  /**
+   * Explain a YouTube transcript line, or the caption on the video, by clicking it —
+   * no shortcut at all. Double-click by default: a single click is how the page is
+   * ordinarily used, and every one of them turning into a popup is too much.
+   */
+  clickToExplain: ClickGesture
   llm: {
     provider: LlmProviderId
     /** Per-provider model id. Keys are LlmProviderId. */

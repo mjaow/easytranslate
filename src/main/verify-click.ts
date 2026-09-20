@@ -129,7 +129,13 @@ export async function runClickVerification(): Promise<void> {
 
   const mouse = makeMouse()
   const clicks: Click[] = []
-  startClickWatcher((c) => clicks.push(c))
+  startClickWatcher((c) => clicks.push(c), 'double')
+
+  const clickAt = async (point: { x: number; y: number }): Promise<void> => {
+    mouse.press(point.x, point.y)
+    await sleep(40)
+    mouse.release(point.x, point.y)
+  }
 
   // Chromium builds its accessibility tree the first time a client asks, so warm it
   // up before measuring, as the real app's first click on a fresh window would.
@@ -143,12 +149,16 @@ export async function runClickVerification(): Promise<void> {
     for (let i = 0; i < LINES.length; i++) {
       const point = rowCentre(i)
       const seen = clicks.length
-      mouse.press(point.x, point.y)
-      await sleep(40)
-      mouse.release(point.x, point.y)
+      await clickAt(point)
       await sleep(120)
+      check(clicks.length === seen, `a single click on line ${i + 1} is left alone`)
 
-      check(clicks.length === seen + 1, `click ${i + 1} noticed by the watcher`)
+      await sleep(700) // well past the double-click window, so the next pair stands alone
+      await clickAt(point)
+      await sleep(80)
+      await clickAt(point)
+      await sleep(120)
+      check(clicks.length === seen + 1, `a double-click on line ${i + 1} is reported once`)
 
       const started = Date.now()
       const { text } = await readTranscriptAtPoint(point.x, point.y)
