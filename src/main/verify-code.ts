@@ -21,6 +21,11 @@ const CASES: { label: string; text: string; code: boolean }[] = [
   { label: 'SQL', text: 'SELECT id, name FROM users WHERE age > 30 ORDER BY name;', code: true },
   { label: 'Bash', text: 'for f in *.txt; do echo "$f"; done', code: true },
   { label: 'JSON', text: '{"name": "easytranslate", "version": "0.1.0", "private": true}', code: true },
+  {
+    label: 'Python with a bug',
+    text: 'def avg(xs):\n    return sum(xs) / len(xs)',
+    code: true
+  },
   { label: 'news sentence', text: 'The president calls for federal involvement as opposition grows.', code: false },
   { label: 'prose mentioning languages', text: 'I learned C++ and Rust last year, and Go the year before.', code: false },
   { label: 'prose with a shortcut', text: 'Use Ctrl+C to copy and Ctrl+V to paste, then press Enter.', code: false },
@@ -51,7 +56,45 @@ export async function runCodeVerification(): Promise<void> {
     app.exit(2)
     return
   }
-  console.log(`  provider: ${config.llm.provider}  model: ${config.llm.models[config.llm.provider]}\n`)
+  console.log(
+    `  provider: ${config.llm.provider}  model: ${config.llm.models[config.llm.provider]}` +
+      (config.llm.codeModel ? `  code model: ${config.llm.codeModel}` : '') +
+      '\n'
+  )
+  // The second step goes to the code model when one is set, as the button does.
+  const codeProvider = config.llm.codeModel.trim()
+    ? createLlmProvider(config, secret, config.llm.codeModel.trim())
+    : provider
+
+  // `npm run verify:code -- path/to/snippet` prints the full explanation of that file
+  // instead — the way to judge the answer's quality by eye, not just its shape.
+  const file = process.argv[process.argv.indexOf('--verify-code') + 1]
+  if (file && !file.startsWith('-')) {
+    const { readFileSync } = await import('node:fs')
+    const text = readFileSync(file, 'utf8')
+    const parser = new SectionParser()
+    const started = Date.now()
+    for await (const chunk of codeProvider.explain({ mode: 'code', text, raw: keepShape(text) }, new AbortController().signal)) {
+      parser.push(chunk)
+    }
+    const r = parser.end()
+    const show = (label: string, value: string | string[] | undefined): void => {
+      if (!value || value.length === 0) return
+      console.log(`  ${label}`)
+      for (const line of Array.isArray(value) ? value : value.split('\n')) console.log(`    ${line}`)
+    }
+    show('LANG', r.lang)
+    show('ZH', r.zh)
+    show('EN', r.en)
+    show('WHY', r.why)
+    show('STEPS', r.steps)
+    show('DESIGN', r.design)
+    show('ISSUES', r.issues)
+    show('CONCEPTS', r.concepts)
+    console.log(`\n  ${Date.now() - started}ms\n`)
+    app.exit(0)
+    return
+  }
 
   for (const c of CASES) {
     const raw = keepShape(c.text)
@@ -86,7 +129,7 @@ export async function runCodeVerification(): Promise<void> {
     const codeParser = new SectionParser()
     const codeStarted = Date.now()
     try {
-      for await (const chunk of provider.explain({ mode: 'code', text: c.text, raw }, new AbortController().signal)) {
+      for await (const chunk of codeProvider.explain({ mode: 'code', text: c.text, raw }, new AbortController().signal)) {
         codeParser.push(chunk)
       }
     } catch (err) {
@@ -95,9 +138,9 @@ export async function runCodeVerification(): Promise<void> {
     }
     const code = codeParser.end()
     check(
-      Boolean(code.lang && code.steps?.length && code.zh && code.en),
+      Boolean(code.lang && code.steps?.length && code.zh && code.en && code.why),
       `  …explained as code`,
-      `${code.lang ?? '?'}, ${code.steps?.length ?? 0} steps, ${code.concepts?.length ?? 0} concepts, ${Date.now() - codeStarted}ms`
+      `${code.lang ?? '?'}, why ${code.why ? 'yes' : 'MISSING'}, ${code.steps?.length ?? 0} steps, ${code.design?.length ?? 0} design, ${code.issues?.length ?? 0} issues, ${code.concepts?.length ?? 0} concepts, ${Date.now() - codeStarted}ms`
     )
   }
 

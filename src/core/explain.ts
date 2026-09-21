@@ -79,41 +79,59 @@ ablaze · /əˈbleɪz/ · 着火的，熊熊燃烧的 · Firefighters arrived to
 Almost every real passage contains something worth listing. Only write (none) if the
 passage is genuinely all common words.`
 
-const CODE_PROMPT = `${SHARED_RULES}
+const CODE_PROMPT = `You help a native Chinese speaker who is a working developer and reads English at an
+intermediate level. Write Chinese in Simplified characters.
 
-The selection is source code. Explain what it does to a working developer who reads
-English at an intermediate level — do NOT translate identifiers, do not restate the
-code, and do not speculate about code that is not shown.
+The selection is source code. Explain it the way a senior colleague would in a code
+review: what problem it solves and why it is built this way — not a line-by-line
+paraphrase. Do NOT translate identifiers. Judge only the code shown: never invent code
+that is not there, and say when something cannot be known from the snippet.
+
+Answer ONLY in the section format given. Every section header is on its own line.
+No preamble, no closing remarks, no markdown beyond the headers and backticks. This is
+a longer answer than a word lookup: a section may run to a short paragraph, and a
+list to 3–8 lines.
 
 Sections, in this exact order:
 ## LANG
 The language, one word (Python, TypeScript, SQL, Bash, Go, Rust, JSON, ...). Nothing else.
 ## ZH
-用一两句中文说明这段代码整体做了什么。
+一两句话：这段代码是什么、整体做什么。
 ## EN
 The same in plain English. This section must be in English.
+## WHY
+用中文说明：它解决什么问题、为什么需要它、和更简单的做法相比好在哪里。3 到 5 句。
+如果它实现的是一个有名字的算法、设计模式或论文里的机制（比如多头注意力、LRU 缓存），
+先用一两句把那个概念本身讲清楚，再说这段代码是怎么体现它的。
 ## STEPS
-2 to 5 lines, in the order the code runs. Each line: the part of the code (quote a few
-tokens verbatim, in backticks), then " → ", then what it does, in Chinese, under 20
-characters. No numbering.
+3 到 8 行，按执行顺序。每行：代码片段（用反引号原样引用几个 token）→ 它做了什么，
+中文，不超过 30 字。不要编号。
+## DESIGN
+2 到 4 行。每行：一个值得注意的写法或取舍 → 为什么这样写、换一种写法会怎样。
+中文。只讲这段代码里确实存在的选择。
+## ISSUES
+这段代码里的 bug、遗漏的边界情况、性能或可读性问题、与惯用写法的偏差。每行一条：
+先引用出问题的代码，再说后果，再说改法。只写能从这段代码本身确定的问题；拿不准
+的要写"可能"。确实没有发现问题就写 (none)。
 ## CONCEPTS
-Up to 3 concepts in the snippet a developer may not know, most important first.
+Up to 4 concepts in the snippet a developer may not know, most important first.
 One per line, middle dot as separator:
 term · 中文名称 · 一句中文说明它在这里的作用
 
-For example, given "squares = [x * x for x in range(10) if x % 2 == 0]":
-## LANG
-Python
+For example, given "def avg(xs):\n    return sum(xs) / len(xs)":
 ## STEPS
-\`range(10)\` → 生成 0 到 9 的整数
-\`if x % 2 == 0\` → 只保留偶数
-\`x * x\` → 对每个保留的数求平方
-\`squares = [...]\` → 结果收集成列表
+\`sum(xs)\` → 把序列里的数加起来
+\`len(xs)\` → 取元素个数
+\`sum(xs) / len(xs)\` → 相除得到平均值并返回
+## DESIGN
+\`sum(xs) / len(xs)\` 直接用内置函数 → 简洁，但会把序列遍历两次；对大数据可用一次循环同时累加和计数
+## ISSUES
+\`len(xs)\` 为 0 时抛出 ZeroDivisionError → 空列表会让调用方崩溃 → 先判空，返回 0 或抛出带说明的异常
+\`xs\` 若是生成器，\`sum\` 会把它耗尽，随后 \`len\` 直接报错 → 只接受序列，或先转成 list
 ## CONCEPTS
-list comprehension · 列表推导式 · 一行内完成筛选和变换，比 for 循环更简洁
-modulo operator · 取模运算符 · 求余数，用来判断奇偶
+built-in functions · 内置函数 · sum、len 由解释器实现，比手写循环更快更可读
 
-Write (none) under CONCEPTS only if the snippet uses nothing beyond basic syntax.`
+Write (none) under ISSUES or CONCEPTS only when there is genuinely nothing to list.`
 
 export function systemPrompt(mode: ExplainMode): string {
   if (mode === 'word') return WORD_PROMPT
@@ -149,12 +167,15 @@ const HEADERS: Record<string, keyof Explanation> = {
   NOTABLE: 'notable',
   CODE: 'isCode',
   LANG: 'lang',
+  WHY: 'why',
   STEPS: 'steps',
+  DESIGN: 'design',
+  ISSUES: 'issues',
   CONCEPTS: 'concepts'
 }
 
 /** Sections that are a list, one item per line, rather than running text. */
-const LIST_SECTIONS = new Set<keyof Explanation>(['notable', 'steps', 'concepts'])
+const LIST_SECTIONS = new Set<keyof Explanation>(['notable', 'steps', 'design', 'issues', 'concepts'])
 
 const HEADER_RE = /^##\s*([A-Z]+)\s*$/
 

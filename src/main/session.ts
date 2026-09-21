@@ -182,13 +182,10 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   lastRequest = req
   const config = loadConfig()
   const { explanations } = caches()
-  const key = cacheKey(
-    config.llm.provider,
-    config.llm.models[config.llm.provider],
-    req.mode,
-    req.text,
-    req.context
-  )
+  // Code may go to a stronger model; everything else stays on the everyday one.
+  const model =
+    (req.mode === 'code' && config.llm.codeModel.trim()) || config.llm.models[config.llm.provider]
+  const key = cacheKey(config.llm.provider, model, req.mode, req.text, req.context)
 
   const cached = explanations.get(key)
   if (cached) {
@@ -211,7 +208,7 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
 
   let provider
   try {
-    provider = createLlmProvider(config, getSecret(config.llm.provider))
+    provider = createLlmProvider(config, getSecret(config.llm.provider), model)
   } catch (err) {
     const e = describeError(config.llm.provider, err)
     emit({ ...state, status: 'error', error: [e.message, e.hint].filter(Boolean).join(' ') }, false)

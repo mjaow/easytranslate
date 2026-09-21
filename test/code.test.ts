@@ -68,6 +68,30 @@ describe('code reply parsing', () => {
     '(none)'
   ].join('\n')
 
+  it('parses the review sections and drops an empty issues list', () => {
+    const p = new SectionParser()
+    p.push(
+      [
+        '## LANG',
+        'Python',
+        '## WHY',
+        '把求平均封装成函数，',
+        '避免重复。',
+        '## DESIGN',
+        '- `sum(xs) / len(xs)` → 简洁，但遍历两次',
+        '## ISSUES',
+        '(none)',
+        '## CONCEPTS',
+        'built-in functions · 内置函数 · 更快更可读'
+      ].join('\n')
+    )
+    const r = p.end()
+    expect(r.why).toBe('把求平均封装成函数，\n避免重复。')
+    expect(r.design).toEqual(['`sum(xs) / len(xs)` → 简洁，但遍历两次'])
+    expect(r.issues).toBeUndefined()
+    expect(r.concepts).toHaveLength(1)
+  })
+
   it('yields lang, numbered-free steps and concepts', () => {
     const p = new SectionParser()
     p.push(REPLY)

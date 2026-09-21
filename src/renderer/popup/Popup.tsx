@@ -162,7 +162,8 @@ export function Popup(): React.ReactElement | null {
   const empty = Object.keys(ex).length === 0
 
   return (
-    <div className="p-1.5">
+    // The window is sized to the content up to a limit; past it, this scrolls.
+    <div className="p-1.5" style={{ maxHeight: '100vh', overflowY: 'auto' }}>
       <div
         ref={contentRef}
         className="overflow-hidden rounded-xl border"
@@ -268,6 +269,11 @@ export function Popup(): React.ReactElement | null {
                   ))}
                 </Section>
               )}
+              {ex.why && (
+                <Section label="why it matters">
+                  <span style={{ color: 'var(--text)', whiteSpace: 'pre-line' }}>{ex.why}</span>
+                </Section>
+              )}
               {ex.steps && ex.steps.length > 0 && (
                 <Section label="step by step">
                   <ol className="space-y-0.5 pl-4" style={{ listStyle: 'decimal' }}>
@@ -277,6 +283,28 @@ export function Popup(): React.ReactElement | null {
                       </li>
                     ))}
                   </ol>
+                </Section>
+              )}
+              {ex.design && ex.design.length > 0 && (
+                <Section label="why it is written this way">
+                  <ul className="space-y-1 pl-4" style={{ listStyle: 'disc' }}>
+                    {ex.design.map((line, i) => (
+                      <li key={i} style={{ color: 'var(--text)' }}>
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+              {ex.issues && ex.issues.length > 0 && (
+                <Section label="watch out">
+                  <ul className="space-y-1 pl-4" style={{ listStyle: 'disc' }}>
+                    {ex.issues.map((line, i) => (
+                      <li key={i} style={{ color: 'var(--danger)' }}>
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
                 </Section>
               )}
               {ex.concepts && ex.concepts.length > 0 && (

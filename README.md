@@ -72,10 +72,13 @@ Settings opens by itself the first time, since nothing works until step 1 is don
 - **Anything longer** is treated as a passage: natural Chinese, simpler English, and
   the hard words and idioms in it, each with IPA, Chinese and an example.
 - **Code** gets an offer: when the model judges the selection to be source code, the
-  popup shows **This looks like code — explain what it does**. One click gives what it
-  does in Chinese and English, a step-by-step walk through it, and the concepts in it
-  worth knowing. Any language, a shell command, a query or a JSON fragment all count;
-  a sentence that merely mentions `C++` does not.
+  popup shows **This looks like code — explain what it does**. One click gives a code
+  review rather than a paraphrase: what it does, what problem it solves and why this
+  approach, a step-by-step walk through it, why it is written the way it is, any bugs
+  or edge cases visible in the snippet, and the concepts worth knowing. Any language,
+  a shell command, a query or a JSON fragment all count; a sentence that merely
+  mentions `C++` does not. Settings can point code explanations at a stronger model
+  than everyday lookups use, since design and bug reasoning is where that pays off.
 - **🔊** reads it aloud, **🐢** reads it slowly, **⏹** stops.
 
 The double-click needs no shortcut. On YouTube the words come from the page itself, so

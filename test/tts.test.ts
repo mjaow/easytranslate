@@ -13,7 +13,7 @@ function cfg(provider: TtsProviderId): AppConfig {
   return {
     hotkeys: { explain: '' },
     doubleClickTranscripts: true,
-    llm: { provider: 'ollama', models: {}, baseUrls: {} },
+    llm: { provider: 'ollama', models: {}, baseUrls: {}, codeModel: '' },
     tts: {
       provider,
       systemVoice: 'Microsoft Zira',

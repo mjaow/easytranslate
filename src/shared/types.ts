@@ -64,9 +64,15 @@ export interface Explanation {
   isCode?: boolean
   /** CODE only: the language, one word. */
   lang?: string
-  /** Code only: what each part does, in order. */
+  /** CODE only: the problem it solves and why this approach — the understanding. */
+  why?: string
+  /** CODE only: what each part does, in order. */
   steps?: string[]
-  /** Code only: concepts worth learning, `term · 中文 · why it matters here`. */
+  /** CODE only: notable choices in how it is written, each with the reason. */
+  design?: string[]
+  /** CODE only: bugs, edge cases and pitfalls found in the snippet itself. */
+  issues?: string[]
+  /** CODE only: concepts worth learning, `term · 中文 · why it matters here`. */
   concepts?: string[]
 }
 
@@ -107,6 +113,12 @@ export interface AppConfig {
     models: Record<string, string>
     /** Base URL override, mainly for Ollama / proxies. Keys are LlmProviderId. */
     baseUrls: Record<string, string>
+    /**
+     * Model for code explanations, on the same provider and key. Empty means the
+     * ordinary model. Reasoning about design and bugs is where a stronger model pays
+     * off, and it is paid only when the user clicks for it.
+     */
+    codeModel: string
   }
   tts: {
     provider: TtsProviderId

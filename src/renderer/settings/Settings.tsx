@@ -517,6 +517,13 @@ export function Settings(): React.ReactElement {
         />
 
         <DraftInput
+          label="Model for code explanations"
+          value={config.llm.codeModel}
+          hint="Optional. Reasoning about design and bugs is where a stronger model pays off, and it is paid only when you click to explain code. Same provider and key. Empty = the model above."
+          onCommit={(v) => patch({ llm: { ...config.llm, codeModel: v.trim() } })}
+        />
+
+        <DraftInput
           label="Base URL"
           value={config.llm.baseUrls[config.llm.provider] ?? ''}
           hint="Set by the preset. Only change it for a proxy or a local server."

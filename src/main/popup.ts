@@ -177,11 +177,13 @@ export function updatePopup(state: ExplainState): void {
 /** Resize to the content height the renderer measured, keeping the window on-screen. */
 export function resizePopup(contentHeight: number): void {
   if (!win || win.isDestroyed()) return
-  const height = Math.round(Math.max(MIN_HEIGHT, Math.min(contentHeight, MAX_HEIGHT)))
-  if (height === win.getBounds().height) return
-
   const { x, y } = win.getBounds()
   const { workArea } = screen.getDisplayNearestPoint({ x, y })
+  // A code explanation is long; let it use most of the screen before it scrolls.
+  const maxHeight = Math.max(MAX_HEIGHT, Math.round(workArea.height * 0.85))
+  const height = Math.round(Math.max(MIN_HEIGHT, Math.min(contentHeight, maxHeight)))
+  if (height === win.getBounds().height) return
+
   // Growing downward can push the popup off the bottom; pull it up if so.
   const clampedY = Math.max(
     workArea.y + SCREEN_MARGIN,

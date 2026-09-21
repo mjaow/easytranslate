@@ -43,7 +43,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       claude: 'https://api.anthropic.com',
       openai: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
       ollama: 'http://localhost:11434'
-    }
+    },
+    codeModel: ''
   },
   tts: {
     // Online by default: the Windows voices are noticeably robotic, and hearing a
@@ -83,7 +84,8 @@ function merge(stored: unknown): AppConfig {
       ...DEFAULT_CONFIG.llm,
       ...s.llm,
       models: { ...DEFAULT_CONFIG.llm.models, ...s.llm?.models },
-      baseUrls: { ...DEFAULT_CONFIG.llm.baseUrls, ...s.llm?.baseUrls }
+      baseUrls: { ...DEFAULT_CONFIG.llm.baseUrls, ...s.llm?.baseUrls },
+      codeModel: s.llm?.codeModel ?? ''
     },
     tts: { ...DEFAULT_CONFIG.tts, ...s.tts },
     launchAtLogin: s.launchAtLogin ?? DEFAULT_CONFIG.launchAtLogin
