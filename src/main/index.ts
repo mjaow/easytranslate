@@ -74,6 +74,10 @@ function main(): void {
   createPopupWindow(preloadPath())
   createTray()
   registerIpc()
+
+  // Nothing works until a model key is pasted, and a new user cannot be expected
+  // to find a tray icon. Open Settings on a first run rather than sit there silently.
+  if (!hasSecret(loadConfig().llm.provider)) openSettings()
   applyHotkeys()
   applyClickWatcher()
 
@@ -90,6 +94,21 @@ function main(): void {
           : 'EasyTranslate currently supports Windows only.'
     })
   }
+}
+
+// ------------------------------------------------------------ login item
+
+/**
+ * Start at login. Installed from source, the executable is a bare electron.exe,
+ * which on its own opens Electron's default app — the app directory has to be
+ * passed as an argument, the same way the installer's shortcuts do it.
+ */
+function applyLoginItem(openAtLogin: boolean): void {
+  app.setLoginItemSettings({
+    openAtLogin,
+    path: process.execPath,
+    args: app.isPackaged ? [] : [app.getAppPath()]
+  })
 }
 
 // ----------------------------------------------------------------- hotkeys
@@ -264,7 +283,7 @@ function registerIpc(): void {
     // reports availability inline as you type.
     applyHotkeys(false)
     applyClickWatcher()
-    app.setLoginItemSettings({ openAtLogin: saved.launchAtLogin })
+    applyLoginItem(saved.launchAtLogin)
     // Re-read: applyHotkeys may have reassigned a conflicting shortcut and saved
     // again, and Settings must show what is actually bound, not what was requested.
     return loadConfig()

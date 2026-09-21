@@ -12,18 +12,36 @@ and the popup never takes focus. See [How it works](#how-it-works).
 
 ## Getting started
 
-**Requirements:** Windows 10 or 11, and [Node.js](https://nodejs.org) 20 or newer.
+**Windows 10 or 11.** Open PowerShell and paste one line:
+
+```powershell
+irm https://raw.githubusercontent.com/mjaow/easytranslate/main/install.ps1 | iex
+```
+
+It installs Node.js if you don't have it, downloads and builds the app into
+`%LOCALAPPDATA%\EasyTranslate`, adds **EasyTranslate** to the Start menu and desktop,
+and starts it. The first run takes a few minutes; Settings opens by itself so you can
+paste a key. Run the same line again any time to update.
+
+The app lives in the **system tray**: a two-tone circle near the clock, under the `^`
+if Windows has hidden it. There is no main window. Start it later from the Start menu,
+or turn on **Start EasyTranslate when I log in** in Settings and forget about it.
+
+**macOS** is not supported yet: the text capture, the double-click detection and the
+caption OCR are all Windows APIs. See [Platform support](#platform-support).
+
+<details>
+<summary>From source, for development</summary>
 
 ```bash
 git clone https://github.com/mjaow/easytranslate.git
 cd easytranslate
 npm install
-npm start
+npm start        # builds and launches
+npm run dev      # hot reload
 ```
 
-The app lives in the **system tray**: a two-tone circle near the clock, under the `^`
-if Windows has hidden it. There is no main window. For development with hot reload use
-`npm run dev`.
+</details>
 
 ### Configure it
 
@@ -36,7 +54,7 @@ Right-click the tray icon → **Settings…**
    switch to *Windows voice* for the free offline one. **🔊 Test voice** reports which
    engine actually produced the sound.
 
-Nothing works until step 1 is done; the popup will say so.
+Settings opens by itself the first time, since nothing works until step 1 is done.
 
 ---
 
