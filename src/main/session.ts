@@ -192,7 +192,16 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   const cached = explanations.get(key)
   if (cached) {
     emit(
-      { mode: req.mode, text: req.text, raw: req.raw, context: req.context, explanation: cached, status: 'done' },
+      {
+        mode: req.mode,
+        text: req.text,
+        raw: req.raw,
+        context: req.context,
+        explanation: cached,
+        status: 'done',
+        model,
+        cached: true
+      },
       isNew
     )
     return
@@ -204,7 +213,8 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
     raw: req.raw,
     context: req.context,
     explanation: {},
-    status: 'streaming'
+    status: 'streaming',
+    model
   }
   emit(state, isNew)
 

@@ -8,7 +8,7 @@ import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } fr
 import { synthesize, toggleOrExplain, flushCaches, explainClickedTranscript, explainLastAsCode } from './session.js'
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
-import { probeProvider } from '../providers/llm/probe.js'
+import { probeConfigured } from '../providers/llm/probe.js'
 import { isAvailable, getLoadError } from './win32.js'
 import { startClickWatcher, stopClickWatcher } from './clicks.js'
 
@@ -310,7 +310,7 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.llmTest, async () => {
     const config = loadConfig()
-    return probeProvider(config, getSecret(config.llm.provider))
+    return probeConfigured(config, getSecret(config.llm.provider))
   })
 
   ipcMain.handle(IPC.configSecretStatus, () =>

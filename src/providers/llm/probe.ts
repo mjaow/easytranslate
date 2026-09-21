@@ -23,13 +23,32 @@ export interface ProbeResult {
 
 const TIMEOUT_MS = 20000
 
-export async function probeProvider(config: AppConfig, apiKey: string | null): Promise<ProbeResult> {
+/**
+ * Test the everyday model and, when one is set, the code model too. Either failing
+ * fails the test: a wrong id in the code field would otherwise surface only on the
+ * first click of the "explain this code" button.
+ */
+export async function probeConfigured(config: AppConfig, apiKey: string | null): Promise<ProbeResult> {
+  const everyday = await probeProvider(config, apiKey)
+  const codeModel = config.llm.codeModel.trim()
+  if (!codeModel || !everyday.ok) return everyday
+
+  const code = await probeProvider(config, apiKey, codeModel)
+  return code.ok
+    ? { ok: true, message: `${everyday.message} Code explanations: "${codeModel}" answered too.` }
+    : { ...code, message: `${everyday.message} But the code model failed: ${code.message}` }
+}
+
+export async function probeProvider(
+  config: AppConfig,
+  apiKey: string | null,
+  model = config.llm.models[config.llm.provider] ?? ''
+): Promise<ProbeResult> {
   const providerId = config.llm.provider
-  const model = config.llm.models[providerId] ?? ''
 
   let provider
   try {
-    provider = createLlmProvider(config, apiKey)
+    provider = createLlmProvider(config, apiKey, model)
   } catch (err) {
     const e = describeError(providerId, err)
     return { ok: false, message: [e.message, e.hint].filter(Boolean).join(' ') }

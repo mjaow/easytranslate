@@ -182,18 +182,27 @@ export function Popup(): React.ReactElement | null {
             <div className={`font-semibold leading-snug ${isCode ? 'font-mono text-[12px]' : 'text-[14px]'}`}>
               {headline || 'EasyTranslate'}
             </div>
-            {isCode && ex.lang && (
-              <div className="mt-0.5 text-[11px] italic" style={{ color: 'var(--text-muted)' }}>
-                {ex.lang}
-              </div>
-            )}
-            {isWord && !isCode && (ex.ipa || ex.pos) && (
+            {/* One quiet line: the language for code, IPA and part of speech for a word,
+                and always which model answered — so the source of an answer is never
+                a mystery, and a stale cache entry says so. */}
+            {(ex.lang || (isWord && (ex.ipa || ex.pos)) || state.model) && (
               <div
-                className="mt-0.5 flex items-baseline gap-2 text-[11px]"
+                className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-[11px]"
                 style={{ color: 'var(--text-muted)' }}
               >
-                {ex.ipa && <span className="font-mono">{ex.ipa}</span>}
-                {ex.pos && <span className="italic">{ex.pos}</span>}
+                {isCode && ex.lang && <span className="italic">{ex.lang}</span>}
+                {isWord && ex.ipa && <span className="font-mono">{ex.ipa}</span>}
+                {isWord && ex.pos && <span className="italic">{ex.pos}</span>}
+                {state.model && (
+                  <span
+                    className="ml-auto text-[10px]"
+                    style={{ color: 'var(--text-subtle)' }}
+                    title={state.cached ? 'Served from the cache of an earlier answer' : 'The model that answered'}
+                  >
+                    {state.model}
+                    {state.cached ? ' · cached' : ''}
+                  </span>
+                )}
               </div>
             )}
           </div>

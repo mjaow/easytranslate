@@ -86,6 +86,10 @@ export interface ExplainState {
   explanation: Explanation
   status: 'streaming' | 'done' | 'error'
   error?: string
+  /** Which model produced this answer, shown in the popup so it is never a mystery. */
+  model?: string
+  /** True when the answer came from the cache rather than a fresh request. */
+  cached?: boolean
 }
 
 // ---------------------------------------------------------------- config
