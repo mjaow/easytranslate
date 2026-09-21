@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ExplainState } from '@shared/types'
-import { parseNotable } from '@core/notable'
+import { parseNotable, parseConcept } from '@core/notable'
 import { playAudio, stopAudio } from './player'
 
 /**
@@ -147,8 +147,17 @@ export function Popup(): React.ReactElement | null {
 
   const { explanation: ex, mode } = state
   const isWord = mode === 'word'
-  const headline =
-    isWord || state.text.length <= 90 ? state.text : `${state.text.slice(0, 90)}…`
+  // The model decides what is code; the LANG section it then opens with is the tell.
+  const isCode = Boolean(ex.lang || ex.steps?.length || ex.concepts?.length)
+  // A snippet's headline is its first line: twelve lines of code must not become a
+  // twelve-line header.
+  const shaped = state.raw ?? state.text
+  const firstLine = shaped.split('\n')[0] ?? ''
+  const headline = isCode
+    ? `${firstLine.slice(0, 70)}${firstLine.length > 70 || shaped.includes('\n') ? '…' : ''}`
+    : isWord || state.text.length <= 90
+      ? state.text
+      : `${state.text.slice(0, 90)}…`
   const empty = Object.keys(ex).length === 0
 
   return (
@@ -168,10 +177,15 @@ export function Popup(): React.ReactElement | null {
           style={{ borderColor: 'var(--border)', background: 'var(--surface-muted)' }}
         >
           <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-semibold leading-snug">
+            <div className={`font-semibold leading-snug ${isCode ? 'font-mono text-[12px]' : 'text-[14px]'}`}>
               {headline || 'EasyTranslate'}
             </div>
-            {isWord && (ex.ipa || ex.pos) && (
+            {isCode && ex.lang && (
+              <div className="mt-0.5 text-[11px] italic" style={{ color: 'var(--text-muted)' }}>
+                {ex.lang}
+              </div>
+            )}
+            {isWord && !isCode && (ex.ipa || ex.pos) && (
               <div
                 className="mt-0.5 flex items-baseline gap-2 text-[11px]"
                 style={{ color: 'var(--text-muted)' }}
@@ -183,8 +197,9 @@ export function Popup(): React.ReactElement | null {
           </div>
 
           <div className="flex shrink-0 items-center">
-            <SpeakButton text={state.text} onStatus={setStatus} />
-            <SpeakButton text={state.text} slow onStatus={setStatus} />
+            {/* Code is not read aloud; the English explanation below has its own button. */}
+            {!isCode && <SpeakButton text={state.text} onStatus={setStatus} />}
+            {!isCode && <SpeakButton text={state.text} slow onStatus={setStatus} />}
             <button
               onClick={() => window.easytranslate.close()}
               title="Close (Esc)"
@@ -240,6 +255,36 @@ export function Popup(): React.ReactElement | null {
                       {line}
                     </div>
                   ))}
+                </Section>
+              )}
+              {ex.steps && ex.steps.length > 0 && (
+                <Section label="step by step">
+                  <ol className="space-y-0.5 pl-4" style={{ listStyle: 'decimal' }}>
+                    {ex.steps.map((step, i) => (
+                      <li key={i} style={{ color: 'var(--text)' }}>
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                </Section>
+              )}
+              {ex.concepts && ex.concepts.length > 0 && (
+                <Section label="concepts worth knowing">
+                  <ul className="space-y-1">
+                    {ex.concepts.map((item, i) => {
+                      const c = parseConcept(item)
+                      if (!c) return null
+                      return (
+                        <li key={i} className="flex items-baseline gap-1.5">
+                          <span className="font-mono text-[12px] font-medium" style={{ color: 'var(--text)' }}>
+                            {c.term}
+                          </span>
+                          <SpeakButton text={c.term} compact onStatus={setStatus} />
+                          {c.detail && <span style={{ color: 'var(--text-muted)' }}>{c.detail}</span>}
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </Section>
               )}
               {ex.notable && ex.notable.length > 0 && (

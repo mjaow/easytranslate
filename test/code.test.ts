@@ -1,0 +1,94 @@
+import { describe, it, expect } from 'vitest'
+import { SectionParser, systemPrompt, userPrompt } from '../src/core/explain.js'
+import { keepShape } from '../src/main/capture.js'
+import { parseConcept } from '../src/core/notable.js'
+
+/**
+ * Whether a selection is code is the model's call, not a pattern's. What this side
+ * has to get right is smaller: every prompt must carry the instruction, the snippet
+ * must reach the model with its shape intact, and the code sections must parse.
+ */
+describe('code in the prompt', () => {
+  it('tells the model to recognise code, whichever mode the word count chose', () => {
+    for (const mode of ['word', 'passage'] as const) {
+      const prompt = systemPrompt(mode)
+      expect(prompt).toContain('decide whether the selection is source code')
+      expect(prompt).toContain('## LANG')
+      expect(prompt).toContain('## STEPS')
+      expect(prompt).toContain('## CONCEPTS')
+    }
+  })
+
+  it('sends the selection fenced, with its line breaks', () => {
+    const raw = 'def f():\n    return 1'
+    const prompt = userPrompt({ mode: 'passage', text: 'def f(): return 1', raw })
+    expect(prompt).toContain('```\ndef f():\n    return 1\n```')
+  })
+
+  it('still sends a term with its sentence the old way', () => {
+    const prompt = userPrompt({ mode: 'word', text: 'ablaze', context: 'The barn was ablaze.' })
+    expect(prompt).toBe('Sentence: The barn was ablaze.\n\nExplain this term from it: ablaze')
+  })
+})
+
+describe('code reply parsing', () => {
+  const REPLY = [
+    '## LANG',
+    'Python',
+    '## ZH',
+    '把 0 到 9 中的偶数平方后收集成列表。',
+    '## EN',
+    'Collects the squares of the even numbers from 0 to 9 into a list.',
+    '## STEPS',
+    '1. `range(10)` → 生成 0 到 9 的整数',
+    '2. `if x % 2 == 0` → 只保留偶数',
+    '- `x * x` → 求平方',
+    '## CONCEPTS',
+    'list comprehension · 列表推导式 · 一行内完成筛选和变换',
+    '(none)'
+  ].join('\n')
+
+  it('yields lang, numbered-free steps and concepts', () => {
+    const p = new SectionParser()
+    p.push(REPLY)
+    const r = p.end()
+    expect(r.lang).toBe('Python')
+    expect(r.steps).toEqual([
+      '`range(10)` → 生成 0 到 9 的整数',
+      '`if x % 2 == 0` → 只保留偶数',
+      '`x * x` → 求平方'
+    ])
+    expect(r.concepts).toEqual(['list comprehension · 列表推导式 · 一行内完成筛选和变换'])
+    expect(r.en).toContain('even numbers')
+  })
+
+  it('is the same at every chunk size', () => {
+    const whole = new SectionParser()
+    whole.push(REPLY)
+    const reference = whole.end()
+    for (const size of [1, 3, 7, 32]) {
+      const p = new SectionParser()
+      for (let i = 0; i < REPLY.length; i += size) p.push(REPLY.slice(i, i + size))
+      expect(p.end(), `chunk size ${size}`).toEqual(reference)
+    }
+  })
+
+  it('splits a concept line into term and detail', () => {
+    expect(parseConcept('`async/await` · 异步等待 · 让异步代码写起来像同步')).toEqual({
+      term: 'async/await',
+      detail: '异步等待，让异步代码写起来像同步'
+    })
+    expect(parseConcept('')).toBeNull()
+  })
+})
+
+describe('keepShape', () => {
+  it('keeps line breaks and drops the shared indentation', () => {
+    const raw = '\r\n        def f():\r\n            return 1\r\n\r\n'
+    expect(keepShape(raw)).toBe('def f():\n    return 1')
+  })
+
+  it('turns non-breaking spaces back into spaces and trims line ends', () => {
+    expect(keepShape('if x:  \n\u00a0\u00a0\u00a0\u00a0y()')).toBe('if x:\n    y()')
+  })
+})

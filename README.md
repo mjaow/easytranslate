@@ -71,6 +71,10 @@ Settings opens by itself the first time, since nothing works until step 1 is don
   *here*, an example.
 - **Anything longer** is treated as a passage: natural Chinese, simpler English, and
   the hard words and idioms in it, each with IPA, Chinese and an example.
+- **Code** is explained, not translated: what it does in Chinese and English, a
+  step-by-step walk through it, and the concepts in it worth knowing. The model
+  decides what is code, so any language, a shell command, a query or a JSON fragment
+  all count, and a sentence that merely mentions `C++` does not.
 - **🔊** reads it aloud, **🐢** reads it slowly, **⏹** stops.
 
 The double-click needs no shortcut. On YouTube the words come from the page itself, so
@@ -186,6 +190,7 @@ npm test               # unit tests: parser, prompts, SSML escaping, CSP, transc
 npm run verify:capture # end-to-end capture: reads the selection, restores the clipboard exactly
 npm run verify:hotkeys # clipboard shortcuts refused, conflicts fall back, availability check is honest
 npm run verify:click   # real OS double-clicks on a YouTube-shaped page come back as the right lines
+npm run verify:code    # asks the configured model: snippets come back as code, prose as prose
 npm run probe:hotkeys  # which shortcuts are free on this machine
 ```
 
@@ -249,6 +254,12 @@ the lower part of it is read with `Windows.Media.Ocr`.
 **Streaming.** The model answers in fixed `## SECTION` blocks rather than JSON, so the
 popup fills in top-down as tokens land. The parser is tested against chunk sizes from
 one byte upward.
+
+**Code.** No pattern decides whether a selection is code; every prompt tells the model
+to decide, and to answer with the code sections (`LANG`, `STEPS`, `CONCEPTS`) when it
+is. The selection reaches the model fenced, with its line breaks and indentation kept,
+and the popup renders whichever sections arrive. `verify:code` checks the decision
+against the configured model with a mix of snippets and prose that mentions code.
 
 ---
 

@@ -66,7 +66,7 @@ export async function explainSelection(): Promise<void> {
   }
 
   const mode = detectMode(result.text)
-  await run({ mode, text: result.text }, true)
+  await run({ mode, text: result.text, raw: result.raw }, true)
 }
 
 /**
@@ -179,7 +179,7 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   const cached = explanations.get(key)
   if (cached) {
     emit(
-      { mode: req.mode, text: req.text, context: req.context, explanation: cached, status: 'done' },
+      { mode: req.mode, text: req.text, raw: req.raw, context: req.context, explanation: cached, status: 'done' },
       isNew
     )
     return
@@ -188,6 +188,7 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   const state: ExplainState = {
     mode: req.mode,
     text: req.text,
+    raw: req.raw,
     context: req.context,
     explanation: {},
     status: 'streaming'

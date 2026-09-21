@@ -23,6 +23,49 @@ Answer ONLY in the section format given. Every section header is on its own line
 No preamble, no closing remarks, no markdown beyond the headers themselves.
 Keep each section to one or two sentences — this renders in a small popup.`
 
+/**
+ * Appended to every prompt. The model, not a pattern, decides whether the selection
+ * is code: it has the whole snippet in front of it and knows every language, which no
+ * heuristic does. When it is code, these sections replace the ordinary ones.
+ */
+const CODE_SECTIONS = `
+
+FIRST, decide whether the selection is source code: a snippet in any language, a shell
+command, a query, a config or data fragment (JSON, YAML, ...), a stack trace. Prose that
+merely mentions code, a product name or a shortcut is NOT code.
+
+If it IS code, ignore the sections above and answer with these instead, in this order.
+Explain what it does to a working developer — do NOT translate identifiers, do not
+restate the code, and do not speculate about code that is not shown.
+## LANG
+The language, one word (Python, TypeScript, SQL, Bash, Go, Rust, JSON, ...). Nothing else.
+## ZH
+用一两句中文说明这段代码整体做了什么。
+## EN
+The same in plain English. This section must be in English.
+## STEPS
+2 to 5 lines, in the order the code runs. Each line: the part of the code (quote a few
+tokens verbatim, in backticks), then " → ", then what it does, in Chinese, under 20
+characters. No numbering.
+## CONCEPTS
+Up to 3 concepts in the snippet a developer may not know, most important first.
+One per line, middle dot as separator:
+term · 中文名称 · 一句中文说明它在这里的作用
+
+For example, given "squares = [x * x for x in range(10) if x % 2 == 0]":
+## LANG
+Python
+## STEPS
+\`range(10)\` → 生成 0 到 9 的整数
+\`if x % 2 == 0\` → 只保留偶数
+\`x * x\` → 对每个保留的数求平方
+\`squares = [...]\` → 结果收集成列表
+## CONCEPTS
+list comprehension · 列表推导式 · 一行内完成筛选和变换，比 for 循环更简洁
+modulo operator · 取模运算符 · 求余数，用来判断奇偶
+
+Write (none) under CONCEPTS only if the snippet uses nothing beyond basic syntax.`
+
 const WORD_PROMPT = `${SHARED_RULES}
 
 Explain the term as it is used in the given sentence — not its dictionary entry in
@@ -70,17 +113,23 @@ Almost every real passage contains something worth listing. Only write (none) if
 passage is genuinely all common words.`
 
 export function systemPrompt(mode: ExplainMode): string {
-  return mode === 'word' ? WORD_PROMPT : PASSAGE_PROMPT
+  return (mode === 'word' ? WORD_PROMPT : PASSAGE_PROMPT) + CODE_SECTIONS
+}
+
+/** Fence the selection so line breaks and indentation reach the model as they are. */
+function fenced(text: string): string {
+  return `\`\`\`\n${text}\n\`\`\``
 }
 
 export function userPrompt(req: ExplainRequest): string {
+  const selection = req.raw ?? req.text
   if (req.mode === 'word') {
     const sentence = req.context?.trim()
     return sentence && sentence !== req.text
       ? `Sentence: ${sentence}\n\nExplain this term from it: ${req.text}`
-      : `Explain this term: ${req.text}`
+      : `Explain this selection:\n\n${fenced(selection)}`
   }
-  return `Explain this passage:\n\n${req.text}`
+  return `Explain this selection:\n\n${fenced(selection)}`
 }
 
 // ------------------------------------------------------- incremental parsing
@@ -92,8 +141,14 @@ const HEADERS: Record<string, keyof Explanation> = {
   EN: 'en',
   HERE: 'here',
   EX: 'example',
-  NOTABLE: 'notable'
+  NOTABLE: 'notable',
+  LANG: 'lang',
+  STEPS: 'steps',
+  CONCEPTS: 'concepts'
 }
+
+/** Sections that are a list, one item per line, rather than running text. */
+const LIST_SECTIONS = new Set<keyof Explanation>(['notable', 'steps', 'concepts'])
 
 const HEADER_RE = /^##\s*([A-Z]+)\s*$/
 
@@ -151,24 +206,26 @@ export class SectionParser {
 
     for (const [key, lines] of this.lines) {
       const joined = lines.join('\n').trim()
-      if (key === 'notable') continue
+      if (LIST_SECTIONS.has(key)) continue
       if (joined) (out as Record<string, unknown>)[key] = joined
     }
 
     // The section still being written isn't in `lines` yet — surface it so text
     // appears as it streams instead of arriving a paragraph at a time.
-    if (this.current && this.buffer.trim() && this.current !== 'notable') {
+    if (this.current && this.buffer.trim() && !LIST_SECTIONS.has(this.current)) {
       const settled = (this.lines.get(this.current) ?? []).join('\n')
       const combined = `${settled}\n${this.buffer}`.trim()
       if (combined) (out as Record<string, unknown>)[this.current] = combined
     }
 
-    const notable = this.lines.get('notable')
-    if (notable) {
-      const items = notable
-        .map((l) => l.trim())
+    for (const key of LIST_SECTIONS) {
+      const lines = this.lines.get(key)
+      if (!lines) continue
+      const items = lines
+        // Models number lists however they like; the popup does its own numbering.
+        .map((l) => l.trim().replace(/^(?:\d+[.)]|[-*•])\s*/, ''))
         .filter((l) => l && l !== '(none)' && l !== '（none）')
-      if (items.length) out.notable = items
+      if (items.length) (out as Record<string, unknown>)[key] = items
     }
     return out
   }

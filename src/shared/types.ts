@@ -12,21 +12,28 @@ export type CaptureFailure =
   | 'not-text'
 
 export type CaptureResult =
-  | { ok: true; text: string; elapsedMs: number }
+  | { ok: true; text: string; raw: string; elapsedMs: number }
   | { ok: false; reason: CaptureFailure; elapsedMs: number }
 
 // ---------------------------------------------------------------- explain
 
 /**
  * WORD explains a single term *inside* a sentence; PASSAGE explains a whole selection.
- * Chosen automatically from selection length, or forced to WORD by a word-chip click.
+ * Chosen from selection length. Whether the selection is source code is not decided
+ * here at all: the model is told to recognise code and answer with the code sections
+ * instead, and the popup renders whichever sections arrive.
  */
 export type ExplainMode = 'word' | 'passage'
 
 export interface ExplainRequest {
   mode: ExplainMode
-  /** The word, or the whole passage. */
+  /** The word, or the whole passage, tidied for display and for the cache key. */
   text: string
+  /**
+   * The selection with its line breaks and indentation kept. This is what the model
+   * sees, so a snippet of code reaches it intact rather than hard-wrap-collapsed.
+   */
+  raw?: string
   /** The surrounding sentence. Present (and required) when mode === 'word'. */
   context?: string
 }
@@ -50,12 +57,20 @@ export interface Explanation {
   example?: string
   /** PASSAGE only: idioms/slang worth drilling into. */
   notable?: string[]
+  /** Code only: the language, one word. Its presence is what marks a reply as code. */
+  lang?: string
+  /** Code only: what each part does, in order. */
+  steps?: string[]
+  /** Code only: concepts worth learning, `term · 中文 · why it matters here`. */
+  concepts?: string[]
 }
 
 export interface ExplainState {
   mode: ExplainMode
   /** The headword (WORD) or full selection (PASSAGE). */
   text: string
+  /** The selection with line breaks kept — the headline for code is its first line. */
+  raw?: string
   context?: string
   explanation: Explanation
   status: 'streaming' | 'done' | 'error'

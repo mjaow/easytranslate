@@ -34,6 +34,7 @@ const VERIFY_CAPTURE = process.argv.includes('--verify-capture')
 const PROBE_HOTKEYS = process.argv.includes('--probe-hotkeys')
 const VERIFY_HOTKEYS = process.argv.includes('--verify-hotkeys')
 const VERIFY_CLICK = process.argv.includes('--verify-click')
+const VERIFY_CODE = process.argv.includes('--verify-code')
 
 if (VERIFY_CAPTURE) {
   // Self-test mode: skip the single-instance lock and the tray entirely.
@@ -50,6 +51,11 @@ if (VERIFY_CAPTURE) {
   void app.whenReady().then(async () => {
     const { runClickVerification } = await import('./verify-click.js')
     await runClickVerification()
+  })
+} else if (VERIFY_CODE) {
+  void app.whenReady().then(async () => {
+    const { runCodeVerification } = await import('./verify-code.js')
+    await runCodeVerification()
   })
 } else if (PROBE_HOTKEYS) {
   void app.whenReady().then(async () => {
