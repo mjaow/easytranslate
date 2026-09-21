@@ -71,10 +71,11 @@ Settings opens by itself the first time, since nothing works until step 1 is don
   *here*, an example.
 - **Anything longer** is treated as a passage: natural Chinese, simpler English, and
   the hard words and idioms in it, each with IPA, Chinese and an example.
-- **Code** is explained, not translated: what it does in Chinese and English, a
-  step-by-step walk through it, and the concepts in it worth knowing. The model
-  decides what is code, so any language, a shell command, a query or a JSON fragment
-  all count, and a sentence that merely mentions `C++` does not.
+- **Code** gets an offer: when the model judges the selection to be source code, the
+  popup shows **This looks like code — explain what it does**. One click gives what it
+  does in Chinese and English, a step-by-step walk through it, and the concepts in it
+  worth knowing. Any language, a shell command, a query or a JSON fragment all count;
+  a sentence that merely mentions `C++` does not.
 - **🔊** reads it aloud, **🐢** reads it slowly, **⏹** stops.
 
 The double-click needs no shortcut. On YouTube the words come from the page itself, so
@@ -255,11 +256,12 @@ the lower part of it is read with `Windows.Media.Ocr`.
 popup fills in top-down as tokens land. The parser is tested against chunk sizes from
 one byte upward.
 
-**Code.** No pattern decides whether a selection is code; every prompt tells the model
-to decide, and to answer with the code sections (`LANG`, `STEPS`, `CONCEPTS`) when it
-is. The selection reaches the model fenced, with its line breaks and indentation kept,
-and the popup renders whichever sections arrive. `verify:code` checks the decision
-against the configured model with a mix of snippets and prose that mentions code.
+**Code.** No pattern decides whether a selection is code. The ordinary answer opens
+with a one-word verdict from the model (`## CODE`, yes or no); a yes makes the popup
+offer to explain it, and the click is a second request with the dedicated code prompt
+(`LANG`, `STEPS`, `CONCEPTS`). The selection reaches the model fenced, with its line
+breaks and indentation kept. `verify:code` checks both steps against the configured
+model with a mix of snippets and prose that mentions code.
 
 ---
 

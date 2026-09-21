@@ -23,20 +23,69 @@ Answer ONLY in the section format given. Every section header is on its own line
 No preamble, no closing remarks, no markdown beyond the headers themselves.
 Keep each section to one or two sentences — this renders in a small popup.`
 
-/**
- * Appended to every prompt. The model, not a pattern, decides whether the selection
- * is code: it has the whole snippet in front of it and knows every language, which no
- * heuristic does. When it is code, these sections replace the ordinary ones.
- */
-const CODE_SECTIONS = `
+const WORD_PROMPT = `${SHARED_RULES}
 
-FIRST, decide whether the selection is source code: a snippet in any language, a shell
-command, a query, a config or data fragment (JSON, YAML, ...), a stack trace. Prose that
-merely mentions code, a product name or a shortcut is NOT code.
+Explain the term as it is used in the given sentence — not its dictionary entry in
+general. If the term is a phrasal verb, idiom or slang, say so plainly.
 
-If it IS code, ignore the sections above and answer with these instead, in this order.
-Explain what it does to a working developer — do NOT translate identifiers, do not
-restate the code, and do not speculate about code that is not shown.
+Sections, in this exact order:
+## CODE
+yes or no. "yes" only if the selection AS A WHOLE is something a computer would run
+or parse: a snippet in any programming language, a shell command, a query, a config
+or data fragment (JSON, YAML, ...), a stack trace. A sentence written for a person is
+"no", even when it names a language, a command, a key combination or a file.
+## IPA
+American English pronunciation in IPA, wrapped in forward slashes. Nothing else.
+## POS
+Part of speech in English, lowercase (noun, verb, adjective, idiom, ...). Nothing else.
+## ZH
+The Chinese meaning it carries HERE. Just the meaning, no explanation.
+## EN
+A plain-English definition a learner would understand. Avoid using the term itself.
+## HERE
+One sentence in Chinese explaining what it conveys in this particular sentence and why.
+## EX
+One natural example sentence in English, then its Chinese translation on the next line.`
+
+const PASSAGE_PROMPT = `${SHARED_RULES}
+
+Sections, in this exact order:
+## CODE
+yes or no. "yes" only if the selection AS A WHOLE is something a computer would run
+or parse: a snippet in any programming language, a shell command, a query, a config
+or data fragment (JSON, YAML, ...), a stack trace. A sentence written for a person is
+"no", even when it names a language, a command, a key combination or a file.
+## ZH
+A natural Chinese translation. Convey the meaning as a Chinese speaker would say it —
+do not translate word by word.
+## EN
+The same passage restated in SIMPLER ENGLISH. This section must be in English, never
+Chinese — its whole purpose is to give the reader an easier English version.
+## NOTABLE
+The words and phrases in this passage an intermediate learner is most likely NOT to
+know. Include uncommon or advanced vocabulary, technical terms, idioms, slang, phrasal
+verbs and cultural references — ordinary hard words count, not only idioms.
+Pick the 2 to 5 hardest. Skip anything an intermediate reader already knows.
+One per line, using the middle dot as separator:
+term · /American IPA/ · Chinese meaning · a short example sentence
+
+The example must be a NEW sentence of your own, not the one being explained, and short
+enough to read at a glance — under about ten words.
+
+For example, given "setting a major oil refinery ablaze", this section would be:
+refinery · /rɪˈfaɪnəri/ · 炼油厂 · The refinery processes crude oil into fuel.
+ablaze · /əˈbleɪz/ · 着火的，熊熊燃烧的 · Firefighters arrived to find the barn ablaze.
+
+Almost every real passage contains something worth listing. Only write (none) if the
+passage is genuinely all common words.`
+
+const CODE_PROMPT = `${SHARED_RULES}
+
+The selection is source code. Explain what it does to a working developer who reads
+English at an intermediate level — do NOT translate identifiers, do not restate the
+code, and do not speculate about code that is not shown.
+
+Sections, in this exact order:
 ## LANG
 The language, one word (Python, TypeScript, SQL, Bash, Go, Rust, JSON, ...). Nothing else.
 ## ZH
@@ -66,54 +115,10 @@ modulo operator · 取模运算符 · 求余数，用来判断奇偶
 
 Write (none) under CONCEPTS only if the snippet uses nothing beyond basic syntax.`
 
-const WORD_PROMPT = `${SHARED_RULES}
-
-Explain the term as it is used in the given sentence — not its dictionary entry in
-general. If the term is a phrasal verb, idiom or slang, say so plainly.
-
-Sections, in this exact order:
-## IPA
-American English pronunciation in IPA, wrapped in forward slashes. Nothing else.
-## POS
-Part of speech in English, lowercase (noun, verb, adjective, idiom, ...). Nothing else.
-## ZH
-The Chinese meaning it carries HERE. Just the meaning, no explanation.
-## EN
-A plain-English definition a learner would understand. Avoid using the term itself.
-## HERE
-One sentence in Chinese explaining what it conveys in this particular sentence and why.
-## EX
-One natural example sentence in English, then its Chinese translation on the next line.`
-
-const PASSAGE_PROMPT = `${SHARED_RULES}
-
-Sections, in this exact order:
-## ZH
-A natural Chinese translation. Convey the meaning as a Chinese speaker would say it —
-do not translate word by word.
-## EN
-The same passage restated in SIMPLER ENGLISH. This section must be in English, never
-Chinese — its whole purpose is to give the reader an easier English version.
-## NOTABLE
-The words and phrases in this passage an intermediate learner is most likely NOT to
-know. Include uncommon or advanced vocabulary, technical terms, idioms, slang, phrasal
-verbs and cultural references — ordinary hard words count, not only idioms.
-Pick the 2 to 5 hardest. Skip anything an intermediate reader already knows.
-One per line, using the middle dot as separator:
-term · /American IPA/ · Chinese meaning · a short example sentence
-
-The example must be a NEW sentence of your own, not the one being explained, and short
-enough to read at a glance — under about ten words.
-
-For example, given "setting a major oil refinery ablaze", this section would be:
-refinery · /rɪˈfaɪnəri/ · 炼油厂 · The refinery processes crude oil into fuel.
-ablaze · /əˈbleɪz/ · 着火的，熊熊燃烧的 · Firefighters arrived to find the barn ablaze.
-
-Almost every real passage contains something worth listing. Only write (none) if the
-passage is genuinely all common words.`
-
 export function systemPrompt(mode: ExplainMode): string {
-  return (mode === 'word' ? WORD_PROMPT : PASSAGE_PROMPT) + CODE_SECTIONS
+  if (mode === 'word') return WORD_PROMPT
+  if (mode === 'code') return CODE_PROMPT
+  return PASSAGE_PROMPT
 }
 
 /** Fence the selection so line breaks and indentation reach the model as they are. */
@@ -142,6 +147,7 @@ const HEADERS: Record<string, keyof Explanation> = {
   HERE: 'here',
   EX: 'example',
   NOTABLE: 'notable',
+  CODE: 'isCode',
   LANG: 'lang',
   STEPS: 'steps',
   CONCEPTS: 'concepts'
@@ -217,6 +223,10 @@ export class SectionParser {
       const combined = `${settled}\n${this.buffer}`.trim()
       if (combined) (out as Record<string, unknown>)[this.current] = combined
     }
+
+    // The verdict arrives as a word; the popup wants a boolean.
+    const verdict = out.isCode as unknown
+    if (typeof verdict === 'string') out.isCode = /^\s*yes/i.test(verdict)
 
     for (const key of LIST_SECTIONS) {
       const lines = this.lines.get(key)

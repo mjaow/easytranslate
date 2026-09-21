@@ -3,9 +3,10 @@
  *
  * Whether a selection is code is the model's decision, so the only honest check is
  * to ask the model. This sends a mix of real snippets and prose that merely mentions
- * code through the configured provider and checks that code comes back with the
- * code sections (LANG, STEPS) and prose does not. It spends a few hundred tokens per
- * case, on whatever model Settings points at.
+ * code through the configured provider, checks the verdict each ordinary answer
+ * carries, and then — as the popup's button would — asks for the snippets as code
+ * and checks the code sections come back. A few hundred tokens per case, on whatever
+ * model Settings points at.
  */
 import { app } from 'electron'
 import { loadConfig, getSecret } from '../core/config.js'
@@ -29,6 +30,7 @@ const CASES: { label: string; text: string; code: boolean }[] = [
 
 let passed = 0
 let failed = 0
+let warned = 0
 
 function check(ok: boolean, label: string, detail = ''): void {
   if (ok) passed++
@@ -65,22 +67,43 @@ export async function runCodeVerification(): Promise<void> {
       continue
     }
     const r = parser.end()
-    const gotCode = Boolean(r.lang || r.steps?.length)
     const elapsed = Date.now() - started
+    const verdict = r.isCode === true
 
-    const detail = gotCode
-      ? `${r.lang ?? '?'}, ${r.steps?.length ?? 0} steps, ${r.concepts?.length ?? 0} concepts, ${elapsed}ms`
-      : `${mode}: ${(r.zh ?? '').slice(0, 30)}…, ${elapsed}ms`
-    check(gotCode === c.code, `${c.code ? 'code' : 'prose'}: ${c.label}`, detail)
-
-    // Both kinds must still produce the two sections the popup leads with.
-    if (gotCode === c.code) {
-      check(Boolean(r.zh && r.en), `  …with ZH and EN filled in`, r.zh && r.en ? '' : `zh=${!!r.zh} en=${!!r.en}`)
+    const detail = `verdict ${verdict ? 'yes' : 'no'}, ${mode}: ${(r.zh ?? '').slice(0, 24)}…, ${elapsed}ms`
+    if (c.code || verdict === c.code) {
+      // Missing the button on real code is the failure that matters.
+      check(verdict === c.code, `${c.code ? 'code' : 'prose'}: ${c.label}`, detail)
+    } else {
+      // A "yes" on prose only costs an unneeded button, and models differ on the
+      // borderline; report it without failing the run.
+      warned++
+      console.log(`  WARN  prose: ${c.label} — ${detail} (the popup would offer a button it need not)`)
     }
+    if (!c.code) continue
+
+    // The second step, as the button would ask for it.
+    const codeParser = new SectionParser()
+    const codeStarted = Date.now()
+    try {
+      for await (const chunk of provider.explain({ mode: 'code', text: c.text, raw }, new AbortController().signal)) {
+        codeParser.push(chunk)
+      }
+    } catch (err) {
+      check(false, `  …explained as code`, `request failed: ${err instanceof Error ? err.message : String(err)}`)
+      continue
+    }
+    const code = codeParser.end()
+    check(
+      Boolean(code.lang && code.steps?.length && code.zh && code.en),
+      `  …explained as code`,
+      `${code.lang ?? '?'}, ${code.steps?.length ?? 0} steps, ${code.concepts?.length ?? 0} concepts, ${Date.now() - codeStarted}ms`
+    )
   }
 
+  const warnings = warned ? `, ${warned} warning${warned === 1 ? '' : 's'}` : ''
   console.log(
-    `\n${failed === 0 ? `All ${passed} checks passed.` : `${failed} of ${passed + failed} FAILED.`}\n`
+    `\n${failed === 0 ? `All ${passed} checks passed${warnings}.` : `${failed} of ${passed + failed} FAILED${warnings}.`}\n`
   )
   app.exit(failed === 0 ? 0 : 1)
 }

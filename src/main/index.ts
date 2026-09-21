@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs'
 import { IPC, type AppConfig, type SecretId } from '../shared/types.js'
 import { createPopupWindow, hidePopup, resizePopup, hardenWebContents } from './popup.js'
 import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } from './hotkeys.js'
-import { synthesize, toggleOrExplain, flushCaches, explainClickedTranscript } from './session.js'
+import { synthesize, toggleOrExplain, flushCaches, explainClickedTranscript, explainLastAsCode } from './session.js'
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
 import { probeProvider } from '../providers/llm/probe.js'
@@ -261,6 +261,7 @@ function openSettings(): void {
 
 function registerIpc(): void {
   ipcMain.on(IPC.popupClose, () => hidePopup())
+  ipcMain.on(IPC.popupExplainCode, () => void explainLastAsCode())
 
   ipcMain.on(IPC.popupResize, (_e, height: unknown) => {
     if (typeof height === 'number' && Number.isFinite(height)) resizePopup(height)

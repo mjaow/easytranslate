@@ -5,23 +5,43 @@ import { parseConcept } from '../src/core/notable.js'
 
 /**
  * Whether a selection is code is the model's call, not a pattern's. What this side
- * has to get right is smaller: every prompt must carry the instruction, the snippet
- * must reach the model with its shape intact, and the code sections must parse.
+ * has to get right is smaller: the ordinary prompts must ask for the verdict first,
+ * the code prompt must ask for the code sections, the snippet must reach the model
+ * with its shape intact, and everything must parse.
  */
 describe('code in the prompt', () => {
-  it('tells the model to recognise code, whichever mode the word count chose', () => {
+  it('asks for a code verdict first, whichever mode the word count chose', () => {
     for (const mode of ['word', 'passage'] as const) {
       const prompt = systemPrompt(mode)
-      expect(prompt).toContain('decide whether the selection is source code')
-      expect(prompt).toContain('## LANG')
-      expect(prompt).toContain('## STEPS')
-      expect(prompt).toContain('## CONCEPTS')
+      expect(prompt.indexOf('## CODE')).toBeGreaterThan(0)
+      expect(prompt.indexOf('## CODE')).toBeLessThan(prompt.indexOf('## ZH'))
+      expect(prompt).not.toContain('## STEPS')
     }
+  })
+
+  it('has a dedicated prompt for the second step', () => {
+    const prompt = systemPrompt('code')
+    expect(prompt).toContain('## LANG')
+    expect(prompt).toContain('## STEPS')
+    expect(prompt).toContain('## CONCEPTS')
+    expect(prompt).not.toContain('## CODE')
+  })
+
+  it('turns the verdict into a boolean', () => {
+    const yes = new SectionParser()
+    yes.push('## CODE\nyes\n## ZH\nhi\n')
+    expect(yes.end().isCode).toBe(true)
+    const no = new SectionParser()
+    no.push('## CODE\nNo.\n## ZH\nhi\n')
+    expect(no.end().isCode).toBe(false)
+    const silent = new SectionParser()
+    silent.push('## ZH\nhi\n')
+    expect(silent.end().isCode).toBeUndefined()
   })
 
   it('sends the selection fenced, with its line breaks', () => {
     const raw = 'def f():\n    return 1'
-    const prompt = userPrompt({ mode: 'passage', text: 'def f(): return 1', raw })
+    const prompt = userPrompt({ mode: 'code', text: 'def f(): return 1', raw })
     expect(prompt).toContain('```\ndef f():\n    return 1\n```')
   })
 

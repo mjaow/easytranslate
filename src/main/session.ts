@@ -38,6 +38,8 @@ function caches(): { explanations: JsonLruCache<Explanation>; audio: AudioCache 
 }
 
 let inFlight: AbortController | null = null
+/** What the popup is showing, so "explain this code" can ask again about it. */
+let lastRequest: ExplainRequest | null = null
 
 function cancelInFlight(): void {
   inFlight?.abort()
@@ -165,7 +167,19 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
   }
 }
 
+/**
+ * The popup's "Explain this code" button: the same selection, asked about as code.
+ * A second step rather than a guess up front — the ordinary answer came first, the
+ * model flagged the selection as code in it, and this is the user taking the offer.
+ */
+export async function explainLastAsCode(): Promise<void> {
+  if (!lastRequest) return
+  cancelInFlight()
+  await run({ mode: 'code', text: lastRequest.text, raw: lastRequest.raw }, false)
+}
+
 async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
+  lastRequest = req
   const config = loadConfig()
   const { explanations } = caches()
   const key = cacheKey(

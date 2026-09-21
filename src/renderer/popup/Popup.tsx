@@ -147,8 +147,9 @@ export function Popup(): React.ReactElement | null {
 
   const { explanation: ex, mode } = state
   const isWord = mode === 'word'
-  // The model decides what is code; the LANG section it then opens with is the tell.
-  const isCode = Boolean(ex.lang || ex.steps?.length || ex.concepts?.length)
+  const isCode = mode === 'code'
+  // The model's verdict on the ordinary answer: offer the code explanation as a step.
+  const offerCode = !isCode && ex.isCode === true
   // A snippet's headline is its first line: twelve lines of code must not become a
   // twelve-line header.
   const shaped = state.raw ?? state.text
@@ -220,6 +221,16 @@ export function Popup(): React.ReactElement | null {
           ) : (
             <>
               {empty && state.status === 'streaming' && <Skeleton />}
+
+              {offerCode && (
+                <button
+                  onClick={() => window.easytranslate.explainAsCode()}
+                  className="w-full rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium"
+                  style={{ background: 'var(--accent)', color: 'var(--surface)' }}
+                >
+                  This looks like code — explain what it does
+                </button>
+              )}
 
               {ex.zh && <div className="text-[15px] font-medium leading-snug">{ex.zh}</div>}
               {ex.en && (

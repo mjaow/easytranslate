@@ -19,11 +19,11 @@ export type CaptureResult =
 
 /**
  * WORD explains a single term *inside* a sentence; PASSAGE explains a whole selection.
- * Chosen from selection length. Whether the selection is source code is not decided
- * here at all: the model is told to recognise code and answer with the code sections
- * instead, and the popup renders whichever sections arrive.
+ * Both are chosen from selection length. CODE explains a snippet of source code, and
+ * is never chosen here: the model flags a selection as code in its ordinary answer,
+ * the popup offers a button, and the click asks for CODE as a second step.
  */
-export type ExplainMode = 'word' | 'passage'
+export type ExplainMode = 'word' | 'passage' | 'code'
 
 export interface ExplainRequest {
   mode: ExplainMode
@@ -57,7 +57,12 @@ export interface Explanation {
   example?: string
   /** PASSAGE only: idioms/slang worth drilling into. */
   notable?: string[]
-  /** Code only: the language, one word. Its presence is what marks a reply as code. */
+  /**
+   * WORD and PASSAGE: the model's own verdict on whether the selection is source
+   * code. True is what makes the popup offer to explain it as code.
+   */
+  isCode?: boolean
+  /** CODE only: the language, one word. */
   lang?: string
   /** Code only: what each part does, in order. */
   steps?: string[]
@@ -134,6 +139,8 @@ export const IPC = {
   popupStop: 'popup:stop-audio',
   /** popup → main: close me */
   popupClose: 'popup:close',
+  /** popup → main: explain the current selection as code */
+  popupExplainCode: 'popup:explain-code',
   /** popup → main: report content height so the window can size to fit */
   popupResize: 'popup:resize',
   /** popup → main: play audio for text; resolves to an mp3 data url */
