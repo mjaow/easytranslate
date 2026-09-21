@@ -12,21 +12,28 @@ export type CaptureFailure =
   | 'not-text'
 
 export type CaptureResult =
-  | { ok: true; text: string; elapsedMs: number }
+  | { ok: true; text: string; raw: string; elapsedMs: number }
   | { ok: false; reason: CaptureFailure; elapsedMs: number }
 
 // ---------------------------------------------------------------- explain
 
 /**
  * WORD explains a single term *inside* a sentence; PASSAGE explains a whole selection.
- * Chosen automatically from selection length, or forced to WORD by a word-chip click.
+ * Both are chosen from selection length. CODE explains a snippet of source code, and
+ * is never chosen here: the model flags a selection as code in its ordinary answer,
+ * the popup offers a button, and the click asks for CODE as a second step.
  */
-export type ExplainMode = 'word' | 'passage'
+export type ExplainMode = 'word' | 'passage' | 'code'
 
 export interface ExplainRequest {
   mode: ExplainMode
-  /** The word, or the whole passage. */
+  /** The word, or the whole passage, tidied for display and for the cache key. */
   text: string
+  /**
+   * The selection with its line breaks and indentation kept. This is what the model
+   * sees, so a snippet of code reaches it intact rather than hard-wrap-collapsed.
+   */
+  raw?: string
   /** The surrounding sentence. Present (and required) when mode === 'word'. */
   context?: string
 }
@@ -50,16 +57,39 @@ export interface Explanation {
   example?: string
   /** PASSAGE only: idioms/slang worth drilling into. */
   notable?: string[]
+  /**
+   * WORD and PASSAGE: the model's own verdict on whether the selection is source
+   * code. True is what makes the popup offer to explain it as code.
+   */
+  isCode?: boolean
+  /** CODE only: the language, one word. */
+  lang?: string
+  /** CODE only: the problem it solves and why this approach — the understanding. */
+  why?: string
+  /** CODE only: what each part does, in order. */
+  steps?: string[]
+  /** CODE only: notable choices in how it is written, each with the reason. */
+  design?: string[]
+  /** CODE only: bugs, edge cases and pitfalls found in the snippet itself. */
+  issues?: string[]
+  /** CODE only: concepts worth learning, `term · 中文 · why it matters here`. */
+  concepts?: string[]
 }
 
 export interface ExplainState {
   mode: ExplainMode
   /** The headword (WORD) or full selection (PASSAGE). */
   text: string
+  /** The selection with line breaks kept — the headline for code is its first line. */
+  raw?: string
   context?: string
   explanation: Explanation
   status: 'streaming' | 'done' | 'error'
   error?: string
+  /** Which model produced this answer, shown in the popup so it is never a mystery. */
+  model?: string
+  /** True when the answer came from the cache rather than a fresh request. */
+  cached?: boolean
 }
 
 // ---------------------------------------------------------------- config
@@ -87,6 +117,12 @@ export interface AppConfig {
     models: Record<string, string>
     /** Base URL override, mainly for Ollama / proxies. Keys are LlmProviderId. */
     baseUrls: Record<string, string>
+    /**
+     * Model for code explanations, on the same provider and key. Empty means the
+     * ordinary model. Reasoning about design and bugs is where a stronger model pays
+     * off, and it is paid only when the user clicks for it.
+     */
+    codeModel: string
   }
   tts: {
     provider: TtsProviderId
@@ -119,6 +155,8 @@ export const IPC = {
   popupStop: 'popup:stop-audio',
   /** popup → main: close me */
   popupClose: 'popup:close',
+  /** popup → main: explain the current selection as code */
+  popupExplainCode: 'popup:explain-code',
   /** popup → main: report content height so the window can size to fit */
   popupResize: 'popup:resize',
   /** popup → main: play audio for text; resolves to an mp3 data url */

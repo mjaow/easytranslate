@@ -152,7 +152,27 @@ export async function captureSelection(
     return { ok: false, reason: hadNonText ? 'not-text' : 'empty', elapsedMs }
   }
 
-  return { ok: true, text: normalize(text), elapsedMs }
+  return { ok: true, text: normalize(text), raw: keepShape(text), elapsedMs }
+}
+
+/**
+ * The selection as selected, minus what no reader wants: Windows line endings, the
+ * non-breaking spaces some pages indent with, trailing whitespace, and the
+ * indentation the whole block shares because it was selected from inside something.
+ * Line breaks stay — for code they are the structure, and a model reading prose
+ * copes with hard-wrapping perfectly well.
+ */
+export function keepShape(raw: string): string {
+  const lines = raw
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .split('\n')
+    .map((l) => l.replace(/\s+$/, ''))
+  while (lines.length && !lines[0].trim()) lines.shift()
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop()
+  const indents = lines.filter((l) => l.trim()).map((l) => l.match(/^[ \t]*/)?.[0].length ?? 0)
+  const common = indents.length ? Math.min(...indents) : 0
+  return lines.map((l) => l.slice(Math.min(common, l.length))).join('\n')
 }
 
 /** Whether the clipboard holds anything at all — used to tell "image" from "empty". */

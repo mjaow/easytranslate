@@ -5,10 +5,10 @@ import { existsSync } from 'node:fs'
 import { IPC, type AppConfig, type SecretId } from '../shared/types.js'
 import { createPopupWindow, hidePopup, resizePopup, hardenWebContents } from './popup.js'
 import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } from './hotkeys.js'
-import { synthesize, toggleOrExplain, flushCaches, explainClickedTranscript } from './session.js'
+import { synthesize, toggleOrExplain, flushCaches, explainClickedTranscript, explainLastAsCode } from './session.js'
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
-import { probeProvider } from '../providers/llm/probe.js'
+import { probeConfigured } from '../providers/llm/probe.js'
 import { isAvailable, getLoadError } from './win32.js'
 import { startClickWatcher, stopClickWatcher } from './clicks.js'
 
@@ -34,6 +34,7 @@ const VERIFY_CAPTURE = process.argv.includes('--verify-capture')
 const PROBE_HOTKEYS = process.argv.includes('--probe-hotkeys')
 const VERIFY_HOTKEYS = process.argv.includes('--verify-hotkeys')
 const VERIFY_CLICK = process.argv.includes('--verify-click')
+const VERIFY_CODE = process.argv.includes('--verify-code')
 
 if (VERIFY_CAPTURE) {
   // Self-test mode: skip the single-instance lock and the tray entirely.
@@ -50,6 +51,11 @@ if (VERIFY_CAPTURE) {
   void app.whenReady().then(async () => {
     const { runClickVerification } = await import('./verify-click.js')
     await runClickVerification()
+  })
+} else if (VERIFY_CODE) {
+  void app.whenReady().then(async () => {
+    const { runCodeVerification } = await import('./verify-code.js')
+    await runCodeVerification()
   })
 } else if (PROBE_HOTKEYS) {
   void app.whenReady().then(async () => {
@@ -255,6 +261,7 @@ function openSettings(): void {
 
 function registerIpc(): void {
   ipcMain.on(IPC.popupClose, () => hidePopup())
+  ipcMain.on(IPC.popupExplainCode, () => void explainLastAsCode())
 
   ipcMain.on(IPC.popupResize, (_e, height: unknown) => {
     if (typeof height === 'number' && Number.isFinite(height)) resizePopup(height)
@@ -303,7 +310,7 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.llmTest, async () => {
     const config = loadConfig()
-    return probeProvider(config, getSecret(config.llm.provider))
+    return probeConfigured(config, getSecret(config.llm.provider))
   })
 
   ipcMain.handle(IPC.configSecretStatus, () =>

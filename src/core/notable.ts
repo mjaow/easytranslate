@@ -17,6 +17,16 @@ const SEPARATOR = /\s*[·•|]\s*|\s+[—–-]\s+/
 
 const HAS_CJK = /[㐀-鿿豈-﫿]/
 
+/** A concept line from a code explanation: `term · 中文 · why it matters here`. */
+export function parseConcept(line: string): { term: string; detail: string } | null {
+  const trimmed = line.trim().replace(/^[-*•]\s*/, '')
+  if (!trimmed) return null
+  const parts = trimmed.split(SEPARATOR).map((p) => p.trim()).filter(Boolean)
+  const term = parts[0]?.replace(/^`|`$/g, '')
+  if (!term) return null
+  return { term, detail: parts.slice(1).join('，') }
+}
+
 export function parseNotable(line: string): NotableTerm | null {
   const trimmed = line.trim().replace(/^[-*•]\s*/, '')
   if (!trimmed) return null

@@ -26,6 +26,11 @@ const api = {
     ipcRenderer.send(IPC.popupClose)
   },
 
+  /** The user took the offer to have the selection explained as code. */
+  explainAsCode(): void {
+    ipcRenderer.send(IPC.popupExplainCode)
+  },
+
   /** Report measured content height so the window can size itself to fit. */
   resize(height: number): void {
     ipcRenderer.send(IPC.popupResize, height)

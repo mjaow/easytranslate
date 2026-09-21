@@ -11,11 +11,15 @@ export const LLM_PROVIDERS: { id: LlmProviderId; label: string; needsKey: boolea
 ]
 
 /** Build the configured provider. Throws ProviderError when it can't be constructed. */
-export function createLlmProvider(config: AppConfig, apiKey: string | null): LlmProvider {
+export function createLlmProvider(
+  config: AppConfig,
+  apiKey: string | null,
+  model = config.llm.models[config.llm.provider]
+): LlmProvider {
   const id = config.llm.provider
   const opts = {
     apiKey,
-    model: config.llm.models[id],
+    model,
     baseUrl: config.llm.baseUrls[id]
   }
   switch (id) {

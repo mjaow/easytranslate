@@ -9,7 +9,7 @@ import { captureSelection } from './capture.js'
 import { readTranscriptAtPoint, readCaptionFromVideo } from './uia.js'
 import { foregroundWindowTitle } from './win32.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
-import { detectMode, SectionParser } from '../core/explain.js'
+import { detectMode, SectionParser, systemPrompt } from '../core/explain.js'
 import { loadConfig, getSecret } from '../core/config.js'
 import { JsonLruCache, AudioCache, cacheKey } from '../core/cache.js'
 import { createLlmProvider, describeError } from '../providers/llm/registry.js'
@@ -38,6 +38,8 @@ function caches(): { explanations: JsonLruCache<Explanation>; audio: AudioCache 
 }
 
 let inFlight: AbortController | null = null
+/** What the popup is showing, so "explain this code" can ask again about it. */
+let lastRequest: ExplainRequest | null = null
 
 function cancelInFlight(): void {
   inFlight?.abort()
@@ -66,7 +68,7 @@ export async function explainSelection(): Promise<void> {
   }
 
   const mode = detectMode(result.text)
-  await run({ mode, text: result.text }, true)
+  await run({ mode, text: result.text, raw: result.raw }, true)
 }
 
 /**
@@ -165,21 +167,41 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
   }
 }
 
+/**
+ * The popup's "Explain this code" button: the same selection, asked about as code.
+ * A second step rather than a guess up front — the ordinary answer came first, the
+ * model flagged the selection as code in it, and this is the user taking the offer.
+ */
+export async function explainLastAsCode(): Promise<void> {
+  if (!lastRequest) return
+  cancelInFlight()
+  await run({ mode: 'code', text: lastRequest.text, raw: lastRequest.raw }, false)
+}
+
 async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
+  lastRequest = req
   const config = loadConfig()
   const { explanations } = caches()
-  const key = cacheKey(
-    config.llm.provider,
-    config.llm.models[config.llm.provider],
-    req.mode,
-    req.text,
-    req.context
-  )
+  // Code may go to a stronger model; everything else stays on the everyday one.
+  const model =
+    (req.mode === 'code' && config.llm.codeModel.trim()) || config.llm.models[config.llm.provider]
+  // The prompt is part of the key: a cached answer is only as good as the prompt that
+  // produced it, and an improved prompt must not keep serving the old answer.
+  const key = cacheKey(config.llm.provider, model, req.mode, systemPrompt(req.mode), req.text, req.context)
 
   const cached = explanations.get(key)
   if (cached) {
     emit(
-      { mode: req.mode, text: req.text, context: req.context, explanation: cached, status: 'done' },
+      {
+        mode: req.mode,
+        text: req.text,
+        raw: req.raw,
+        context: req.context,
+        explanation: cached,
+        status: 'done',
+        model,
+        cached: true
+      },
       isNew
     )
     return
@@ -188,15 +210,17 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   const state: ExplainState = {
     mode: req.mode,
     text: req.text,
+    raw: req.raw,
     context: req.context,
     explanation: {},
-    status: 'streaming'
+    status: 'streaming',
+    model
   }
   emit(state, isNew)
 
   let provider
   try {
-    provider = createLlmProvider(config, getSecret(config.llm.provider))
+    provider = createLlmProvider(config, getSecret(config.llm.provider), model)
   } catch (err) {
     const e = describeError(config.llm.provider, err)
     emit({ ...state, status: 'error', error: [e.message, e.hint].filter(Boolean).join(' ') }, false)

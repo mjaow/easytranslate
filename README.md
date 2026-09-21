@@ -71,6 +71,14 @@ Settings opens by itself the first time, since nothing works until step 1 is don
   *here*, an example.
 - **Anything longer** is treated as a passage: natural Chinese, simpler English, and
   the hard words and idioms in it, each with IPA, Chinese and an example.
+- **Code** gets an offer: when the model judges the selection to be source code, the
+  popup shows **This looks like code — explain what it does**. One click gives a code
+  review rather than a paraphrase: what it does, what problem it solves and why this
+  approach, a step-by-step walk through it, why it is written the way it is, any bugs
+  or edge cases visible in the snippet, and the concepts worth knowing. Any language,
+  a shell command, a query or a JSON fragment all count; a sentence that merely
+  mentions `C++` does not. Settings can point code explanations at a stronger model
+  than everyday lookups use, since design and bug reasoning is where that pays off.
 - **🔊** reads it aloud, **🐢** reads it slowly, **⏹** stops.
 
 The double-click needs no shortcut. On YouTube the words come from the page itself, so
@@ -186,6 +194,7 @@ npm test               # unit tests: parser, prompts, SSML escaping, CSP, transc
 npm run verify:capture # end-to-end capture: reads the selection, restores the clipboard exactly
 npm run verify:hotkeys # clipboard shortcuts refused, conflicts fall back, availability check is honest
 npm run verify:click   # real OS double-clicks on a YouTube-shaped page come back as the right lines
+npm run verify:code    # asks the configured model: snippets come back as code, prose as prose
 npm run probe:hotkeys  # which shortcuts are free on this machine
 ```
 
@@ -249,6 +258,13 @@ the lower part of it is read with `Windows.Media.Ocr`.
 **Streaming.** The model answers in fixed `## SECTION` blocks rather than JSON, so the
 popup fills in top-down as tokens land. The parser is tested against chunk sizes from
 one byte upward.
+
+**Code.** No pattern decides whether a selection is code. The ordinary answer opens
+with a one-word verdict from the model (`## CODE`, yes or no); a yes makes the popup
+offer to explain it, and the click is a second request with the dedicated code prompt
+(`LANG`, `STEPS`, `CONCEPTS`). The selection reaches the model fenced, with its line
+breaks and indentation kept. `verify:code` checks both steps against the configured
+model with a mix of snippets and prose that mentions code.
 
 ---
 

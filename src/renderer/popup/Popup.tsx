@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ExplainState } from '@shared/types'
-import { parseNotable } from '@core/notable'
+import { parseNotable, parseConcept } from '@core/notable'
 import { playAudio, stopAudio } from './player'
 
 /**
@@ -147,12 +147,23 @@ export function Popup(): React.ReactElement | null {
 
   const { explanation: ex, mode } = state
   const isWord = mode === 'word'
-  const headline =
-    isWord || state.text.length <= 90 ? state.text : `${state.text.slice(0, 90)}…`
+  const isCode = mode === 'code'
+  // The model's verdict on the ordinary answer: offer the code explanation as a step.
+  const offerCode = !isCode && ex.isCode === true
+  // A snippet's headline is its first line: twelve lines of code must not become a
+  // twelve-line header.
+  const shaped = state.raw ?? state.text
+  const firstLine = shaped.split('\n')[0] ?? ''
+  const headline = isCode
+    ? `${firstLine.slice(0, 70)}${firstLine.length > 70 || shaped.includes('\n') ? '…' : ''}`
+    : isWord || state.text.length <= 90
+      ? state.text
+      : `${state.text.slice(0, 90)}…`
   const empty = Object.keys(ex).length === 0
 
   return (
-    <div className="p-1.5">
+    // The window is sized to the content up to a limit; past it, this scrolls.
+    <div className="p-1.5" style={{ maxHeight: '100vh', overflowY: 'auto' }}>
       <div
         ref={contentRef}
         className="overflow-hidden rounded-xl border"
@@ -168,23 +179,38 @@ export function Popup(): React.ReactElement | null {
           style={{ borderColor: 'var(--border)', background: 'var(--surface-muted)' }}
         >
           <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-semibold leading-snug">
+            <div className={`font-semibold leading-snug ${isCode ? 'font-mono text-[12px]' : 'text-[14px]'}`}>
               {headline || 'EasyTranslate'}
             </div>
-            {isWord && (ex.ipa || ex.pos) && (
+            {/* One quiet line: the language for code, IPA and part of speech for a word,
+                and always which model answered — so the source of an answer is never
+                a mystery, and a stale cache entry says so. */}
+            {(ex.lang || (isWord && (ex.ipa || ex.pos)) || state.model) && (
               <div
-                className="mt-0.5 flex items-baseline gap-2 text-[11px]"
+                className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-[11px]"
                 style={{ color: 'var(--text-muted)' }}
               >
-                {ex.ipa && <span className="font-mono">{ex.ipa}</span>}
-                {ex.pos && <span className="italic">{ex.pos}</span>}
+                {isCode && ex.lang && <span className="italic">{ex.lang}</span>}
+                {isWord && ex.ipa && <span className="font-mono">{ex.ipa}</span>}
+                {isWord && ex.pos && <span className="italic">{ex.pos}</span>}
+                {state.model && (
+                  <span
+                    className="ml-auto text-[10px]"
+                    style={{ color: 'var(--text-subtle)' }}
+                    title={state.cached ? 'Served from the cache of an earlier answer' : 'The model that answered'}
+                  >
+                    {state.model}
+                    {state.cached ? ' · cached' : ''}
+                  </span>
+                )}
               </div>
             )}
           </div>
 
           <div className="flex shrink-0 items-center">
-            <SpeakButton text={state.text} onStatus={setStatus} />
-            <SpeakButton text={state.text} slow onStatus={setStatus} />
+            {/* Code is not read aloud; the English explanation below has its own button. */}
+            {!isCode && <SpeakButton text={state.text} onStatus={setStatus} />}
+            {!isCode && <SpeakButton text={state.text} slow onStatus={setStatus} />}
             <button
               onClick={() => window.easytranslate.close()}
               title="Close (Esc)"
@@ -205,6 +231,16 @@ export function Popup(): React.ReactElement | null {
           ) : (
             <>
               {empty && state.status === 'streaming' && <Skeleton />}
+
+              {offerCode && (
+                <button
+                  onClick={() => window.easytranslate.explainAsCode()}
+                  className="w-full rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium"
+                  style={{ background: 'var(--accent)', color: 'var(--surface)' }}
+                >
+                  This looks like code — explain what it does
+                </button>
+              )}
 
               {ex.zh && <div className="text-[15px] font-medium leading-snug">{ex.zh}</div>}
               {ex.en && (
@@ -240,6 +276,63 @@ export function Popup(): React.ReactElement | null {
                       {line}
                     </div>
                   ))}
+                </Section>
+              )}
+              {ex.why && (
+                <Section label="why it matters">
+                  <span style={{ color: 'var(--text)', whiteSpace: 'pre-line' }}>{ex.why}</span>
+                </Section>
+              )}
+              {ex.steps && ex.steps.length > 0 && (
+                <Section label="step by step">
+                  <ol className="space-y-0.5 pl-4" style={{ listStyle: 'decimal' }}>
+                    {ex.steps.map((step, i) => (
+                      <li key={i} style={{ color: 'var(--text)' }}>
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                </Section>
+              )}
+              {ex.design && ex.design.length > 0 && (
+                <Section label="why it is written this way">
+                  <ul className="space-y-1 pl-4" style={{ listStyle: 'disc' }}>
+                    {ex.design.map((line, i) => (
+                      <li key={i} style={{ color: 'var(--text)' }}>
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+              {ex.issues && ex.issues.length > 0 && (
+                <Section label="watch out">
+                  <ul className="space-y-1 pl-4" style={{ listStyle: 'disc' }}>
+                    {ex.issues.map((line, i) => (
+                      <li key={i} style={{ color: 'var(--danger)' }}>
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+              {ex.concepts && ex.concepts.length > 0 && (
+                <Section label="concepts worth knowing">
+                  <ul className="space-y-1">
+                    {ex.concepts.map((item, i) => {
+                      const c = parseConcept(item)
+                      if (!c) return null
+                      return (
+                        <li key={i} className="flex items-baseline gap-1.5">
+                          <span className="font-mono text-[12px] font-medium" style={{ color: 'var(--text)' }}>
+                            {c.term}
+                          </span>
+                          <SpeakButton text={c.term} compact onStatus={setStatus} />
+                          {c.detail && <span style={{ color: 'var(--text-muted)' }}>{c.detail}</span>}
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </Section>
               )}
               {ex.notable && ex.notable.length > 0 && (

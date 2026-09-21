@@ -20,7 +20,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "verify:capture": "electron-vite build && electron . --verify-capture",
     "verify:hotkeys": "electron-vite build && electron . --verify-hotkeys",
-    "verify:click": "electron-vite build && electron . --verify-click"
+    "verify:click": "electron-vite build && electron . --verify-click",
+    "verify:code": "electron-vite build && electron . --verify-code"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

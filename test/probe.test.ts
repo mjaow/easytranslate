@@ -9,6 +9,7 @@ function cfg(baseUrl: string, model = 'nonexistent-model'): AppConfig {
     llm: {
       provider: 'ollama',
       models: { ollama: model },
+      codeModel: '',
       baseUrls: { ollama: baseUrl }
     },
     tts: {
