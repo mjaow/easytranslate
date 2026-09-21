@@ -9,7 +9,7 @@ import { captureSelection } from './capture.js'
 import { readTranscriptAtPoint, readCaptionFromVideo } from './uia.js'
 import { foregroundWindowTitle } from './win32.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
-import { detectMode, SectionParser } from '../core/explain.js'
+import { detectMode, SectionParser, systemPrompt } from '../core/explain.js'
 import { loadConfig, getSecret } from '../core/config.js'
 import { JsonLruCache, AudioCache, cacheKey } from '../core/cache.js'
 import { createLlmProvider, describeError } from '../providers/llm/registry.js'
@@ -185,7 +185,9 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   // Code may go to a stronger model; everything else stays on the everyday one.
   const model =
     (req.mode === 'code' && config.llm.codeModel.trim()) || config.llm.models[config.llm.provider]
-  const key = cacheKey(config.llm.provider, model, req.mode, req.text, req.context)
+  // The prompt is part of the key: a cached answer is only as good as the prompt that
+  // produced it, and an improved prompt must not keep serving the old answer.
+  const key = cacheKey(config.llm.provider, model, req.mode, systemPrompt(req.mode), req.text, req.context)
 
   const cached = explanations.get(key)
   if (cached) {
