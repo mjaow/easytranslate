@@ -121,8 +121,10 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
     const { text, read } = await readTranscriptAtPoint(click.x, click.y)
 
     if (!text && read?.video) {
-      // Acknowledge at once: capture and OCR take over a second.
-      showPopup({ mode: 'passage', text: 'Reading the caption…', explanation: {}, status: 'streaming' })
+      // No popup until there is something to show: a double-click on a video with
+      // no caption line under it stays a plain double-click, as on YouTube. Capture
+      // and OCR take about a second, and a "reading" notice that then has nothing to
+      // say is worse than the wait.
       const display = screen.getDisplayNearestPoint(screen.screenToDipPoint(click))
       const frame = screen.dipToScreenRect(null, display.bounds)
       const caption = await readCaptionFromVideo(click, read.video, frame)
@@ -142,16 +144,9 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
       )
       if (caption.text) {
         cancelInFlight()
-        await run({ mode: detectMode(caption.text), text: caption.text }, false)
-        return
+        await run({ mode: detectMode(caption.text), text: caption.text }, true)
       }
-      showPopup({
-        mode: 'passage',
-        text: '',
-        explanation: {},
-        status: 'error',
-        error: 'No caption could be read off the video. Are captions on? Try again while a line is showing.'
-      })
+      return
     }
 
     if (!text) {
