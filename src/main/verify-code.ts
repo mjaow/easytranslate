@@ -62,9 +62,11 @@ export async function runCodeVerification(): Promise<void> {
       '\n'
   )
   // The second step goes to the code model when one is set, as the button does.
-  const codeProvider = config.llm.codeModel.trim()
-    ? createLlmProvider(config, secret, config.llm.codeModel.trim())
-    : provider
+  // `--model <id>` tries another one without changing Settings, to compare candidates.
+  const modelFlag = process.argv.indexOf('--model')
+  const codeModel = (modelFlag > 0 ? process.argv[modelFlag + 1] : '') || config.llm.codeModel.trim()
+  if (codeModel) console.log(`  code model for this run: ${codeModel}\n`)
+  const codeProvider = codeModel ? createLlmProvider(config, secret, codeModel) : provider
 
   // `npm run verify:code -- path/to/snippet` prints the full explanation of that file
   // instead — the way to judge the answer's quality by eye, not just its shape.
