@@ -8,7 +8,7 @@
  * place in quick succession are a double-click, reported once, on the second; a
  * single click is how a page is ordinarily used and is never reported.
  */
-import { cursorPosition, isLeftButtonDown } from './win32.js'
+import { cursorPosition, leftButtonState } from './win32.js'
 
 /** Fast enough that no human click is missed; cheap enough to be invisible. */
 const POLL_MS = 15
@@ -50,7 +50,7 @@ export function startClickWatcher(onDoubleClick: (click: Click) => void): void {
   }
 
   timer = setInterval(() => {
-    const down = isLeftButtonDown()
+    const { down, pressedSince } = leftButtonState()
     if (down && !wasDown) {
       pressedAt = cursorPosition()
     } else if (!down && wasDown && pressedAt) {
@@ -58,6 +58,9 @@ export function startClickWatcher(onDoubleClick: (click: Click) => void): void {
       const travelled = Math.hypot(released.x - pressedAt.x, released.y - pressedAt.y)
       pressedAt = null
       if (travelled <= CLICK_SLOP_PX) report(released)
+    } else if (!down && !wasDown && pressedSince) {
+      // Pressed and released between two polls: too quick to have been a drag.
+      report(cursorPosition())
     }
     wasDown = down
   }, POLL_MS)

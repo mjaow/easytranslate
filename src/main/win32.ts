@@ -186,10 +186,16 @@ export function foregroundWindowTitle(): string {
   return length > 0 ? buffer.toString('utf16le', 0, length * 2) : ''
 }
 
-/** Whether the left mouse button is physically held right now. */
-export function isLeftButtonDown(): boolean {
+/**
+ * The left mouse button: whether it is held right now, and whether it was pressed
+ * at all since the previous call. The second answer catches a press-and-release that
+ * fell entirely between two polls — the OS records it in the low bit of the state.
+ */
+export function leftButtonState(): { down: boolean; pressedSince: boolean } {
   const b = load()
-  return b ? isDown(b, VK_LBUTTON) : false
+  if (!b) return { down: false, pressedSince: false }
+  const state = b.GetAsyncKeyState(VK_LBUTTON)
+  return { down: (state & 0x8000) !== 0, pressedSince: (state & 0x0001) !== 0 }
 }
 
 /** Pointer position in physical screen pixels. (0,0) when unavailable. */

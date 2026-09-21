@@ -6,6 +6,8 @@
 #   BUTTON:<name>   accessible name of the nearest button up the tree, if any
 #   LINE:<text>     the line of text under the point, if the app exposes text there
 #   CAPTION:<text>  the caption drawn on a video player the point is inside, if any
+#   VIDEO:<x y w h> the on-screen rectangle of a video the point is inside, in
+#                   physical pixels — for players whose captions are not in the tree
 #   CHAIN:<...>     one line per ancestor, for diagnostics
 #
 # Deciding whether that is a transcript line happens in the caller
@@ -53,6 +55,7 @@ try {
   $textPattern = $null
   $button = $null
   $player = $null
+  $video = $null
   $depth = 0
 
   while ($null -ne $current -and $depth -lt 12) {
@@ -65,6 +68,13 @@ try {
     # YouTube's player. The HTML class attribute comes through as the UIA class name.
     if ($null -eq $player -and $c.ClassName -and $c.ClassName.Contains('html5-video-player')) { $player = $current }
 
+    # Any video: X names its player "Embedded video" and its control strip after the
+    # captions button; Chromium calls a bare <video> element "video". Its rectangle
+    # lets the caller read a caption off the pixels when the tree does not carry it.
+    $looksLikeVideo = ($c.Name -eq 'Embedded video') -or ($c.LocalizedControlType -eq 'video') -or
+                      ($c.Name -match 'captions') -or ($c.ClassName -and $c.ClassName -match 'video-stream')
+    if ($null -eq $video -and $looksLikeVideo) { $video = $current }
+
     # In Chromium the leaf under the pointer is usually a plain container; TextPattern
     # lives on the document above it, so keep walking until something exposes it.
     if ($null -eq $textPattern) {
@@ -76,6 +86,13 @@ try {
   }
 
   if ($null -ne $button) { Out-Line 'BUTTON:' $button }
+
+  if ($null -ne $video) {
+    $r = $video.Current.BoundingRectangle
+    if ($r.Width -gt 0 -and $r.Height -gt 0) {
+      Out-Line 'VIDEO:' ("{0} {1} {2} {3}" -f [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height)
+    }
+  }
 
   # Inside the player: the caption currently on screen. YouTube draws it in a
   # focusable "caption-window" element, and focusable elements are always in the

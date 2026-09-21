@@ -14,7 +14,7 @@
 import { app, BrowserWindow, screen } from 'electron'
 import koffi from 'koffi'
 import { startClickWatcher, stopClickWatcher, type Click } from './clicks.js'
-import { readTranscriptAtPoint } from './uia.js'
+import { readTranscriptAtPoint, readCaptionFromVideo } from './uia.js'
 import { cursorPosition } from './win32.js'
 
 const LINES = [
@@ -29,6 +29,10 @@ const ROW_HEIGHT = 48
 const PLAYER_TOP = ROW_TOP + 3 * ROW_HEIGHT + 60
 const PLAYER_HEIGHT = 140
 const CAPTION = 'so I quickly ran around and tried all the other doors'
+/** An X-style player: captions drawn on the picture, nothing in the tree. */
+const X_TOP = PLAYER_TOP + PLAYER_HEIGHT + 20
+const X_HEIGHT = 160
+const X_CAPTION = 'The president calls for federal involvement as opposition grows.'
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
@@ -80,7 +84,7 @@ export async function runClickVerification(): Promise<void> {
   app.on('window-all-closed', () => {})
 
   const display = screen.getPrimaryDisplay()
-  const bounds = { x: display.bounds.x + 100, y: display.bounds.y + 100, width: 900, height: 480 }
+  const bounds = { x: display.bounds.x + 100, y: display.bounds.y + 100, width: 900, height: 680 }
 
   const win = new BrowserWindow({
     ...bounds,
@@ -104,7 +108,7 @@ export async function runClickVerification(): Promise<void> {
   await win.loadURL(
     'data:text/html,' +
       encodeURIComponent(
-        `<title>Self-test - YouTube</title>
+        `<title>EasyTranslate self-test</title>
          <body style="margin:0;background:#fff;font:18px 'Segoe UI'">
            <h2 style="margin:16px 20px;height:24px;font-size:16px">Transcript</h2>
            ${rows.join('')}
@@ -120,6 +124,10 @@ export async function runClickVerification(): Promise<void> {
                  </span></span>
                </div>
              </div>
+           </div>
+           <div role="group" aria-label="Embedded video" style="position:relative;margin:20px 20px 0;height:${X_HEIGHT}px;background:#111">
+             <div aria-hidden="true" style="position:absolute;left:16px;top:12px;color:#fff;background:#c00;padding:4px 10px;font:700 22px 'Segoe UI'">GPS</div>
+             <div aria-hidden="true" style="position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#fff;font:600 26px 'Segoe UI'">${X_CAPTION}</div>
            </div>
          </body>`
       )
@@ -191,6 +199,32 @@ export async function runClickVerification(): Promise<void> {
       'a click on the video reads the caption on screen',
       caption ? `got "${caption}"` : 'got nothing'
     )
+
+    // An X-style video: the tree holds no caption, only the video's rectangle. The
+    // caption is read off the pixels on the row that was double-clicked — and the
+    // logo in the corner, which is also text, must not be what comes back.
+    const xVideo = screen.dipToScreenPoint({ x: bounds.x + 450, y: bounds.y + X_TOP + X_HEIGHT - 30 })
+    const { text: xText, read: xRead } = await readTranscriptAtPoint(xVideo.x, xVideo.y)
+    check(xText === null && xRead?.video !== null, 'a native-caption video reports its rectangle', xRead?.video ? `${xRead.video.width}x${xRead.video.height}` : 'no rectangle')
+    if (xRead?.video) {
+      const started = Date.now()
+      const frame = screen.dipToScreenRect(null, display.bounds)
+      const ocr = await readCaptionFromVideo(xVideo, xRead.video, frame)
+      const words = (s: string): string[] => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean)
+      const want = words(X_CAPTION)
+      const got = new Set(words(ocr.text ?? ''))
+      const ratio = want.filter((w) => got.has(w)).length / want.length
+      check(ratio >= 0.8, 'the caption on the clicked row is read off the pixels', `${Math.round(ratio * 100)}% of words, ${Date.now() - started}ms — "${ocr.text}"`)
+      check(!/\bGPS\b/.test(ocr.text ?? ''), 'the logo in the corner is not mistaken for the caption')
+
+      // The tree's rectangle can be stale — an inline box while the video is shown
+      // large. A rectangle that does not contain the point must not steer the read.
+      const stale = { x: xRead.video.x, y: xRead.video.y - 5000, width: 200, height: 100 }
+      const fallback = await readCaptionFromVideo(xVideo, stale, frame)
+      const gotFallback = new Set(words(fallback.text ?? ''))
+      const ratioFallback = want.filter((w) => gotFallback.has(w)).length / want.length
+      check(ratioFallback >= 0.8, 'a stale video rectangle falls back to the row on screen', `${Math.round(ratioFallback * 100)}% of words`)
+    }
 
     // A drag is a selection, not a click.
     const seen = clicks.length

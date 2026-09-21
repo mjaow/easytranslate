@@ -11,7 +11,16 @@ import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { normalize } from './capture.js'
-import { parsePointRead, transcriptLineAt, type PointRead } from '../core/transcript.js'
+import { readScreenRegion } from './ocr.js'
+import { assessReadability } from '../core/readable.js'
+import {
+  captionBandAround,
+  captionLinesNear,
+  parsePointRead,
+  transcriptLineAt,
+  type Box,
+  type PointRead
+} from '../core/transcript.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -70,4 +79,34 @@ export async function readTranscriptAtPoint(x: number, y: number): Promise<Trans
   if (!read) return { text: null, read }
   const line = transcriptLineAt(read)
   return { text: line ? normalize(line) : null, read }
+}
+
+export interface CaptionRead {
+  /** The caption line that was double-clicked, or null when nothing legible was there. */
+  text: string | null
+  /** What was tried, for the log: the band read and every line OCR found in it. */
+  band: Box
+  lines: string[]
+}
+
+/**
+ * The caption on a video, read off the pixels around the double-clicked point.
+ *
+ * For players that draw captions natively — X does — nothing in the accessibility
+ * tree carries the words, so the row of pixels the user pointed at is read with OCR
+ * instead. Null text when nothing legible is there: captions off, or a frame with
+ * no line showing.
+ */
+export async function readCaptionFromVideo(
+  point: { x: number; y: number },
+  video: Box | null,
+  screen: Box
+): Promise<CaptionRead> {
+  const band = captionBandAround(point, video, screen)
+  const result = await readScreenRegion(band)
+  if (!result.ok) return { text: null, band, lines: [] }
+  const lines = result.lines.map((l) => `${l.x},${l.y} ${l.width}x${l.height}  ${l.text}`)
+  const caption = captionLinesNear(result.lines, point)
+  if (!caption || !assessReadability(caption).readable) return { text: null, band, lines }
+  return { text: normalize(caption), band, lines }
 }

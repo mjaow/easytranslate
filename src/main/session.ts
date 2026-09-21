@@ -6,7 +6,7 @@ import { appendFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CaptureFailure, ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
-import { readTranscriptAtPoint } from './uia.js'
+import { readTranscriptAtPoint, readCaptionFromVideo } from './uia.js'
 import { foregroundWindowTitle } from './win32.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
 import { detectMode, SectionParser } from '../core/explain.js'
@@ -71,9 +71,9 @@ export async function explainSelection(): Promise<void> {
 
 /**
  * Windows whose double-clicks are worth a look. A browser's title is its active
- * tab's, so this is "a YouTube tab is in front" — the only place transcripts live.
+ * tab's, so this is "a YouTube or X tab is in front". X titles its pages "… / X".
  */
-const VIDEO_WINDOW_TITLES = ['YouTube']
+const VIDEO_WINDOW_TITLES = ['YouTube', '/ X']
 
 /** One accessibility read at a time — clicks can come faster than PowerShell starts. */
 let clickInFlight = false
@@ -102,8 +102,10 @@ async function logMiss(entry: string): Promise<void> {
  * The user double-clicked somewhere. If it was a transcript line, explain it.
  *
  * Nothing is read unless a video page is in front, and nothing is shown unless the
- * double-click was on a line of transcript, or on the video while a caption is
- * showing — a related video, the comments, the controls all stay plain clicks. Misses on a video page are written to
+ * double-click was on a line of transcript, or on a video while a caption is
+ * showing — a related video, the comments, the feed all stay plain clicks. YouTube
+ * puts its captions in the accessibility tree; X draws them natively, so there the
+ * lower part of the picture is read with OCR. Misses on a video page are written to
  * last-click.log in the data folder, so a line that fails to register can be
  * diagnosed rather than guessed at.
  */
@@ -117,6 +119,36 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
   clickInFlight = true
   try {
     const { text, read } = await readTranscriptAtPoint(click.x, click.y)
+
+    if (!text && read?.video) {
+      // No popup until there is something to show: a double-click on a video with
+      // no caption line under it stays a plain double-click, as on YouTube. Capture
+      // and OCR take about a second, and a "reading" notice that then has nothing to
+      // say is worse than the wait.
+      const display = screen.getDisplayNearestPoint(screen.screenToDipPoint(click))
+      const frame = screen.dipToScreenRect(null, display.bounds)
+      const caption = await readCaptionFromVideo(click, read.video, frame)
+      // Logged whether or not it worked: when the wrong text comes back, the answer
+      // is in which lines OCR saw and which one was chosen.
+      void logMiss(
+        [
+          `${new Date().toISOString()}  ${title}`,
+          `video double-click at ${click.x},${click.y}`,
+          `tree video rect: ${read.video.x},${read.video.y} ${read.video.width}x${read.video.height}`,
+          `read band: ${caption.band.x},${caption.band.y} ${caption.band.width}x${caption.band.height}`,
+          ...caption.lines.map((l) => `  ocr: ${l}`),
+          `chosen: ${caption.text ?? '-'}`,
+          '',
+          ''
+        ].join('\n')
+      )
+      if (caption.text) {
+        cancelInFlight()
+        await run({ mode: detectMode(caption.text), text: caption.text }, true)
+      }
+      return
+    }
+
     if (!text) {
       const report = read
         ? [`button: ${read.button ?? '-'}`, `line: ${read.line ?? '-'}`, read.chain].join('\n')
