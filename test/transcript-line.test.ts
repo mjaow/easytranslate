@@ -134,6 +134,25 @@ describe('captionLinesNear', () => {
     )
   })
 
+  it('drops a small source label on the same row, as seen on X', () => {
+    // Positions from a real read: the caption in 62px type, the label in 14px at the far left.
+    const seen = [
+      { text: 'eight billion dollars in taxes over five years', x: -1469, y: 1147, width: 1018, height: 62 },
+      { text: 'From Wall St Engine', x: -1893, y: 1207, width: 153, height: 14 },
+      { text: '0:15/ 1:20 @', x: -285, y: 1268, width: 192, height: 20 }
+    ]
+    expect(captionLinesNear(seen, { x: -1116, y: 1185 })).toBe(
+      'eight billion dollars in taxes over five years'
+    )
+  })
+
+  it('does not let a label off to the side become the anchor', () => {
+    const label = { text: 'From Wall St Engine', x: 0, y: 930, width: 153, height: 14 }
+    expect(captionLinesNear([label, caption], { x: 800, y: 930 })).toBe(
+      'to discuss it further. Mustafa Suleiman co-founded DeepMind'
+    )
+  })
+
   it('joins a two-line caption in reading order', () => {
     const second = { text: 'and now runs Microsoft AI.', x: 400, y: 948, width: 900, height: 44 }
     expect(captionLinesNear([second, caption], { x: 800, y: 940 })).toBe(

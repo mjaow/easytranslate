@@ -122,19 +122,24 @@ export function captionBandAround(point: { x: number; y: number }, video: Box | 
   return { x: frame.x, y, width: frame.width, height }
 }
 
-/** "0:07 / 1:30", "0:07", "1:29" — the time readout of a player's control strip. */
-const TIME_READOUT = /^\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:\/\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*$/
+/**
+ * "0:07 / 1:30", "0:07", "1:29" — the time readout of a player's control strip,
+ * allowing for the stray character or two OCR tacks on from the icons beside it.
+ */
+const TIME_READOUT = /^\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:\/\s*\d{1,2}:\d{2}(?::\d{2})?)?[^A-Za-z]{0,4}$/
 
 /** A logo or watermark: a few capitals, no lowercase — "GPS", "CNN", "FAREED ZAKARIA". */
 const LOGO_LIKE = /^[^a-z]*$/
 
 /**
- * The caption among what OCR found: the lines that sit on the double-clicked
- * point's row, or within a line-and-a-half of it, in reading order.
+ * The caption among what OCR found.
  *
- * Everything else in the band is dropped — a control strip's time readout, and the
- * logos and watermarks a broadcast paints in its corners, which are what a wider
- * read would otherwise pick up.
+ * The line under the double-clicked point is the anchor. The caption is that line
+ * plus any other within a line-and-a-half of it that is set in the same size and
+ * overlaps it horizontally — the second line of a two-line caption, in short.
+ * Everything else in the band is dropped: a control strip's time readout, the source
+ * label a player prints in its corner in small type, and the logos and watermarks a
+ * broadcast paints in its corners.
  */
 export function captionLinesNear(
   lines: { text: string; x: number; y: number; width: number; height: number }[],
@@ -143,16 +148,36 @@ export function captionLinesNear(
   const usable = lines
     .map((l) => ({ ...l, text: l.text.trim() }))
     .filter((l) => l.text.length > 0 && !TIME_READOUT.test(l.text))
-    .filter((l) => (l.text.match(/[A-Za-z\u4e00-\u9fff]/g) ?? []).length >= 2)
+    .filter((l) => (l.text.match(/[A-Za-z一-鿿]/g) ?? []).length >= 2)
   if (usable.length === 0) return ''
 
-  const heights = usable.map((l) => l.height).filter((h) => h > 0).sort((a, b) => a - b)
-  const lineHeight = heights.length > 0 ? heights[Math.floor(heights.length / 2)] : 24
-  const reach = lineHeight * 1.6
+  const centre = (l: { y: number; height: number }): number => l.y + l.height / 2
+  const spansX = (l: { x: number; width: number }): boolean =>
+    point.x >= l.x - 8 && point.x <= l.x + l.width + 8
 
-  const near = usable.filter((l) => Math.abs(l.y + l.height / 2 - point.y) <= reach)
-  const prose = near.filter((l) => !LOGO_LIKE.test(l.text) || l.text.split(/\s+/).length > 3)
-  const chosen = (prose.length > 0 ? prose : near).sort((a, b) => a.y - b.y || a.x - b.x)
+  // The anchor: the line the point is on. Prefer one that also spans the point
+  // horizontally, so a label off to the side never wins over the caption itself.
+  const byDistance = [...usable].sort(
+    (a, b) => Math.abs(centre(a) - point.y) - Math.abs(centre(b) - point.y)
+  )
+  const anchor =
+    byDistance.find((l) => spansX(l) && Math.abs(centre(l) - point.y) <= l.height) ?? byDistance[0]
+  const reach = Math.max(30, anchor.height * 1.6)
+  if (Math.abs(centre(anchor) - point.y) > reach) return ''
+
+  const overlapsAnchor = (l: { x: number; width: number }): boolean => {
+    const overlap = Math.min(l.x + l.width, anchor.x + anchor.width) - Math.max(l.x, anchor.x)
+    return overlap > 0.3 * Math.min(l.width, anchor.width)
+  }
+
+  const chosen = usable
+    .filter(
+      (l) =>
+        l === anchor ||
+        (Math.abs(centre(l) - point.y) <= reach && l.height >= anchor.height * 0.5 && overlapsAnchor(l))
+    )
+    .filter((l) => l === anchor || !LOGO_LIKE.test(l.text) || l.text.split(/\s+/).length > 3)
+    .sort((a, b) => a.y - b.y || a.x - b.x)
 
   return chosen
     .map((l) => l.text)
