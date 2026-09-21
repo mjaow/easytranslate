@@ -68,14 +68,21 @@ if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 Expand-Archive -Path $zip -DestinationPath $stage -Force
 $extracted = Get-ChildItem $stage -Directory | Select-Object -First 1
 
-# Keep node_modules across updates so an update is a rebuild, not a re-download of
-# Electron. Everything else is replaced.
-$modules = Join-Path $app 'node_modules'
-$keptModules = Join-Path $root 'node_modules.keep'
-if (Test-Path $modules) { Move-Item $modules $keptModules -Force }
-if (Test-Path $app) { Remove-Item -Recurse -Force $app }
-Move-Item $extracted.FullName $app
-if (Test-Path $keptModules) { Move-Item $keptModules $modules -Force }
+# A running copy holds its files open, so an update has to stop it first. It is
+# started again at the end.
+$running = Get-CimInstance Win32_Process |
+  Where-Object { $_.Name -eq 'electron.exe' -and $_.CommandLine -like "*$app*" }
+if ($running) {
+  Write-Host 'Stopping the running EasyTranslate for the update...'
+  $running | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  Start-Sleep -Seconds 2
+}
+
+# Replace the app in place, keeping node_modules so an update is a rebuild rather
+# than another download of Electron.
+New-Item -ItemType Directory -Force -Path $app | Out-Null
+Get-ChildItem $app -Force | Where-Object { $_.Name -ne 'node_modules' } | Remove-Item -Recurse -Force
+Get-ChildItem $extracted.FullName -Force | Move-Item -Destination $app -Force
 Remove-Item -Recurse -Force $stage
 Remove-Item -Force $zip
 
