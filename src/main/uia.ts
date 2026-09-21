@@ -11,7 +11,15 @@ import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { normalize } from './capture.js'
-import { parsePointRead, transcriptLineAt, type PointRead } from '../core/transcript.js'
+import { readScreenRegion } from './ocr.js'
+import { assessReadability } from '../core/readable.js'
+import {
+  captionBand,
+  captionBandText,
+  parsePointRead,
+  transcriptLineAt,
+  type PointRead
+} from '../core/transcript.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -70,4 +78,24 @@ export async function readTranscriptAtPoint(x: number, y: number): Promise<Trans
   if (!read) return { text: null, read }
   const line = transcriptLineAt(read)
   return { text: line ? normalize(line) : null, read }
+}
+
+/**
+ * The caption on a video, read off the pixels.
+ *
+ * For players that draw captions natively — X does — nothing in the accessibility
+ * tree carries the words, so the lower part of the picture is read with OCR instead.
+ * Null when nothing legible is there: captions off, or a frame with no line showing.
+ */
+export async function readCaptionFromVideo(video: {
+  x: number
+  y: number
+  width: number
+  height: number
+}): Promise<string | null> {
+  const result = await readScreenRegion(captionBand(video))
+  if (!result.ok) return null
+  const caption = captionBandText(result.lines)
+  if (!caption || !assessReadability(caption).readable) return null
+  return normalize(caption)
 }

@@ -21,6 +21,12 @@ export interface PointRead {
   line: string | null
   /** The caption currently drawn on a video player the point is inside, if any. */
   caption: string | null
+  /**
+   * The on-screen rectangle of a video the point is inside, in physical pixels.
+   * Some players (X, for one) draw captions natively, where no accessibility tree
+   * can see them; the rectangle says where to read the pixels instead.
+   */
+  video: { x: number; y: number; width: number; height: number } | null
   /** Ancestor chain, one element per line, for diagnostics and weaker matching. */
   chain: string
 }
@@ -72,14 +78,50 @@ export function transcriptLineAt(read: PointRead): string | null {
 
 /** Parse the PowerShell script's output into a PointRead. */
 export function parsePointRead(stdout: string): PointRead {
-  const read: PointRead = { button: null, line: null, caption: null, chain: '' }
+  const read: PointRead = { button: null, line: null, caption: null, video: null, chain: '' }
   const chain: string[] = []
   for (const raw of stdout.split(/\r?\n/)) {
     if (raw.startsWith('BUTTON:')) read.button = raw.slice(7)
     else if (raw.startsWith('LINE:')) read.line = raw.slice(5)
     else if (raw.startsWith('CAPTION:')) read.caption = raw.slice(8)
+    else if (raw.startsWith('VIDEO:')) {
+      const [x, y, width, height] = raw.slice(6).trim().split(/\s+/).map(Number)
+      if ([x, y, width, height].every(Number.isFinite) && width > 0 && height > 0) {
+        read.video = { x, y, width, height }
+      }
+    }
     else if (raw.startsWith('CHAIN:')) chain.push(raw.slice(6))
   }
   read.chain = chain.join('\n')
   return read
+}
+
+/** Where a caption sits on a video: the lower part of the picture. */
+export function captionBand(video: { x: number; y: number; width: number; height: number }): {
+  x: number
+  y: number
+  width: number
+  height: number
+} {
+  const height = Math.max(40, Math.round(video.height * 0.45))
+  return { x: video.x, y: video.y + video.height - height, width: video.width, height }
+}
+
+/** "0:07 / 1:30", "0:07", "1:29" — the time readout of a player's control strip. */
+const TIME_READOUT = /^\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:\/\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*$/
+
+/**
+ * The caption in what OCR read off a video's lower part.
+ *
+ * The control strip shares that area when it is showing, so its time readout and
+ * one-word labels are dropped. What remains is joined into one line.
+ */
+export function captionBandText(lines: string[]): string {
+  return lines
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !TIME_READOUT.test(line))
+    .filter((line) => (line.match(/[A-Za-z\u4e00-\u9fff]/g) ?? []).length >= 2)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }

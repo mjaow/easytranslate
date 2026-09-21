@@ -2,8 +2,8 @@
 
 Select text in **any** Windows app, press `Ctrl+Alt+E`, and get it explained in English
 and Chinese, with American-accent read-aloud. Works in Edge, Chrome, the ChatGPT desktop
-app, Teams, PDFs, VS Code, anywhere. On YouTube, double-click a caption and it is
-explained too.
+app, Teams, PDFs, VS Code, anywhere. On YouTube or X, double-click a video with
+captions on and the caption is explained too.
 
 **It will not break your copy and paste.** Nothing of EasyTranslate ever enters a page,
 and the popup never takes focus. See [How it works](#how-it-works).
@@ -45,7 +45,7 @@ Nothing works until step 1 is done; the popup will say so.
 | Gesture | Result |
 |---|---|
 | Select text, press `Ctrl+Alt+E` | Explain the selection |
-| Double-click the YouTube video while captions are on | Explain the caption on screen |
+| Double-click a YouTube or X video while captions are on | Explain the caption on screen |
 | Double-click a line in the YouTube transcript panel | Explain that line |
 | `Esc`, or `Ctrl+Alt+E` again | Close the popup |
 
@@ -55,11 +55,12 @@ Nothing works until step 1 is done; the popup will say so.
   the hard words and idioms in it, each with IPA, Chinese and an example.
 - **🔊** reads it aloud, **🐢** reads it slowly, **⏹** stops.
 
-The YouTube double-click needs no shortcut. The words come from the page itself, so
-they are exact. Only a caption or a transcript line produces a popup; everything else
-on the page stays a plain click. YouTube treats a double-click on the video as its
-fullscreen toggle, so double-click the caption text itself to avoid that. The
-double-click can be turned off in Settings.
+The double-click needs no shortcut. On YouTube the words come from the page itself, so
+they are exact; X draws its captions into the picture, so there the lower part of the
+video is read with local OCR (nothing is uploaded). Only a caption or a transcript line
+produces a popup; everything else on the page stays a plain click. YouTube treats a
+double-click on the video as its fullscreen toggle, so double-click the caption text
+itself to avoid that. The double-click can be turned off in Settings.
 
 ### Changing the shortcut
 
@@ -144,8 +145,8 @@ fact.
   probes free yet never fires, pick another.
 - **DRM'd text and text baked into images can't be captured.** There is nothing for
   Ctrl+C to copy.
-- **Double-click-to-explain is YouTube-specific.** A double-click is only examined when
-  a window titled "YouTube" is in front. If a caption or line ever fails to register,
+- **Double-click-to-explain covers YouTube and X.** A double-click is only examined
+  when a window titled "YouTube" or "… / X" is in front. If a caption or line ever fails to register,
   `last-click.log` in the data folder (tray → *Open data folder*) records what the
   accessibility tree reported.
 - **Windows only.** See [Platform support](#platform-support).
@@ -223,7 +224,9 @@ round trip: 23ms.
 **The YouTube double-click.** The mouse button is polled, nothing is hooked. A
 double-click on a YouTube window is looked up in the page's accessibility tree: a
 transcript line is a button named with its spoken time, and a caption is a
-`caption-window` element inside the player. The text comes from the page, not from OCR.
+`caption-window` element inside the player. X draws captions natively, where no
+accessibility tree can see them, so there the tree supplies the video's rectangle and
+the lower part of it is read with `Windows.Media.Ocr`.
 
 **Streaming.** The model answers in fixed `## SECTION` blocks rather than JSON, so the
 popup fills in top-down as tokens land. The parser is tested against chunk sizes from
@@ -240,6 +243,7 @@ src/
 │  ├─ capture.ts   snapshot → Ctrl+C → poll → read → restore
 │  ├─ clicks.ts    double-click detection by polling the mouse button
 │  ├─ uia.ts       what the accessibility tree holds under a point (PowerShell script in resources/)
+│  ├─ ocr.ts       read a screen region with Windows.Media.Ocr, for natively drawn captions
 │  ├─ popup.ts     the non-activating window
 │  └─ verify*.ts   self-tests, loaded only behind their CLI flags
 ├─ core/           mode detection, prompts, streaming parser, transcript rules, cache, config
