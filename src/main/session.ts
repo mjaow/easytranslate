@@ -123,10 +123,26 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
     if (!text && read?.video) {
       // Acknowledge at once: capture and OCR take over a second.
       showPopup({ mode: 'passage', text: 'Reading the caption…', explanation: {}, status: 'streaming' })
-      const caption = await readCaptionFromVideo(read.video)
-      if (caption) {
+      const display = screen.getDisplayNearestPoint(screen.screenToDipPoint(click))
+      const frame = screen.dipToScreenRect(null, display.bounds)
+      const caption = await readCaptionFromVideo(click, read.video, frame)
+      // Logged whether or not it worked: when the wrong text comes back, the answer
+      // is in which lines OCR saw and which one was chosen.
+      void logMiss(
+        [
+          `${new Date().toISOString()}  ${title}`,
+          `video double-click at ${click.x},${click.y}`,
+          `tree video rect: ${read.video.x},${read.video.y} ${read.video.width}x${read.video.height}`,
+          `read band: ${caption.band.x},${caption.band.y} ${caption.band.width}x${caption.band.height}`,
+          ...caption.lines.map((l) => `  ocr: ${l}`),
+          `chosen: ${caption.text ?? '-'}`,
+          '',
+          ''
+        ].join('\n')
+      )
+      if (caption.text) {
         cancelInFlight()
-        await run({ mode: detectMode(caption), text: caption }, false)
+        await run({ mode: detectMode(caption.text), text: caption.text }, false)
         return
       }
       showPopup({

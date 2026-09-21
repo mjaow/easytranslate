@@ -96,31 +96,66 @@ export function parsePointRead(stdout: string): PointRead {
   return read
 }
 
-/** Where a caption sits on a video: the lower part of the picture. */
-export function captionBand(video: { x: number; y: number; width: number; height: number }): {
+export interface Box {
   x: number
   y: number
   width: number
   height: number
-} {
-  const height = Math.max(40, Math.round(video.height * 0.45))
-  return { x: video.x, y: video.y + video.height - height, width: video.width, height }
+}
+
+/**
+ * Where to read for the caption: a band around the point that was double-clicked,
+ * as wide as the video, or as wide as the screen when the video's reported
+ * rectangle does not even contain the point — which happens when a player is shown
+ * large or full-screen while the tree still describes its inline box.
+ */
+export function captionBandAround(point: { x: number; y: number }, video: Box | null, screen: Box): Box {
+  const inside =
+    video !== null &&
+    point.x >= video.x &&
+    point.x < video.x + video.width &&
+    point.y >= video.y &&
+    point.y < video.y + video.height
+  const frame = inside && video ? video : screen
+  const height = Math.max(90, Math.round(frame.height * 0.16))
+  const y = Math.max(frame.y, Math.min(point.y - Math.round(height / 2), frame.y + frame.height - height))
+  return { x: frame.x, y, width: frame.width, height }
 }
 
 /** "0:07 / 1:30", "0:07", "1:29" — the time readout of a player's control strip. */
 const TIME_READOUT = /^\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:\/\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*$/
 
+/** A logo or watermark: a few capitals, no lowercase — "GPS", "CNN", "FAREED ZAKARIA". */
+const LOGO_LIKE = /^[^a-z]*$/
+
 /**
- * The caption in what OCR read off a video's lower part.
+ * The caption among what OCR found: the lines that sit on the double-clicked
+ * point's row, or within a line-and-a-half of it, in reading order.
  *
- * The control strip shares that area when it is showing, so its time readout and
- * one-word labels are dropped. What remains is joined into one line.
+ * Everything else in the band is dropped — a control strip's time readout, and the
+ * logos and watermarks a broadcast paints in its corners, which are what a wider
+ * read would otherwise pick up.
  */
-export function captionBandText(lines: string[]): string {
-  return lines
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !TIME_READOUT.test(line))
-    .filter((line) => (line.match(/[A-Za-z\u4e00-\u9fff]/g) ?? []).length >= 2)
+export function captionLinesNear(
+  lines: { text: string; x: number; y: number; width: number; height: number }[],
+  point: { x: number; y: number }
+): string {
+  const usable = lines
+    .map((l) => ({ ...l, text: l.text.trim() }))
+    .filter((l) => l.text.length > 0 && !TIME_READOUT.test(l.text))
+    .filter((l) => (l.text.match(/[A-Za-z\u4e00-\u9fff]/g) ?? []).length >= 2)
+  if (usable.length === 0) return ''
+
+  const heights = usable.map((l) => l.height).filter((h) => h > 0).sort((a, b) => a - b)
+  const lineHeight = heights.length > 0 ? heights[Math.floor(heights.length / 2)] : 24
+  const reach = lineHeight * 1.6
+
+  const near = usable.filter((l) => Math.abs(l.y + l.height / 2 - point.y) <= reach)
+  const prose = near.filter((l) => !LOGO_LIKE.test(l.text) || l.text.split(/\s+/).length > 3)
+  const chosen = (prose.length > 0 ? prose : near).sort((a, b) => a.y - b.y || a.x - b.x)
+
+  return chosen
+    .map((l) => l.text)
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim()

@@ -126,6 +126,7 @@ export async function runClickVerification(): Promise<void> {
              </div>
            </div>
            <div role="group" aria-label="Embedded video" style="position:relative;margin:20px 20px 0;height:${X_HEIGHT}px;background:#111">
+             <div aria-hidden="true" style="position:absolute;left:16px;top:12px;color:#fff;background:#c00;padding:4px 10px;font:700 22px 'Segoe UI'">GPS</div>
              <div aria-hidden="true" style="position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#fff;font:600 26px 'Segoe UI'">${X_CAPTION}</div>
            </div>
          </body>`
@@ -199,19 +200,30 @@ export async function runClickVerification(): Promise<void> {
       caption ? `got "${caption}"` : 'got nothing'
     )
 
-    // An X-style video: the tree holds no caption, only the video's rectangle, and
-    // the caption is read off the pixels.
-    const xVideo = screen.dipToScreenPoint({ x: bounds.x + 200, y: bounds.y + X_TOP + 40 })
+    // An X-style video: the tree holds no caption, only the video's rectangle. The
+    // caption is read off the pixels on the row that was double-clicked — and the
+    // logo in the corner, which is also text, must not be what comes back.
+    const xVideo = screen.dipToScreenPoint({ x: bounds.x + 450, y: bounds.y + X_TOP + X_HEIGHT - 30 })
     const { text: xText, read: xRead } = await readTranscriptAtPoint(xVideo.x, xVideo.y)
     check(xText === null && xRead?.video !== null, 'a native-caption video reports its rectangle', xRead?.video ? `${xRead.video.width}x${xRead.video.height}` : 'no rectangle')
     if (xRead?.video) {
       const started = Date.now()
-      const ocr = await readCaptionFromVideo(xRead.video)
+      const frame = screen.dipToScreenRect(null, display.bounds)
+      const ocr = await readCaptionFromVideo(xVideo, xRead.video, frame)
       const words = (s: string): string[] => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean)
       const want = words(X_CAPTION)
-      const got = new Set(words(ocr ?? ''))
+      const got = new Set(words(ocr.text ?? ''))
       const ratio = want.filter((w) => got.has(w)).length / want.length
-      check(ratio >= 0.8, 'its caption is read off the pixels', `${Math.round(ratio * 100)}% of words, ${Date.now() - started}ms — "${ocr}"`)
+      check(ratio >= 0.8, 'the caption on the clicked row is read off the pixels', `${Math.round(ratio * 100)}% of words, ${Date.now() - started}ms — "${ocr.text}"`)
+      check(!/\bGPS\b/.test(ocr.text ?? ''), 'the logo in the corner is not mistaken for the caption')
+
+      // The tree's rectangle can be stale — an inline box while the video is shown
+      // large. A rectangle that does not contain the point must not steer the read.
+      const stale = { x: xRead.video.x, y: xRead.video.y - 5000, width: 200, height: 100 }
+      const fallback = await readCaptionFromVideo(xVideo, stale, frame)
+      const gotFallback = new Set(words(fallback.text ?? ''))
+      const ratioFallback = want.filter((w) => gotFallback.has(w)).length / want.length
+      check(ratioFallback >= 0.8, 'a stale video rectangle falls back to the row on screen', `${Math.round(ratioFallback * 100)}% of words`)
     }
 
     // A drag is a selection, not a click.

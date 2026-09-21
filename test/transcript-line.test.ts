@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { transcriptLineAt, parsePointRead, captionBand, captionBandText } from '../src/core/transcript.js'
+import {
+  transcriptLineAt,
+  parsePointRead,
+  captionBandAround,
+  captionLinesNear
+} from '../src/core/transcript.js'
 
 /**
  * A click anywhere on a video page goes through this, so it has to say yes to a
@@ -91,23 +96,54 @@ describe('parsePointRead', () => {
   })
 })
 
-describe('captionBand', () => {
-  it('is the lower part of the picture', () => {
-    expect(captionBand({ x: 100, y: 200, width: 800, height: 400 })).toEqual({
-      x: 100,
-      y: 420,
-      width: 800,
-      height: 180
-    })
+describe('captionBandAround', () => {
+  const screen = { x: 0, y: 0, width: 1920, height: 1080 }
+
+  it('is a band around the point, as wide as the video', () => {
+    const video = { x: 100, y: 200, width: 800, height: 400 }
+    const band = captionBandAround({ x: 500, y: 500 }, video, screen)
+    expect(band.x).toBe(100)
+    expect(band.width).toBe(800)
+    expect(band.height).toBe(90)
+    expect(band.y).toBe(455)
+  })
+
+  it('stays inside the video', () => {
+    const video = { x: 100, y: 200, width: 800, height: 400 }
+    expect(captionBandAround({ x: 500, y: 595 }, video, screen).y).toBe(510)
+  })
+
+  it('uses the screen when the rectangle does not contain the point', () => {
+    const stale = { x: 100, y: 200, width: 800, height: 400 }
+    const band = captionBandAround({ x: 960, y: 1000 }, stale, screen)
+    expect(band.x).toBe(0)
+    expect(band.width).toBe(1920)
+    expect(band.y + band.height).toBeLessThanOrEqual(1080)
   })
 })
 
-describe('captionBandText', () => {
-  it('drops the control strip and keeps the words', () => {
-    expect(captionBandText(['so that given a complex', 'agented workflow', '0:07 / 1:30'])).toBe(
-      'so that given a complex agented workflow'
+describe('captionLinesNear', () => {
+  const caption = { text: 'to discuss it further. Mustafa Suleiman co-founded DeepMind', x: 160, y: 900, width: 1450, height: 44 }
+  const logo = { text: 'GPS', x: 40, y: 60, width: 120, height: 60 }
+  const watermark = { text: 'FAREED ZAKARIA', x: 1620, y: 910, width: 200, height: 30 }
+  const readout = { text: '0:07 / 1:30', x: 200, y: 1010, width: 120, height: 30 }
+
+  it('keeps the row that was pointed at and drops the corners', () => {
+    expect(captionLinesNear([logo, caption, watermark, readout], { x: 800, y: 922 })).toBe(
+      'to discuss it further. Mustafa Suleiman co-founded DeepMind'
     )
-    expect(captionBandText(['1:29', 'x'])).toBe('')
-    expect(captionBandText([])).toBe('')
+  })
+
+  it('joins a two-line caption in reading order', () => {
+    const second = { text: 'and now runs Microsoft AI.', x: 400, y: 948, width: 900, height: 44 }
+    expect(captionLinesNear([second, caption], { x: 800, y: 940 })).toBe(
+      'to discuss it further. Mustafa Suleiman co-founded DeepMind and now runs Microsoft AI.'
+    )
+  })
+
+  it('says nothing when only a readout or a logo is near', () => {
+    expect(captionLinesNear([readout], { x: 250, y: 1025 })).toBe('')
+    expect(captionLinesNear([logo], { x: 100, y: 90 })).toBe('GPS')
+    expect(captionLinesNear([], { x: 0, y: 0 })).toBe('')
   })
 })

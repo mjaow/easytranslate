@@ -86,9 +86,21 @@ try {
   $result = Invoke-Await ($engine.RecognizeAsync($softwareBitmap)) `
     ([Windows.Media.Ocr.OcrResult])
 
-  # One line per OCR line. The caller re-joins hard-wrapped lines the same way it
-  # does for copied text, so line structure is worth preserving here.
-  foreach ($line in $result.Lines) { [Console]::Out.WriteLine($line.Text) }
+  # One line per OCR line, with where it sat in the captured image: "x y w h<TAB>text".
+  # The caller uses the position to keep the line that was pointed at and drop the
+  # rest — a logo, a watermark, a control strip — that shared the captured area.
+  foreach ($line in $result.Lines) {
+    $l = $null; $t = $null; $r = $null; $b = $null
+    foreach ($word in $line.Words) {
+      $wr = $word.BoundingRect
+      if ($null -eq $l -or $wr.X -lt $l) { $l = $wr.X }
+      if ($null -eq $t -or $wr.Y -lt $t) { $t = $wr.Y }
+      if ($null -eq $r -or ($wr.X + $wr.Width) -gt $r) { $r = $wr.X + $wr.Width }
+      if ($null -eq $b -or ($wr.Y + $wr.Height) -gt $b) { $b = $wr.Y + $wr.Height }
+    }
+    if ($null -eq $l) { $l = 0; $t = 0; $r = 0; $b = 0 }
+    [Console]::Out.WriteLine(("{0} {1} {2} {3}`t{4}" -f [int]$l, [int]$t, [int]($r - $l), [int]($b - $t), $line.Text))
+  }
 
   $stream.Dispose()
 }

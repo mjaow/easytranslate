@@ -28,9 +28,32 @@ export interface ScreenRegion {
   height: number
 }
 
+/** One recognised line and where it sat on screen, in physical pixels. */
+export interface OcrLine {
+  text: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export type OcrResult =
-  | { ok: true; text: string; lines: string[]; elapsedMs: number }
+  | { ok: true; text: string; lines: OcrLine[]; elapsedMs: number }
   | { ok: false; reason: string; elapsedMs: number }
+
+/** "x y w h<TAB>text" per line, positions relative to the captured region. */
+export function parseOcrLines(stdout: string, region: ScreenRegion): OcrLine[] {
+  const lines: OcrLine[] = []
+  for (const raw of stdout.split(/\r?\n/)) {
+    const tab = raw.indexOf('\t')
+    if (tab < 0) continue
+    const [x, y, width, height] = raw.slice(0, tab).trim().split(/\s+/).map(Number)
+    const text = raw.slice(tab + 1).trim()
+    if (!text || ![x, y, width, height].every(Number.isFinite)) continue
+    lines.push({ text, x: region.x + x, y: region.y + y, width, height })
+  }
+  return lines
+}
 
 function scriptPath(): string {
   // Mirrors how the tray icon is located, so dev and packaged builds agree.
@@ -100,8 +123,8 @@ export async function readScreenRegion(
 
         // OCR emits one line per recognised line; normalize() rejoins hard-wrapped
         // lines exactly as it does for copied text, so both paths read alike.
-        const lines = (stdout ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
-        const text = normalize(stdout ?? '')
+        const lines = parseOcrLines(stdout ?? '', region)
+        const text = normalize(lines.map((l) => l.text).join('\n'))
         if (!text) {
           resolve({ ok: false, reason: 'No text found in that area.', elapsedMs })
           return
