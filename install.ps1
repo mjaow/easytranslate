@@ -17,14 +17,16 @@
 
 param(
   # Which branch or tag to install. The default is what everyone should run.
-  [string]$Ref = 'main'
+  [string]$Ref = 'main',
+  # Where to install. The default is per-user and needs no administrator rights.
+  [string]$Dir = (Join-Path $env:LOCALAPPDATA 'EasyTranslate')
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 $repo = 'mjaow/easytranslate'
-$root = Join-Path $env:LOCALAPPDATA 'EasyTranslate'
+$root = $Dir
 $app = Join-Path $root 'app'
 
 function Step([string]$text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
@@ -85,8 +87,13 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
 
   Step 'Building'
-  & npx electron-vite build 2>&1 | Where-Object { $_ -notmatch '^\s*$' } | Select-Object -Last 3
-  if ($LASTEXITCODE -ne 0) { throw 'build failed' }
+  # Quiet on success; on failure, the whole build log is what you need to see.
+  $log = & npx electron-vite build 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $log | ForEach-Object { Write-Host $_ }
+    throw 'build failed'
+  }
+  $log | Select-Object -Last 1 | ForEach-Object { Write-Host $_ }
 } finally {
   Pop-Location
 }
