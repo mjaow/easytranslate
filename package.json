@@ -1,7 +1,7 @@
 {
   "name": "easytranslate",
   "version": "0.1.0",
-  "description": "Select text in any Windows app and get it explained in English and Chinese, with American-accent read-aloud.",
+  "description": "Select text in any app on Windows or macOS and get it explained in English and Chinese, with American-accent read-aloud.",
   "main": "./out/main/index.js",
   "author": "mijun",
   "license": "MIT",
@@ -11,6 +11,7 @@
     "build": "npm run typecheck && electron-vite build",
     "dev": "electron-vite dev",
     "dist": "npm run build && electron-builder --win nsis",
+    "dist:mac": "npm run build && electron-builder --mac dmg",
     "fix:electron": "node scripts/fix-electron-install.mjs",
     "postinstall": "node scripts/fix-electron-install.mjs",
     "probe:hotkeys": "electron-vite build && electron . --probe-hotkeys",

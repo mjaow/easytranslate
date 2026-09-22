@@ -55,7 +55,7 @@ function SpeakButton({
         onStatus(res.error ?? 'Could not read that aloud.')
         return
       }
-      if (res.fallbackReason) onStatus('Using the Windows voice — the online voice is unavailable.')
+      if (res.fallbackReason) onStatus('Using the offline system voice — the online voice is unavailable.')
       setPlaying(true)
       await playAudio(res.url, () => setPlaying(false))
     } catch (err) {

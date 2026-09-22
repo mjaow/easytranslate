@@ -4,11 +4,13 @@
  * Reports which accelerators this machine will actually let EasyTranslate bind, so
  * picking a working pair is a lookup rather than trial and error.
  *
- * Caveat worth knowing: this tests Windows' RegisterHotKey, which is what Electron
- * uses. An app that grabs keys with a low-level keyboard hook instead — many IMEs do,
- * and so do some vendor utilities — will not show up as a conflict here, yet can still
- * swallow the key before it reaches us. A combination that passes here but doesn't fire
- * in practice is almost certainly one of those.
+ * Caveat worth knowing: this tests the OS call Electron itself uses — RegisterHotKey
+ * on Windows, RegisterEventHotKey on macOS. An app that grabs keys ahead of that, with
+ * a low-level keyboard hook or a CGEventTap — many IMEs do, and so do some vendor
+ * utilities — will not show up as a conflict here, yet can still swallow the key
+ * before it reaches us. A combination that passes here but doesn't fire in practice is
+ * almost certainly one of those. On macOS, System Settings → Keyboard → Keyboard
+ * Shortcuts lists the ones the system itself has taken.
  *
  * Loaded dynamically from a CLI flag, so none of it ships in the normal startup path.
  */
@@ -20,7 +22,7 @@ import { isForbidden } from './hotkeys.js'
  * Candidates worth considering, roughly in order of how comfortable they are to hit
  * one-handed while the other hand is on the mouse selecting text.
  */
-const CANDIDATES = [
+const WINDOWS_CANDIDATES = [
   'Control+Alt+Space',
   'Control+Alt+R',
   'Control+Alt+E',
@@ -50,6 +52,34 @@ const CANDIDATES = [
   'Alt+F8',
   'Alt+F9'
 ]
+
+/**
+ * The same idea in macOS's terms. Command is the modifier that is actually free
+ * there — Control+Alt combinations are where the system keeps its own shortcuts, and
+ * a bare ⌥letter is a dead key for typing accented characters.
+ */
+const MAC_CANDIDATES = [
+  'Command+Alt+E',
+  'Command+Alt+D',
+  'Command+Alt+Q',
+  'Command+Alt+F',
+  'Command+Alt+G',
+  'Command+Alt+W',
+  'Command+Alt+Z',
+  'Command+Alt+1',
+  'Command+Alt+2',
+  'Command+Shift+E',
+  'Command+Shift+D',
+  'Control+Alt+E',
+  'Control+Alt+D',
+  'Control+Shift+E',
+  'F8',
+  'F9',
+  'Command+F8',
+  'Command+F9'
+]
+
+const CANDIDATES = process.platform === 'darwin' ? MAC_CANDIDATES : WINDOWS_CANDIDATES
 
 interface Probe {
   accelerator: string

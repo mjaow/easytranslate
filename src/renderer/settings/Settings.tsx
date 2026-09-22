@@ -7,6 +7,9 @@ interface Bootstrap {
   config: AppConfig
   providers: { id: LlmProviderId; label: string; needsKey: boolean }[]
   captureAvailable: boolean
+  platform: string
+  /** macOS refuses synthetic keystrokes until Accessibility is granted; this says so. */
+  inputPermission: 'not-required' | 'granted' | 'denied'
 }
 
 /** A deliberately short list — these are the clearest American voices for learners. */
@@ -149,7 +152,7 @@ function ConnectionTester({
  *
  * Read-aloud falls back silently when the chosen engine can't be reached, so picking
  * "Edge neural" on a network that blocks it sounds exactly like nothing happened —
- * the Windows voice answers instead and the setting looks broken. This makes the
+ * the offline system voice answers instead and the setting looks broken. This makes the
  * fallback visible at the moment you change the setting, rather than leaving you to
  * infer it.
  */
@@ -174,7 +177,7 @@ function VoiceTester({ engine }: { engine: string }): React.ReactElement {
         res.fallbackReason
           ? {
               ok: false,
-              text: `Fell back to the Windows voice. ${res.fallbackReason}`
+              text: `Fell back to the ${IS_MAC ? 'macOS' : 'Windows'} voice. ${res.fallbackReason}`
             }
           : { ok: true, text: 'Played with the selected engine.' }
       )
@@ -251,6 +254,10 @@ function DraftInput({
 }
 
 const IS_MAC = navigator.platform.toUpperCase().includes('MAC')
+
+/** Where the OS keeps this app's encrypted keys, in the user's own words. */
+const KEY_STORE = IS_MAC ? 'the macOS Keychain' : 'Windows DPAPI'
+const KEY_STORED_HINT = `A key is stored, encrypted by ${IS_MAC ? 'macOS' : 'Windows'}. Type a new one to replace it.`
 
 /**
  * Records a shortcut by listening for the keypress itself.
@@ -428,7 +435,19 @@ export function Settings(): React.ReactElement {
           className="rounded-lg border px-3 py-2 text-[12px]"
           style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
         >
-          Text capture is unavailable — the Windows input bindings failed to load.
+          Text capture is unavailable — the {IS_MAC ? 'macOS' : 'Windows'} input bindings failed
+          to load.
+        </div>
+      )}
+
+      {boot.captureAvailable && boot.inputPermission === 'denied' && (
+        <div
+          className="rounded-lg border px-3 py-2 text-[12px] leading-snug"
+          style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
+        >
+          macOS is blocking EasyTranslate from reading your selection. Allow it in System Settings
+          → Privacy &amp; Security → Accessibility, then quit and start EasyTranslate again —
+          macOS only checks this when an app launches.
         </div>
       )}
 
@@ -539,8 +558,8 @@ export function Settings(): React.ReactElement {
             label="API key"
             hint={
               secrets[config.llm.provider]
-                ? 'A key is stored, encrypted by Windows. Type a new one to replace it.'
-                : 'Stored encrypted via Windows DPAPI — never written to disk in plain text.'
+                ? KEY_STORED_HINT
+                : `Stored encrypted via ${KEY_STORE} — never written to disk in plain text.`
             }
           >
             <div className="flex gap-2">
@@ -584,7 +603,9 @@ export function Settings(): React.ReactElement {
           hint={
             config.tts.provider === 'online'
               ? 'Azure neural voices — the same ones behind Edge Read Aloud, over plain HTTPS. Free for 500k characters a month, far more than reading uses.'
-              : 'Free and offline, but noticeably robotic. For much better offline quality, install Natural voices: Windows Settings → Accessibility → Narrator → Add natural voices.'
+              : IS_MAC
+                ? 'Free and offline, but noticeably robotic. For much better offline quality, add a Siri or Premium voice: System Settings → Accessibility → Spoken Content → System Voice → Manage Voices.'
+                : 'Free and offline, but noticeably robotic. For much better offline quality, install Natural voices: Windows Settings → Accessibility → Narrator → Add natural voices.'
           }
         >
           <select
@@ -596,7 +617,7 @@ export function Settings(): React.ReactElement {
             }
           >
             <option value="online">Natural voice — Azure, free tier</option>
-            <option value="system">Windows voice — free, offline</option>
+            <option value="system">{IS_MAC ? 'macOS voice' : 'Windows voice'} — free, offline</option>
           </select>
         </Field>
 
@@ -605,7 +626,7 @@ export function Settings(): React.ReactElement {
             label="Azure Speech key"
             hint={
               secrets.tts
-                ? 'A key is stored, encrypted by Windows. Type a new one to replace it.'
+                ? KEY_STORED_HINT
                 : 'From your Speech resource under Keys and Endpoint. Kept separate from the explanation key.'
             }
           >
@@ -658,10 +679,14 @@ export function Settings(): React.ReactElement {
 
         {config.tts.provider === 'system' && (
           <DraftInput
-            label="Windows voice"
+            label={IS_MAC ? 'macOS voice' : 'Windows voice'}
             value={config.tts.systemVoice}
-            placeholder="e.g. Microsoft Zira"
-            hint="Leave blank to pick any American English voice automatically."
+            placeholder={IS_MAC ? 'e.g. Samantha' : 'e.g. Microsoft Zira'}
+            hint={
+              IS_MAC
+                ? 'Leave blank for Samantha. Run "say -v ?" in Terminal to list what is installed.'
+                : 'Leave blank to pick any American English voice automatically.'
+            }
             onCommit={(v) => patch({ tts: { ...config.tts, systemVoice: v } })}
           />
         )}
@@ -699,9 +724,10 @@ export function Settings(): React.ReactElement {
         saves what is there, sends a copy to the focused app, reads the result, then puts your
         original content back. Text, HTML, rich text and images are all restored. Copied
         <em> files</em> and app-private formats (an Excel cell range, for instance) cannot be
-        restored through Electron and would be lost — rare while reading, but worth knowing.
-        Apps running as administrator will ignore the hotkey entirely, which Windows enforces and
-        no unelevated app can work around.
+        restored through Electron and would be lost — rare while reading, but worth knowing.{' '}
+        {IS_MAC
+          ? 'macOS will not deliver the synthetic copy at all until EasyTranslate is allowed under Privacy & Security → Accessibility, and a few apps refuse to be automated whatever you allow.'
+          : 'Apps running as administrator will ignore the hotkey entirely, which Windows enforces and no unelevated app can work around.'}
       </p>
     </div>
   )

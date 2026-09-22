@@ -5,12 +5,18 @@
  * This is exact where OCR is a guess: the text comes from the app itself, so there is
  * nothing to misread. It only works where an app exposes its text, which rules out
  * video frames and images — that is what reading the screen is for.
+ *
+ * Two trees, one answer. Windows goes through UI Automation in a PowerShell script
+ * (resources/transcript-at-point.ps1); macOS goes through the Accessibility API in
+ * process (a11y-macos.ts). Both produce a `PointRead`, and the rules that decide
+ * whether it is a transcript line live in core/transcript.ts for both.
  */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { normalize } from './capture.js'
+import { readPointMac } from './a11y-macos.js'
 import { readScreenRegion } from './ocr.js'
 import { assessReadability } from '../core/readable.js'
 import {
@@ -40,8 +46,9 @@ function scriptPath(): string {
   return join(here, '../../resources/transcript-at-point.ps1')
 }
 
-/** Everything the accessibility tree reports at a point. Null off Windows. */
+/** Everything the accessibility tree reports at a point. Null where it cannot be read. */
 export async function readPoint(x: number, y: number): Promise<PointRead | null> {
+  if (process.platform === 'darwin') return readPointMac(x, y)
   if (process.platform !== 'win32') return null
 
   const script = scriptPath()
@@ -87,6 +94,8 @@ export interface CaptionRead {
   /** What was tried, for the log: the band read and every line OCR found in it. */
   band: Box
   lines: string[]
+  /** Why nothing came back, when nothing did — the only record of a missing permission. */
+  reason?: string
 }
 
 /**
@@ -104,9 +113,11 @@ export async function readCaptionFromVideo(
 ): Promise<CaptionRead> {
   const band = captionBandAround(point, video, screen)
   const result = await readScreenRegion(band)
-  if (!result.ok) return { text: null, band, lines: [] }
+  if (!result.ok) return { text: null, band, lines: [], reason: result.reason }
   const lines = result.lines.map((l) => `${l.x},${l.y} ${l.width}x${l.height}  ${l.text}`)
   const caption = captionLinesNear(result.lines, point)
-  if (!caption || !assessReadability(caption).readable) return { text: null, band, lines }
+  if (!caption || !assessReadability(caption).readable) {
+    return { text: null, band, lines, reason: 'nothing on that row read as a caption' }
+  }
   return { text: normalize(caption), band, lines }
 }

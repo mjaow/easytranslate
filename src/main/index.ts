@@ -1,4 +1,14 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, dialog, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  ipcMain,
+  nativeImage,
+  dialog,
+  shell,
+  systemPreferences
+} from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
@@ -9,7 +19,7 @@ import { synthesize, toggleOrExplain, flushCaches, explainClickedTranscript, exp
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
 import { probeConfigured } from '../providers/llm/probe.js'
-import { isAvailable, getLoadError } from './win32.js'
+import { IS_MACOS, inputPermission, isAvailable, getLoadError } from './native/index.js'
 import { startClickWatcher, stopClickWatcher } from './clicks.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -77,6 +87,11 @@ function main(): void {
     /* keep running in the tray */
   })
 
+  // On macOS the same idea is an accessory app: no dock icon, no menu bar of its own,
+  // and — the part that matters here — showing a window never pulls the app forward
+  // and never takes focus off whatever the user is reading.
+  if (IS_MACOS) app.dock?.hide()
+
   createPopupWindow(preloadPath())
   createTray()
   registerIpc()
@@ -87,19 +102,64 @@ function main(): void {
   applyHotkeys()
   applyClickWatcher()
 
+  announceCaptureProblems()
+}
+
+/**
+ * Say at startup when the app cannot read a selection, rather than letting every
+ * hotkey press fail mutely.
+ *
+ * Two different problems, and on macOS the second is the common one: the bindings
+ * load fine, but macOS refuses synthetic keystrokes from a process the user has not
+ * granted Accessibility, and refuses them without a word.
+ */
+function announceCaptureProblems(): void {
   if (!isAvailable()) {
-    // Without the Win32 bindings there is no way to read a selection, so say so
-    // plainly at startup rather than letting every hotkey press fail silently.
     void dialog.showMessageBox({
       type: 'error',
       title: 'EasyTranslate',
       message: 'Text capture is unavailable.',
       detail:
-        process.platform === 'win32'
-          ? `Could not load the Windows input bindings.\n\n${getLoadError() ?? ''}`
-          : 'EasyTranslate currently supports Windows only.'
+        process.platform === 'win32' || IS_MACOS
+          ? `Could not load the ${IS_MACOS ? 'macOS' : 'Windows'} input bindings.\n\n${getLoadError() ?? ''}`
+          : `EasyTranslate supports Windows and macOS. There is no text capture for ${process.platform}.`
     })
+    return
   }
+
+  if (inputPermission() === 'denied') void askForAccessibility()
+}
+
+/**
+ * Walk the user to the Accessibility switch.
+ *
+ * macOS reads the grant once, when the process starts, so a permission granted
+ * while the app is running does not take effect until it is restarted — which is
+ * why this says so rather than polling and pretending otherwise.
+ */
+async function askForAccessibility(): Promise<void> {
+  const { response } = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'EasyTranslate',
+    message: 'EasyTranslate needs Accessibility permission.',
+    detail:
+      'macOS will not let any app read your selection until you allow it. Open' +
+      ` Privacy & Security → Accessibility, switch on ${app.isPackaged ? 'EasyTranslate' : 'Electron'},` +
+      ' then quit and start it again — macOS only checks this when an app launches.' +
+      (app.isPackaged
+        ? ''
+        : '\n\nIt is listed as Electron rather than EasyTranslate because this build' +
+          " runs on Electron's own binary."),
+    buttons: ['Open System Settings', 'Later'],
+    defaultId: 0
+  })
+  if (response !== 0) return
+  // Electron's own prompt is easy to miss and does not appear at all for a build
+  // that is not signed, so the switch itself is opened instead.
+  systemPreferences.isTrustedAccessibilityClient(true)
+  void shell.openExternal(
+    'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+  )
 }
 
 // ------------------------------------------------------------ login item
@@ -112,8 +172,11 @@ function main(): void {
 function applyLoginItem(openAtLogin: boolean): void {
   app.setLoginItemSettings({
     openAtLogin,
-    path: process.execPath,
-    args: app.isPackaged ? [] : [app.getAppPath()]
+    // macOS registers the bundle itself and rejects a path into it, so only Windows
+    // gets the explicit executable and app directory.
+    ...(IS_MACOS
+      ? {}
+      : { path: process.execPath, args: app.isPackaged ? [] : [app.getAppPath()] })
   })
 }
 
@@ -186,11 +249,32 @@ function applyHotkeys(announce = true): void {
 
 // -------------------------------------------------------------------- tray
 
+/**
+ * The menu bar wants a 16pt icon, where the tray wants the 32px one as it is.
+ *
+ * Handing macOS the 32px image directly gives a 32pt icon — twice the height of the
+ * menu bar. So the same file is offered as a 16pt image with the original as its
+ * Retina representation, which keeps it sharp rather than resampled.
+ *
+ * Not a template image: the icon's two tones are how it is recognised, and a template
+ * keeps only the alpha, which would flatten it into a plain black disc.
+ */
+function trayIcon(): Electron.NativeImage {
+  const source = nativeImage.createFromPath(join(here, '../../resources/tray.png'))
+  if (source.isEmpty()) return nativeImage.createEmpty()
+  if (!IS_MACOS) return source
+
+  const icon = source.resize({ width: 16, height: 16 })
+  icon.addRepresentation({ scaleFactor: 2, width: 16, height: 16, buffer: source.toPNG() })
+  return icon
+}
+
 function createTray(): void {
-  const icon = nativeImage.createFromPath(join(here, '../../resources/tray.png'))
-  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon)
+  tray = new Tray(trayIcon())
   tray.setToolTip('EasyTranslate')
-  tray.on('click', () => openSettings())
+  // A left click on macOS opens the menu, as every other menu bar item does; on
+  // Windows the menu is the right click and a left click is the shortcut to Settings.
+  if (!IS_MACOS) tray.on('click', () => openSettings())
   refreshTrayMenu()
 }
 
@@ -227,6 +311,10 @@ function refreshTrayMenu(): void {
 // ---------------------------------------------------------------- settings
 
 function openSettings(): void {
+  // An accessory app is not in the window server's activation order, so asking for
+  // focus is not enough on macOS — the app itself has to come forward first.
+  if (IS_MACOS) app.focus({ steal: true })
+
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.show()
     settingsWindow.focus()
@@ -280,7 +368,11 @@ function registerIpc(): void {
   ipcMain.handle(IPC.configGet, () => ({
     config: loadConfig(),
     providers: LLM_PROVIDERS,
-    captureAvailable: isAvailable()
+    captureAvailable: isAvailable(),
+    // Settings talks about the OS constantly — the copy chord, where keys are
+    // encrypted, which offline voice you get — so it is told which one it is on.
+    platform: process.platform,
+    inputPermission: inputPermission()
   }))
 
   ipcMain.handle(IPC.configSet, (_e, patch: Partial<AppConfig>) => {

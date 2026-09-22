@@ -12,7 +12,7 @@
  */
 import { clipboard, ClipboardItem } from 'electron'
 import type { CaptureResult } from '../shared/types.js'
-import { clipboardSequence, sendCopy, isAvailable } from './win32.js'
+import { clipboardSequence, sendCopy, isAvailable } from './native/index.js'
 
 /**
  * How long to wait for the target app to respond to Ctrl+C before trying again.
