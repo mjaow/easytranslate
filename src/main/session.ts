@@ -6,8 +6,9 @@ import { appendFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CaptureFailure, ExplainRequest, ExplainState } from '../shared/types.js'
 import { captureSelection } from './capture.js'
-import { readTranscriptAtPoint, readCaptionFromVideo } from './uia.js'
-import { foregroundWindowTitle } from './win32.js'
+import { dipToScreenRect, screenToDip } from './coords.js'
+import { readTranscriptAtPoint, readCaptionFromVideo } from './a11y.js'
+import { IS_MACOS, copyChordLabel, foregroundWindowTitle, inputPermission } from './native/index.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
 import { detectMode, SectionParser, systemPrompt } from '../core/explain.js'
 import { loadConfig, getSecret } from '../core/config.js'
@@ -16,16 +17,33 @@ import { createLlmProvider, describeError } from '../providers/llm/registry.js'
 import { speak } from '../providers/tts/registry.js'
 import type { Explanation } from '../shared/types.js'
 
+/**
+ * Why a copy might have gone nowhere, in the words of the platform it happened on.
+ *
+ * Both platforms have one cause the user cannot see and would never guess: Windows
+ * silently drops synthetic input aimed at an elevated window (UIPI), and macOS
+ * silently drops it from a process without Accessibility. Naming them is the whole
+ * value of this message.
+ */
 const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
-  // The most common real cause is an elevated target window: Windows silently drops
-  // synthetic input sent to a higher-integrity process (UIPI), so we say so rather
-  // than failing mutely.
   'no-response':
-    "Couldn't copy the selection. Try pressing Ctrl+C yourself: if that doesn't work either, " +
-    'this page blocks copying. Some news sites do. (It can also mean nothing is selected, or ' +
-    'that the app is running as administrator.)',
+    `Couldn't copy the selection. Try pressing ${copyChordLabel()} yourself: if that doesn't work ` +
+    'either, this page blocks copying. Some news sites do. (It can also mean nothing is ' +
+    'selected, or that ' +
+    (IS_MACOS
+      ? 'EasyTranslate has not been allowed under Privacy & Security → Accessibility.)'
+      : 'the app is running as administrator.)'),
   empty: 'Nothing was selected.',
   'not-text': 'That selection is an image. Text capture only, for now.'
+}
+
+/** Prepended when the OS is refusing our keystrokes outright, which explains everything. */
+function permissionNote(): string {
+  if (!IS_MACOS || inputPermission() !== 'denied') return ''
+  return (
+    'macOS is blocking EasyTranslate from reading your selection. Allow it under System ' +
+    'Settings → Privacy & Security → Accessibility, then quit and start it again. '
+  )
 }
 
 let explanationCache: JsonLruCache<Explanation> | null = null
@@ -62,7 +80,7 @@ export async function explainSelection(): Promise<void> {
       text: '',
       explanation: {},
       status: 'error',
-      error: CAPTURE_MESSAGES[result.reason]
+      error: permissionNote() + CAPTURE_MESSAGES[result.reason]
     })
     return
   }
@@ -73,7 +91,8 @@ export async function explainSelection(): Promise<void> {
 
 /**
  * Windows whose double-clicks are worth a look. A browser's title is its active
- * tab's, so this is "a YouTube or X tab is in front". X titles its pages "… / X".
+ * tab's on both platforms, so this is "a YouTube or X tab is in front". X titles its
+ * pages "… / X".
  */
 const VIDEO_WINDOW_TITLES = ['YouTube', '/ X']
 
@@ -116,7 +135,7 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
 
   const title = foregroundWindowTitle()
   if (!VIDEO_WINDOW_TITLES.some((t) => title.includes(t))) return
-  if (isOverOwnWindow(screen.screenToDipPoint(click))) return
+  if (isOverOwnWindow(screenToDip(click))) return
 
   clickInFlight = true
   try {
@@ -127,8 +146,8 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
       // no caption line under it stays a plain double-click, as on YouTube. Capture
       // and OCR take about a second, and a "reading" notice that then has nothing to
       // say is worse than the wait.
-      const display = screen.getDisplayNearestPoint(screen.screenToDipPoint(click))
-      const frame = screen.dipToScreenRect(null, display.bounds)
+      const display = screen.getDisplayNearestPoint(screenToDip(click))
+      const frame = dipToScreenRect(display.bounds)
       const caption = await readCaptionFromVideo(click, read.video, frame)
       // Logged whether or not it worked: when the wrong text comes back, the answer
       // is in which lines OCR saw and which one was chosen.
@@ -140,6 +159,7 @@ export async function explainClickedTranscript(click: { x: number; y: number }):
           `read band: ${caption.band.x},${caption.band.y} ${caption.band.width}x${caption.band.height}`,
           ...caption.lines.map((l) => `  ocr: ${l}`),
           `chosen: ${caption.text ?? '-'}`,
+          ...(caption.reason ? [`why not: ${caption.reason}`] : []),
           '',
           ''
         ].join('\n')

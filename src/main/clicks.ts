@@ -7,11 +7,12 @@
  * how text gets selected, and is deliberately left alone. Two clicks in the same
  * place in quick succession are a double-click, reported once, on the second; a
  * single click is how a page is ordinarily used and is never reported.
+ *
+ * How often to poll is the platform's call, not this file's: Windows also records a
+ * press that fell entirely between two polls, and macOS does not, so it polls faster
+ * instead. See native/types.ts.
  */
-import { cursorPosition, leftButtonState } from './win32.js'
-
-/** Fast enough that no human click is missed; cheap enough to be invisible. */
-const POLL_MS = 15
+import { clickPollMs, cursorPosition, leftButtonState } from './native/index.js'
 
 /** How far the pointer may travel between press and release and still be a click. */
 const CLICK_SLOP_PX = 5
@@ -63,7 +64,7 @@ export function startClickWatcher(onDoubleClick: (click: Click) => void): void {
       report(cursorPosition())
     }
     wasDown = down
-  }, POLL_MS)
+  }, clickPollMs())
 
   // Never keep the process alive on its own account.
   timer.unref()

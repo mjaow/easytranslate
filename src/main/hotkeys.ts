@@ -17,6 +17,11 @@ export type HotkeyId = 'explain'
  * paste stops working. Stealing these system-wide would do exactly that.
  */
 const FORBIDDEN = new Set([
+  'COMMAND+C',
+  'COMMAND+V',
+  'COMMAND+X',
+  'COMMAND+A',
+  'COMMAND+Z',
   'CONTROL+C',
   'CONTROL+V',
   'CONTROL+X',
@@ -35,17 +40,27 @@ const FORBIDDEN = new Set([
  * Ordered by how comfortable each is to hit one-handed while the other hand is on the
  * mouse, still holding a selection. `npm run probe:hotkeys` reports which are free on
  * a given machine.
+ *
+ * `CommandOrControl` keeps one list correct on both platforms. The two exceptions are
+ * deliberate: ⌥E is macOS's dead key for an acute accent, so it is only offered on
+ * Windows, and ⌃⌥E is offered only on macOS, where Control is otherwise unused.
  */
+const MAC_ONLY = new Set(['Control+Alt+E'])
+const WINDOWS_ONLY = new Set(['Alt+E'])
+
 export const FALLBACKS: Record<HotkeyId, string[]> = {
   explain: [
     'CommandOrControl+Alt+E',
     'CommandOrControl+Alt+D',
     'CommandOrControl+Alt+Q',
     'CommandOrControl+Shift+E',
+    'Control+Alt+E',
     'Alt+E',
     'F8',
     'CommandOrControl+F8'
-  ],
+  ].filter((candidate) =>
+    process.platform === 'darwin' ? !WINDOWS_ONLY.has(candidate) : !MAC_ONLY.has(candidate)
+  )
 }
 
 export interface HotkeyBinding {
@@ -126,15 +141,23 @@ export function unregisterHotkeys(): void {
   globalShortcut.unregisterAll()
 }
 
-/** Whether an accelerator can be bound right now. Used for live checks in Settings. */
+/**
+ * Whether an accelerator can be bound right now. Used for live checks in Settings.
+ *
+ * Every Electron call here is inside the try, not just the registration: macOS
+ * throws out of `isRegistered` on an accelerator it cannot parse, where Windows
+ * simply answers false. Settings asks this on every keystroke of the recorder, so
+ * one unparseable chord must report "not a valid shortcut", never take the handler
+ * down with it.
+ */
 export function checkAvailability(accelerator: string): { ok: boolean; why?: string } {
   if (!accelerator.trim()) return { ok: false, why: 'Enter a shortcut.' }
   if (isForbidden(accelerator)) {
     return { ok: false, why: 'Refused — this would shadow a clipboard shortcut.' }
   }
-  // Skip anything we currently hold, otherwise we'd report our own binding as taken.
-  if (globalShortcut.isRegistered(accelerator)) return { ok: true }
   try {
+    // Skip anything we currently hold, otherwise we'd report our own binding as taken.
+    if (globalShortcut.isRegistered(accelerator)) return { ok: true }
     const got = globalShortcut.register(accelerator, () => {})
     if (got) globalShortcut.unregister(accelerator)
     return got ? { ok: true } : { ok: false, why: 'Already taken by another application.' }

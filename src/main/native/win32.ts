@@ -1,11 +1,13 @@
 /**
- * Thin koffi bindings over the handful of Win32 calls EasyTranslate needs.
+ * The Windows backend of the platform layer (see ./types.ts): thin koffi bindings
+ * over the handful of Win32 calls EasyTranslate needs.
  *
  * koffi ships prebuilt binaries, so this needs no node-gyp and no VS Build Tools.
  * Everything here is Windows-only and degrades to a no-op elsewhere, so the rest of
  * the app (and the test suite) can run on any platform.
  */
 import koffi from 'koffi'
+import type { ButtonState, InputPermission, NativeBridge, Point } from './types.js'
 
 export const IS_WINDOWS = process.platform === 'win32'
 
@@ -191,7 +193,7 @@ export function foregroundWindowTitle(): string {
  * at all since the previous call. The second answer catches a press-and-release that
  * fell entirely between two polls — the OS records it in the low bit of the state.
  */
-export function leftButtonState(): { down: boolean; pressedSince: boolean } {
+export function leftButtonState(): ButtonState {
   const b = load()
   if (!b) return { down: false, pressedSince: false }
   const state = b.GetAsyncKeyState(VK_LBUTTON)
@@ -199,7 +201,7 @@ export function leftButtonState(): { down: boolean; pressedSince: boolean } {
 }
 
 /** Pointer position in physical screen pixels. (0,0) when unavailable. */
-export function cursorPosition(): { x: number; y: number } {
+export function cursorPosition(): Point {
   const b = load()
   if (!b) return { x: 0, y: 0 }
   const out = [{ x: 0, y: 0 }]
@@ -239,4 +241,29 @@ export function makeNonActivating(handle: Buffer): boolean {
     console.error('[win32] makeNonActivating failed:', err)
     return false
   }
+}
+
+/**
+ * Windows asks nobody's permission to synthesise input into a window of the same or
+ * lower integrity level. The one case it refuses — an elevated target — is not a
+ * permission the user can grant, so it is reported as a capture failure instead.
+ */
+function inputPermission(): InputPermission {
+  return 'not-required'
+}
+
+export const win32Bridge: NativeBridge = {
+  platform: 'win32',
+  isAvailable,
+  getLoadError,
+  inputPermission,
+  clipboardSequence,
+  sendCopy,
+  foregroundWindowTitle,
+  leftButtonState,
+  cursorPosition,
+  makeNonActivating,
+  // GetAsyncKeyState records a press that fell between two polls, so 15ms is fast
+  // enough that no human click is missed and cheap enough to be invisible.
+  clickPollMs: 15
 }

@@ -10,7 +10,7 @@ import { BrowserWindow, screen, globalShortcut, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { IPC, type ExplainState } from '../shared/types.js'
-import { makeNonActivating } from './win32.js'
+import { makeNonActivating } from './native/index.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -80,8 +80,9 @@ export function createPopupWindow(preloadPath: string): BrowserWindow {
     fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    // Electron's own focusable:false is unreliable on Windows (electron#11049), so
-    // this is belt to the WS_EX_NOACTIVATE braces applied below.
+    // On Windows this is unreliable on its own (electron#11049), so WS_EX_NOACTIVATE
+    // is stamped on below as well. On macOS it is what makes the window refuse to
+    // become key, and makeNonActivating() reads that back rather than assuming it.
     focusable: false,
     hasShadow: false,
     webPreferences: {

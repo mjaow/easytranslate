@@ -14,8 +14,9 @@
 import { app, BrowserWindow, screen } from 'electron'
 import koffi from 'koffi'
 import { startClickWatcher, stopClickWatcher, type Click } from './clicks.js'
-import { readTranscriptAtPoint, readCaptionFromVideo } from './uia.js'
-import { cursorPosition } from './win32.js'
+import { readTranscriptAtPoint, readCaptionFromVideo } from './a11y.js'
+import { cursorPosition } from './native/index.js'
+import { dipToScreen, dipToScreenRect } from './coords.js'
 
 const LINES = [
   ['9 seconds', 'A few years ago, I broke into my own house.'],
@@ -45,12 +46,57 @@ function check(ok: boolean, label: string, detail = ''): void {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ` — ${detail}` : ''}`)
 }
 
-/** Real mouse input through the OS, so the watcher sees exactly what a user's click is. */
-function makeMouse(): {
+interface Mouse {
   press: (x: number, y: number) => void
   release: (x: number, y: number) => void
   restore: () => void
-} {
+}
+
+/** Real mouse input through the OS, so the watcher sees exactly what a user's click is. */
+function makeMouse(): Mouse {
+  return process.platform === 'darwin' ? makeMacMouse() : makeWindowsMouse()
+}
+
+/**
+ * Core Graphics posts the same events a real mouse would, which is the point: the
+ * watcher polls the button state the window server keeps, and only genuine posted
+ * events reach it.
+ */
+function makeMacMouse(): Mouse {
+  const cg = koffi.load('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics')
+  const cf = koffi.load('/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation')
+  const CGPoint = koffi.struct('VerifyCGPoint', { x: 'double', y: 'double' })
+  const CGEventCreateMouseEvent = cg.func('CGEventCreateMouseEvent', 'void *', [
+    'void *',
+    'uint32',
+    CGPoint,
+    'uint32'
+  ])
+  const CGEventPost = cg.func('CGEventPost', 'void', ['uint32', 'void *'])
+  const CGWarpMouseCursorPosition = cg.func('CGWarpMouseCursorPosition', 'int32', [CGPoint])
+  const CFRelease = cf.func('CFRelease', 'void', ['void *'])
+
+  const kCGEventLeftMouseDown = 1
+  const kCGEventLeftMouseUp = 2
+  const kCGHIDEventTap = 0
+  const original = cursorPosition()
+
+  const post = (type: number, x: number, y: number): void => {
+    CGWarpMouseCursorPosition({ x, y })
+    const event = CGEventCreateMouseEvent(null, type, { x, y }, 0)
+    if (!event) return
+    CGEventPost(kCGHIDEventTap, event)
+    CFRelease(event)
+  }
+
+  return {
+    press: (x, y) => post(kCGEventLeftMouseDown, x, y),
+    release: (x, y) => post(kCGEventLeftMouseUp, x, y),
+    restore: () => CGWarpMouseCursorPosition({ x: original.x, y: original.y })
+  }
+}
+
+function makeWindowsMouse(): Mouse {
   const user32 = koffi.load('user32.dll')
   const SetCursorPos = user32.func('int __stdcall SetCursorPos(int X, int Y)')
   const mouse_event = user32.func(
@@ -76,8 +122,8 @@ function makeMouse(): {
 export async function runClickVerification(): Promise<void> {
   console.log('\nEasyTranslate — click-to-explain self-test\n')
 
-  if (process.platform !== 'win32') {
-    console.log('  Windows only; nothing to check here.\n')
+  if (process.platform !== 'win32' && process.platform !== 'darwin') {
+    console.log(`  There is no accessibility read for ${process.platform}; nothing to check here.\n`)
     app.exit(0)
     return
   }
@@ -148,11 +194,11 @@ export async function runClickVerification(): Promise<void> {
 
   // Chromium builds its accessibility tree the first time a client asks, so warm it
   // up before measuring, as the real app's first click on a fresh window would.
-  const warm = screen.dipToScreenPoint({ x: bounds.x + 300, y: bounds.y + 80 })
+  const warm = dipToScreen({ x: bounds.x + 300, y: bounds.y + 80 })
   await readTranscriptAtPoint(warm.x, warm.y)
 
   const rowCentre = (i: number): { x: number; y: number } =>
-    screen.dipToScreenPoint({ x: bounds.x + 300, y: bounds.y + ROW_TOP + i * ROW_HEIGHT + ROW_HEIGHT / 2 })
+    dipToScreen({ x: bounds.x + 300, y: bounds.y + ROW_TOP + i * ROW_HEIGHT + ROW_HEIGHT / 2 })
 
   try {
     for (let i = 0; i < LINES.length; i++) {
@@ -181,7 +227,7 @@ export async function runClickVerification(): Promise<void> {
     }
 
     // The rest of the page is not a transcript, and must say so.
-    const plain = screen.dipToScreenPoint({
+    const plain = dipToScreen({
       x: bounds.x + 200,
       y: bounds.y + ROW_TOP + LINES.length * ROW_HEIGHT + 30
     })
@@ -192,7 +238,7 @@ export async function runClickVerification(): Promise<void> {
     // even though the point is nowhere near the caption's own text. This is the
     // shape of YouTube's real player: a "caption-window" group holding the words as
     // separate text nodes, confirmed against a live page.
-    const video = screen.dipToScreenPoint({ x: bounds.x + 200, y: bounds.y + PLAYER_TOP + 30 })
+    const video = dipToScreen({ x: bounds.x + 200, y: bounds.y + PLAYER_TOP + 30 })
     const { text: caption } = await readTranscriptAtPoint(video.x, video.y)
     check(
       caption === CAPTION,
@@ -203,12 +249,12 @@ export async function runClickVerification(): Promise<void> {
     // An X-style video: the tree holds no caption, only the video's rectangle. The
     // caption is read off the pixels on the row that was double-clicked — and the
     // logo in the corner, which is also text, must not be what comes back.
-    const xVideo = screen.dipToScreenPoint({ x: bounds.x + 450, y: bounds.y + X_TOP + X_HEIGHT - 30 })
+    const xVideo = dipToScreen({ x: bounds.x + 450, y: bounds.y + X_TOP + X_HEIGHT - 30 })
     const { text: xText, read: xRead } = await readTranscriptAtPoint(xVideo.x, xVideo.y)
     check(xText === null && xRead?.video !== null, 'a native-caption video reports its rectangle', xRead?.video ? `${xRead.video.width}x${xRead.video.height}` : 'no rectangle')
     if (xRead?.video) {
       const started = Date.now()
-      const frame = screen.dipToScreenRect(null, display.bounds)
+      const frame = dipToScreenRect(display.bounds)
       const ocr = await readCaptionFromVideo(xVideo, xRead.video, frame)
       const words = (s: string): string[] => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean)
       const want = words(X_CAPTION)
@@ -229,7 +275,7 @@ export async function runClickVerification(): Promise<void> {
     // A drag is a selection, not a click.
     const seen = clicks.length
     const from = rowCentre(0)
-    const to = screen.dipToScreenPoint({ x: bounds.x + 500, y: bounds.y + ROW_TOP + ROW_HEIGHT / 2 })
+    const to = dipToScreen({ x: bounds.x + 500, y: bounds.y + ROW_TOP + ROW_HEIGHT / 2 })
     mouse.press(from.x, from.y)
     await sleep(60)
     mouse.release(to.x, to.y)

@@ -46,9 +46,24 @@ export function runHotkeyVerification(): void {
   globalShortcut.unregister(FREE_A)
 
   // --- clipboard shortcuts can never be bound -----------------------------
-  for (const bad of ['Control+C', 'Control+V', 'Control+X', 'CommandOrControl+C']) {
+  //
+  // Both spellings on both platforms: what copies is Ctrl+C on Windows and Command+C
+  // on macOS, and the config can hold either, however it was recorded.
+  for (const bad of [
+    'Control+C',
+    'Control+V',
+    'Control+X',
+    'Command+C',
+    'Command+V',
+    'Command+X',
+    'CommandOrControl+C'
+  ]) {
     check(isForbidden(bad), `${bad} is refused outright`)
   }
+  check(
+    isForbidden(process.platform === 'darwin' ? 'Command+C' : 'Control+C'),
+    "this platform's own copy shortcut is refused"
+  )
   check(!isForbidden('Control+Alt+E'), 'an ordinary shortcut is not refused')
 
   const refused = registerHotkeys([

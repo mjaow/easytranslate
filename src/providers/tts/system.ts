@@ -1,28 +1,107 @@
 import { execFile } from 'node:child_process'
-import { readFile, writeFile, unlink, mkdtemp } from 'node:fs/promises'
+import { readFile, writeFile, unlink, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { TtsError, type SynthResult, type TtsProvider } from './types.js'
 
 const EXEC_TIMEOUT_MS = 15000
 
+/** SAPI takes an integer from -10 to 10; ours is a percentage offset. */
+export function sapiRate(rate: number): number {
+  return Math.max(-10, Math.min(10, Math.round(rate / 10)))
+}
+
 /**
- * Offline Windows voices via SAPI (System.Speech).
+ * The macOS voice to use when Settings names none.
+ *
+ * Not the system default: on a Mac set up in another language that is a voice with
+ * the wrong accent, and hearing American English is the point of read-aloud here.
+ * Samantha ships with every macOS. `say` silently falls back to the default voice
+ * if a name it does not know is asked for, so this can never make things worse.
+ */
+const DEFAULT_MAC_VOICE = 'Samantha'
+
+/**
+ * `say` takes words per minute, and its own default is 175.
+ *
+ * Clamped either side because a rate at the extremes is not slower or faster so much
+ * as unintelligible, and the turtle button exists to be understood.
+ */
+export function sayRate(rate: number): number {
+  return Math.max(60, Math.min(400, Math.round(175 * (1 + rate / 100))))
+}
+
+/**
+ * The voice the operating system already has: SAPI on Windows, `say` on macOS.
  *
  * Less natural than the neural voices, but it always works: no network, no API key,
- * nothing to break. It carries read-aloud whenever the Edge provider can't.
+ * nothing to break. It carries read-aloud whenever the online provider can't.
+ *
+ * On both platforms the selected text reaches the synthesiser through a file, never
+ * a command line — it comes from an arbitrary web page, and nothing the user selects
+ * should be able to be read as script or as an argument.
  */
 export class SystemTtsProvider implements TtsProvider {
   readonly id = 'system' as const
-  readonly label = 'Windows system voice (offline)'
+  readonly label = 'System voice (offline)'
 
   constructor(private readonly voiceName?: string) {}
 
   async synth(text: string, rate: number): Promise<SynthResult> {
-    if (process.platform !== 'win32') {
-      throw new TtsError('The system voice is only available on Windows.')
-    }
+    if (process.platform === 'darwin') return this.synthMac(text, rate)
+    if (process.platform === 'win32') return this.synthWindows(text, rate)
+    throw new TtsError(`There is no offline voice for ${process.platform}.`)
+  }
 
+  // ------------------------------------------------------------------ macOS
+
+  /**
+   * `say` writes the audio straight to a WAV file, so there is no script at all
+   * here — the text goes in a file and the file's path is an argument.
+   */
+  private async synthMac(text: string, rate: number): Promise<SynthResult> {
+    const dir = await mkdtemp(join(tmpdir(), 'easytranslate-'))
+    const inFile = join(dir, 'in.txt')
+    const outFile = join(dir, 'out.wav')
+
+    try {
+      await writeFile(inFile, text, 'utf8')
+
+      const argv = [
+        '-o',
+        outFile,
+        // 16-bit little-endian PCM in a RIFF wrapper: what an <audio> element in the
+        // popup will play without a codec, and what the Windows path already returns.
+        '--data-format=LEI16@22050',
+        '-r',
+        String(sayRate(rate)),
+        '-v',
+        this.voiceName || DEFAULT_MAC_VOICE,
+        '-f',
+        inFile
+      ]
+
+      await new Promise<void>((resolve, reject) => {
+        execFile('/usr/bin/say', argv, { timeout: EXEC_TIMEOUT_MS }, (err, _out, stderr) => {
+          if (err) {
+            reject(new TtsError('The macOS system voice failed.', stderr?.trim() || err.message))
+            return
+          }
+          resolve()
+        })
+      })
+
+      const data = await readFile(outFile)
+      if (data.length === 0) throw new TtsError('The system voice produced no audio.')
+      return { data, mime: 'audio/wav' }
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => {})
+    }
+  }
+
+  // ---------------------------------------------------------------- Windows
+
+  private async synthWindows(text: string, rate: number): Promise<SynthResult> {
     const dir = await mkdtemp(join(tmpdir(), 'easytranslate-'))
     const inFile = join(dir, 'in.txt')
     const outFile = join(dir, 'out.wav')
@@ -32,7 +111,7 @@ export class SystemTtsProvider implements TtsProvider {
       // line — PowerShell reads it from a file. Nothing the user selects can be
       // interpreted as script.
       await writeFile(inFile, text, 'utf8')
-      await this.run(inFile, outFile, rate)
+      await this.runSapi(inFile, outFile, rate)
       const data = await readFile(outFile)
       if (data.length === 0) throw new TtsError('The system voice produced no audio.')
       return { data, mime: 'audio/wav' }
@@ -41,9 +120,7 @@ export class SystemTtsProvider implements TtsProvider {
     }
   }
 
-  private async run(inFile: string, outFile: string, rate: number): Promise<void> {
-    // SAPI's rate is an integer from -10 to 10; ours is a percentage offset.
-    const sapiRate = Math.max(-10, Math.min(10, Math.round(rate / 10)))
+  private async runSapi(inFile: string, outFile: string, rate: number): Promise<void> {
     const scriptFile = inFile.replace(/in\.txt$/, 'speak.ps1')
 
     // Everything variable arrives as a positional argument, so neither the selected
@@ -85,7 +162,7 @@ try {
       scriptFile,
       inFile,
       outFile,
-      String(sapiRate)
+      String(sapiRate(rate))
     ]
     if (this.voiceName) argv.push(this.voiceName)
 
