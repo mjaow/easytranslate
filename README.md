@@ -27,6 +27,12 @@ It installs Node.js if you don't have it, downloads and builds the app into
 and starts it. The first run takes a few minutes; Settings opens by itself so you can
 paste a key. Run the same line again any time to update.
 
+Press **`Ctrl+Alt+T`** to start EasyTranslate later, without opening a terminal. If it
+is already running, this opens Settings. Keep the desktop shortcut: Windows uses it
+for this launch key. **`Ctrl+Alt+E`** explains selected text once the app is running.
+To change the launch key, right-click the desktop shortcut → **Properties → Shortcut
+key → Apply**. Running the installer or shortcut setup again restores `Ctrl+Alt+T`.
+
 The app lives in the **system tray**: a two-tone circle near the clock, under the `^`
 if Windows has hidden it. There is no main window.
 
@@ -68,7 +74,18 @@ npm start        # builds and launches
 npm run dev      # hot reload
 ```
 
-Works the same on both platforms. On macOS, grant Accessibility to the Electron binary
+On Windows, run this once to build the app and add Start menu and desktop shortcuts
+for this checkout:
+
+```bash
+npm run setup:shortcuts
+```
+
+Then press `Ctrl+Alt+T` to launch it. The shortcuts use the existing build, so after
+changing source code run `npm run build` and restart the app. If you move the checkout,
+run `npm run setup:shortcuts` again to update the shortcut paths.
+
+For a source build on macOS, grant Accessibility to the Electron binary
 under `node_modules/electron/dist` — dragging it into the Accessibility list from Finder
 is the quickest way — or every capture will silently read nothing.
 

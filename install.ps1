@@ -6,7 +6,7 @@
 #   1. Makes sure Node.js 20+ is present (installs it with winget if not).
 #   2. Downloads the app source to %LOCALAPPDATA%\EasyTranslate\app.
 #   3. Builds it there.
-#   4. Puts EasyTranslate in the Start menu and on the desktop.
+#   4. Adds Start menu and desktop shortcuts, with Ctrl+Alt+T to launch.
 #   5. Starts it.
 #
 # Running the same command again updates the app. Your settings and keys live in
@@ -110,15 +110,8 @@ if (-not (Test-Path $electron)) { throw "Electron did not install correctly ($el
 
 # --- 4. Shortcuts ------------------------------------------------------------------
 Step 'Adding EasyTranslate to the Start menu and desktop'
-$shell = New-Object -ComObject WScript.Shell
-foreach ($dir in @([Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Desktop'))) {
-  $lnk = $shell.CreateShortcut((Join-Path $dir 'EasyTranslate.lnk'))
-  $lnk.TargetPath = $electron
-  $lnk.Arguments = '"' + $app + '"'
-  $lnk.WorkingDirectory = $app
-  $lnk.Description = 'Explain any English text in English and Chinese'
-  $lnk.Save()
-}
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'scripts\create-windows-shortcuts.ps1') -AppPath $app
+if ($LASTEXITCODE -ne 0) { throw 'Creating launch shortcuts failed' }
 
 # --- 5. Start ------------------------------------------------------------------------
 Step 'Starting EasyTranslate'
@@ -127,5 +120,5 @@ Start-Process -FilePath $electron -ArgumentList ('"' + $app + '"') -WorkingDirec
 Write-Host ''
 Write-Host 'EasyTranslate is running in the system tray (the two-tone circle near the clock).' -ForegroundColor Green
 Write-Host 'Settings opens on first run: paste a model API key there, then select any text and press Ctrl+Alt+E.'
-Write-Host 'To start it later: Start menu -> EasyTranslate, or turn on "Start when I log in" in Settings.'
+Write-Host 'To start it later: Ctrl+Alt+T, Start menu -> EasyTranslate, or turn on "Start when I log in" in Settings.'
 Write-Host 'To update: run this same command again.'

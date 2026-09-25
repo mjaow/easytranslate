@@ -15,6 +15,7 @@
     "fix:electron": "node scripts/fix-electron-install.mjs",
     "postinstall": "node scripts/fix-electron-install.mjs",
     "probe:hotkeys": "electron-vite build && electron . --probe-hotkeys",
+    "setup:shortcuts": "npm run build && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/create-windows-shortcuts.ps1",
     "start": "electron-vite build && electron .",
     "test": "vitest run",
     "test:watch": "vitest",
