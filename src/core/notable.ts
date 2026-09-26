@@ -1,7 +1,7 @@
 /**
  * Parsing one "hard word" line out of a passage explanation.
  *
- * The model is asked for `term · /IPA/ · Chinese meaning · example`, but models drift
+ * A line is `term · /IPA/ · Chinese meaning · example`, but models drift
  * on separators and omit fields — so this stays tolerant rather than dropping a line
  * it doesn't fully recognise. A term with nothing but a gloss is still useful.
  */

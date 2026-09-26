@@ -11,6 +11,11 @@ import { readTranscriptAtPoint, readCaptionFromVideo } from './a11y.js'
 import { IS_MACOS, copyChordLabel, foregroundWindowTitle, inputPermission } from './native/index.js'
 import { showPopup, updatePopup, hidePopup, isPopupVisible } from './popup.js'
 import { detectMode, SectionParser, systemPrompt } from '../core/explain.js'
+import {
+  PRONUNCIATION_CACHE_VERSION,
+  withDictionaryPronunciations,
+  withPronunciationHints
+} from '../core/pronunciation.js'
 import { loadConfig, getSecret } from '../core/config.js'
 import { JsonLruCache, AudioCache, cacheKey } from '../core/cache.js'
 import { createLlmProvider, describeError } from '../providers/llm/registry.js'
@@ -199,6 +204,7 @@ export async function explainLastAsCode(): Promise<void> {
 }
 
 async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
+  req = withPronunciationHints(req)
   lastRequest = req
   const config = loadConfig()
   const { explanations } = caches()
@@ -207,7 +213,10 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
     (req.mode === 'code' && config.llm.codeModel.trim()) || config.llm.models[config.llm.provider]
   // The prompt is part of the key: a cached answer is only as good as the prompt that
   // produced it, and an improved prompt must not keep serving the old answer.
-  const key = cacheKey(config.llm.provider, model, req.mode, systemPrompt(req.mode), req.text, req.context)
+  const key = cacheKey(
+    config.llm.provider, model, req.mode, systemPrompt(req.mode), req.text, req.context,
+    req.mode === 'code' ? undefined : PRONUNCIATION_CACHE_VERSION
+  )
 
   const cached = explanations.get(key)
   if (cached) {
@@ -217,7 +226,7 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
         text: req.text,
         raw: req.raw,
         context: req.context,
-        explanation: cached,
+        explanation: withDictionaryPronunciations(req, cached),
         status: 'done',
         model,
         cached: true
@@ -254,15 +263,16 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   try {
     for await (const chunk of provider.explain(req, controller.signal)) {
       if (controller.signal.aborted) return
-      state.explanation = parser.push(chunk)
+      state.explanation = withDictionaryPronunciations(req, parser.push(chunk), false)
       updatePopup(state)
     }
-    state.explanation = parser.end()
+    const parsed = parser.end()
+    state.explanation = withDictionaryPronunciations(req, parsed)
     state.status = 'done'
 
     // Only cache a result that actually parsed — caching an empty or malformed
     // answer would make a transient failure permanent.
-    if (Object.keys(state.explanation).length > 0) explanations.set(key, state.explanation)
+    if (Object.keys(parsed).length > 0) explanations.set(key, state.explanation)
     updatePopup(state)
   } catch (err) {
     if (controller.signal.aborted) return

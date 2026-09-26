@@ -35,7 +35,11 @@ or parse: a snippet in any programming language, a shell command, a query, a con
 or data fragment (JSON, YAML, ...), a stack trace. A sentence written for a person is
 "no", even when it names a language, a command, a key combination or a file.
 ## IPA
-American English pronunciation in IPA, wrapped in forward slashes. Nothing else.
+Copy the matching American IPA EXACTLY from the supplied dictionary candidates.
+Match each candidate's usage label to the sentence's tense, meaning and part of speech.
+For example, "read every day" is present tense; "read yesterday" is past tense. If there
+is no context to resolve multiple candidates, or no candidates are supplied, write
+(none). Never invent or modify a pronunciation. Nothing else in this section.
 ## POS
 Part of speech in English, lowercase (noun, verb, adjective, idiom, ...). Nothing else.
 ## ZH
@@ -69,12 +73,16 @@ Pick the 2 to 5 hardest. Skip anything an intermediate reader already knows.
 One per line, using the middle dot as separator:
 term · /American IPA/ · Chinese meaning · a short example sentence
 
+For IPA, copy a supplied dictionary candidate EXACTLY, choosing by the word's meaning
+and grammar in this passage and the candidate's usage label. If no candidate is supplied or the choice is uncertain,
+omit the IPA field. Never invent IPA; the app supplies it from a local dictionary.
+
 The example must be a NEW sentence of your own, not the one being explained, and short
 enough to read at a glance — under about ten words.
 
 For example, given "setting a major oil refinery ablaze", this section would be:
-refinery · /rɪˈfaɪnəri/ · 炼油厂 · The refinery processes crude oil into fuel.
-ablaze · /əˈbleɪz/ · 着火的，熊熊燃烧的 · Firefighters arrived to find the barn ablaze.
+refinery · 炼油厂 · The refinery processes crude oil into fuel.
+ablaze · 着火的，熊熊燃烧的 · Firefighters arrived to find the barn ablaze.
 
 Almost every real passage contains something worth listing. Only write (none) if the
 passage is genuinely all common words.`
@@ -146,13 +154,17 @@ function fenced(text: string): string {
 
 export function userPrompt(req: ExplainRequest): string {
   const selection = req.raw ?? req.text
+  const hints = req.mode !== 'code' && req.pronunciationHints && Object.keys(req.pronunciationHints).length
+    ? `\n\nDictionary candidates (American IPA; copy exactly):\n${JSON.stringify(req.pronunciationHints)}`
+    : ''
   if (req.mode === 'word') {
     const sentence = req.context?.trim()
-    return sentence && sentence !== req.text
+    const prompt = sentence && sentence !== req.text
       ? `Sentence: ${sentence}\n\nExplain this term from it: ${req.text}`
       : `Explain this selection:\n\n${fenced(selection)}`
+    return prompt + hints
   }
-  return `Explain this selection:\n\n${fenced(selection)}`
+  return `Explain this selection:\n\n${fenced(selection)}` + hints
 }
 
 // ------------------------------------------------------- incremental parsing

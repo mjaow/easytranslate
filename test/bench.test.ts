@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest'
 import { OllamaProvider } from '../src/providers/llm/ollama.js'
 import { SectionParser, detectMode } from '../src/core/explain.js'
+import { withDictionaryPronunciations, withPronunciationHints } from '../src/core/pronunciation.js'
 
 const RUN = process.env.BENCH === '1'
 const MODEL = process.env.BENCH_MODEL ?? 'qwen2.5:3b'
@@ -29,13 +30,14 @@ describe.skipIf(!RUN)(`latency: ${MODEL}`, () => {
         const provider = new OllamaProvider({ apiKey: null, model: MODEL })
         const mode = c.context ? 'word' : detectMode(c.text)
         const parser = new SectionParser()
+        const req = withPronunciationHints({ mode, text: c.text, context: c.context })
 
         const t0 = Date.now()
         let firstToken = 0
         let chars = 0
 
         for await (const chunk of provider.explain(
-          { mode, text: c.text, context: c.context },
+          req,
           new AbortController().signal
         )) {
           if (!firstToken) firstToken = Date.now() - t0
@@ -43,7 +45,7 @@ describe.skipIf(!RUN)(`latency: ${MODEL}`, () => {
           parser.push(chunk)
         }
         const total = Date.now() - t0
-        const result = parser.end()
+        const result = withDictionaryPronunciations(req, parser.end())
 
         console.log(`\n  ${c.label}  first token ${firstToken}ms   complete ${total}ms   ${chars} chars`)
         console.log(`  zh: ${result.zh ?? '(none)'}`)

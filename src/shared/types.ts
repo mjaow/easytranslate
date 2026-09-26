@@ -25,6 +25,12 @@ export type CaptureResult =
  */
 export type ExplainMode = 'word' | 'passage' | 'code'
 
+export interface PronunciationCandidate {
+  ipa: string
+  /** Dictionary sense/grammar label, where supplied for an ambiguous word. */
+  usage?: string
+}
+
 export interface ExplainRequest {
   mode: ExplainMode
   /** The word, or the whole passage, tidied for display and for the cache key. */
@@ -34,8 +40,10 @@ export interface ExplainRequest {
    * sees, so a snippet of code reaches it intact rather than hard-wrap-collapsed.
    */
   raw?: string
-  /** The surrounding sentence. Present (and required) when mode === 'word'. */
+  /** The surrounding sentence, when the capture source supplies one. */
   context?: string
+  /** Local dictionary candidates supplied to the model for contextual selection. */
+  pronunciationHints?: Record<string, readonly PronunciationCandidate[]>
 }
 
 /**
@@ -47,7 +55,7 @@ export interface Explanation {
   zh?: string
   /** The same thing in plainer English. */
   en?: string
-  /** WORD only: American IPA, e.g. /ˈɡrænˌstændɪŋ/ */
+  /** WORD only: dictionary IPA after enrichment; alternatives are separated by "or". */
   ipa?: string
   /** WORD only: part of speech. */
   pos?: string
