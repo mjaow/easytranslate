@@ -191,7 +191,11 @@ export function Popup(): React.ReactElement | null {
                 style={{ color: 'var(--text-muted)' }}
               >
                 {isCode && ex.lang && <span className="italic">{ex.lang}</span>}
-                {isWord && ex.ipa && <span className="font-mono">{ex.ipa}</span>}
+                {isWord && ex.ipa && (
+                  <span className="font-mono" title="American English · CMU pronunciation dictionary">
+                    {ex.ipa}
+                  </span>
+                )}
                 {isWord && ex.pos && <span className="italic">{ex.pos}</span>}
                 {state.model && (
                   <span
@@ -350,6 +354,7 @@ export function Popup(): React.ReactElement | null {
                             {t.ipa && (
                               <span
                                 className="font-mono text-[11px]"
+                                title="American English · CMU pronunciation dictionary"
                                 style={{ color: 'var(--text-subtle)' }}
                               >
                                 {t.ipa}

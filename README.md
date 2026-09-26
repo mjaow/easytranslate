@@ -115,10 +115,11 @@ Settings opens by itself the first time, since nothing works until step 1 is don
 | Double-click a line in the YouTube transcript panel | Explain that line |
 | `Esc`, or the shortcut again | Close the popup |
 
-- **Three words or fewer** are treated as a term: IPA, part of speech, what it means
-  *here*, an example.
+- **Three words or fewer** are treated as a term: dictionary IPA when available,
+  part of speech, what it means *here*, an example.
 - **Anything longer** is treated as a passage: natural Chinese, simpler English, and
-  the hard words and idioms in it, each with IPA, Chinese and an example.
+  the hard words and idioms in it, each with dictionary IPA when available, Chinese
+  and an example.
 - **Code** gets an offer: when the model judges the selection to be source code, the
   popup shows **This looks like code — explain what it does**. One click gives a code
   review rather than a paraphrase: what it does, what problem it solves and why this
@@ -135,6 +136,25 @@ video is read with local OCR (nothing is uploaded). Only a caption or a transcri
 produces a popup; everything else on the page stays a plain click. YouTube treats a
 double-click on the video as its fullscreen toggle, so double-click the caption text
 itself to avoid that. The double-click can be turned off in Settings.
+
+### Pronunciation
+
+IPA (International Phonetic Alphabet) comes from a bundled **American English
+pronunciation dictionary**, based on CMU's dictionary via
+[ipa-dict](https://github.com/open-dict-data/ipa-dict). It works offline without an
+extra API key. For example, **debit** is **/ˈdɛbɪt/** (DEB-it).
+
+For a word with multiple pronunciations, such as **read**, the explanation model can
+select an exact dictionary candidate when the selected passage or supplied sentence
+provides context. Otherwise the alternatives are shown with **or**. Dictionary
+candidates prevent invented IPA, but a model can still select the wrong valid
+variant. Words and phrases without an entry have no IPA; their explanations and
+read-aloud still work. Existing answers with model-generated IPA are refreshed on
+the next lookup after this update.
+
+The speaker button reads the original text using your configured voice, separately
+from the displayed IPA. Changing pronunciation data does not change your explanation
+model, translation quality, or speech provider.
 
 ### Changing the shortcut
 
@@ -166,9 +186,9 @@ ids that key can actually call. Groq and Gemini speak the OpenAI protocol, so th
 | **Qwen Flash** | **~$0.07/month** | Alibaba's own model: cheapest, most idiomatic Chinese |
 | Gemini Flash-Lite | free tier | Best Chinese of the free options |
 | Groq | free tier | Fastest; Llama is the weakest here at Chinese |
-| **Claude Haiku 4.5** | **~$3/month** | Reliable IPA, idiomatic Chinese |
+| **Claude Haiku 4.5** | **~$3/month** | Idiomatic Chinese, consistent section formatting |
 | Claude Sonnet 5 | ~$5/month | Sharper on slang and register |
-| OpenAI nano | ~$0.20/month | Cheap; least reliable on IPA |
+| OpenAI nano | ~$0.20/month | Cheap; weaker on subtle Chinese wording |
 | Ollama | free | Offline and private; ~11s per lookup on a CPU-only machine |
 
 Base-URL conventions differ: the Anthropic SDK appends `/v1/messages` itself, while the

@@ -61,7 +61,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     provider: 'claude',
     baseUrl: 'https://api.anthropic.com',
     model: 'claude-haiku-4-5',
-    note: 'About $0.0009 a lookup — roughly $3/month at 100 lookups a day. Reliable IPA and idiomatic Chinese, and follows the section format consistently. The pick if you want it simply right.',
+    note: 'About $0.0009 a lookup — roughly $3/month at 100 lookups a day. Idiomatic Chinese, and follows the section format consistently.',
     keyUrl: 'https://console.anthropic.com/settings/keys'
   },
   {
@@ -79,7 +79,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     provider: 'openai',
     baseUrl: 'https://api.openai.com/v1',
     model: 'gpt-5-nano',
-    note: 'About $0.00006 a lookup — pennies per month even with heavy use. Fast and very cheap, but the least reliable here on IPA and on subtle Chinese wording.',
+    note: 'About $0.00006 a lookup — pennies per month even with heavy use. Fast and very cheap, but less reliable on subtle Chinese wording.',
     keyUrl: 'https://platform.openai.com/api-keys'
   },
   {
@@ -88,6 +88,6 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     provider: 'ollama',
     baseUrl: 'http://localhost:11434',
     model: 'qwen2.5:3b',
-    note: 'No key, no network, no cost ever. Measured ~11s per lookup on a CPU-only machine, and it gets IPA wrong. Choose it for privacy or offline use, not for speed. Qwen handles Chinese far better than Llama or Mistral.'
+    note: 'No key, no network, no cost ever. Measured ~11s per lookup on a CPU-only machine. Choose it for privacy or offline use, not for speed. Pronunciations also work offline from the bundled dictionary. Qwen handles Chinese far better than Llama or Mistral.'
   }
 ]
