@@ -77,7 +77,7 @@ becomes a bilingual explanation with vocabulary you can listen to.*
 4. Ask follow-up questions below the analysis, choose **Translate to Chinese**,
    or use **Copy summary + breakdown** to take the analysis with you.
 
-![YouTube with the Understand video button below the player and an arrow pointing to the EasyUnderstand summary in the browser side panel.](docs/images/youtube-understand-video.png)
+![YouTube with the Understand video button below the player and an arrow pointing to the EasyUnderstand summary in the browser side panel.](docs/images/youtube-understand-video-masked.png)
 
 *One click opens an analysis of the complete caption transcript. The panel also
 shows the caption language, transcript size, model, processing time, and cache usage.*
@@ -95,7 +95,7 @@ You can keep YouTube's **Ask** panel and EasyUnderstand open together. This
 screenshot shows both summarizing the same DHH interview: YouTube's **Ask about
 this video** on the left and EasyUnderstand on the right.
 
-![Side-by-side summaries of the same interview: YouTube Ask on the left and EasyUnderstand's summary and timestamped key takeaways on the right.](docs/images/youtube-ask-comparison.png)
+![Side-by-side summaries of the same interview: YouTube Ask on the left and EasyUnderstand's summary and timestamped key takeaways on the right.](docs/images/youtube-ask-comparison-masked.png)
 
 | In this screenshot | YouTube Ask (left) | EasyUnderstand (right) |
 |---|---|---|
