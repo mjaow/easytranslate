@@ -13,6 +13,8 @@ export type CaptureFailure =
   | 'empty'
   /** Clipboard held something we can't explain (an image, a file drop). */
   | 'not-text'
+  /** Copied data could not be read even after waiting for the clipboard. */
+  | 'unreadable'
 
 export type CaptureResult =
   | { ok: true; text: string; raw: string; elapsedMs: number }

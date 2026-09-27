@@ -11,14 +11,14 @@
  * snapshot everything, copy, read, put the original back.
  */
 import { clipboard, ClipboardItem } from 'electron'
-import type { CaptureResult } from '../shared/types.js'
+import type { CaptureFailure, CaptureResult } from '../shared/types.js'
 import { clipboardSequence, sendCopy, isAvailable } from './native/index.js'
 
 /**
  * How long to wait for the target app to respond to Ctrl+C before trying again.
  *
- * Only paid on the failure path — a successful capture returns the moment the
- * clipboard sequence number moves, typically under 30ms. The budget is generous
+ * Only paid on the failure path — a successful capture returns as soon as the
+ * copied text is readable, typically under 30ms. The budget is generous
  * because heavy pages (news sites loaded with ad scripts) can block their main
  * thread long enough to miss a tight deadline, and a false "nothing selected" is
  * far more annoying than an extra second when something really is wrong.
@@ -106,6 +106,47 @@ async function waitForClipboardWrite(before: number, timeoutMs: number): Promise
 }
 
 /**
+ * A sequence change can mean the producer has cleared the clipboard but has not
+ * finished publishing text yet. Reads can also fail while another process holds
+ * the clipboard open. Keep reading within a bounded budget; do not send Ctrl+C
+ * again after a write, since copying can clear a terminal's selection and the
+ * next Ctrl+C would interrupt its running command.
+ */
+async function readCopiedText(timeoutMs: number): Promise<
+  { ok: true; text: string } | { ok: false; reason: CaptureFailure }
+> {
+  const deadline = Date.now() + timeoutMs
+  let readFailed = false
+
+  while (true) {
+    try {
+      const text = await clipboard.readText()
+      if (text.trim()) return { ok: true, text }
+      readFailed = false
+    } catch {
+      readFailed = true
+    }
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) break
+    await sleep(Math.min(POLL_INTERVAL_MS, remaining))
+  }
+
+  if (readFailed) return { ok: false, reason: 'unreadable' }
+
+  try {
+    // Electron 44 returns an item even for an empty clipboard. Inspect its
+    // formats, not the array length. Whitespace-only plain text is also empty.
+    const types = (await clipboard.read()).flatMap((item) => item.types)
+    return {
+      ok: false,
+      reason: types.length === 0 || types.includes('text/plain') ? 'empty' : 'not-text'
+    }
+  } catch {
+    return { ok: false, reason: 'unreadable' }
+  }
+}
+
+/**
  * Grab the current selection. Always leaves the clipboard exactly as it found it.
  */
 export async function captureSelection(
@@ -127,32 +168,22 @@ export async function captureSelection(
     wrote = await waitForClipboardWrite(seqBefore, timeoutMs)
   }
 
-  const elapsedMs = Date.now() - started
-
   if (!wrote) {
     // Nothing was written, so the clipboard still holds the user's content untouched.
     // Causes, roughly in order of likelihood: nothing is actually selected; the page
     // blocks the copy event; or the target window is elevated and Windows silently
     // dropped our synthetic input (UIPI).
-    return { ok: false, reason: 'no-response', elapsedMs }
+    return { ok: false, reason: 'no-response', elapsedMs: Date.now() - started }
   }
 
-  let text = ''
   try {
-    text = await clipboard.readText()
-  } catch (err) {
-    console.error('[capture] could not read the copied text:', err)
+    const result = await readCopiedText(timeoutMs)
+    const elapsedMs = Date.now() - started
+    if (!result.ok) return { ...result, elapsedMs }
+    return { ok: true, text: normalize(result.text), raw: keepShape(result.text), elapsedMs }
+  } finally {
+    await restore(snap)
   }
-
-  const hadNonText = !text.trim() && (await clipboardHasAnything())
-
-  await restore(snap)
-
-  if (!text.trim()) {
-    return { ok: false, reason: hadNonText ? 'not-text' : 'empty', elapsedMs }
-  }
-
-  return { ok: true, text: normalize(text), raw: keepShape(text), elapsedMs }
 }
 
 /**
@@ -173,15 +204,6 @@ export function keepShape(raw: string): string {
   const indents = lines.filter((l) => l.trim()).map((l) => l.match(/^[ \t]*/)?.[0].length ?? 0)
   const common = indents.length ? Math.min(...indents) : 0
   return lines.map((l) => l.slice(Math.min(common, l.length))).join('\n')
-}
-
-/** Whether the clipboard holds anything at all — used to tell "image" from "empty". */
-async function clipboardHasAnything(): Promise<boolean> {
-  try {
-    return (await clipboard.read()).length > 0
-  } catch {
-    return false
-  }
 }
 
 /**

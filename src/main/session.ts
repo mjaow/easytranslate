@@ -38,8 +38,9 @@ const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
     (IS_MACOS
       ? 'EasyUnderstand has not been allowed under Privacy & Security → Accessibility.)'
       : 'the app is running as administrator.)'),
-  empty: 'Nothing was selected.',
-  'not-text': 'That selection is an image. Text capture only, for now.'
+  empty: 'No text was copied. Select the sentence and try again.',
+  'not-text': 'The copied selection contains no plain text. Select a sentence and try again.',
+  unreadable: 'Could not read the copied text. Select the sentence and try again.'
 }
 
 /** Prepended when the OS is refusing our keystrokes outright, which explains everything. */
@@ -61,6 +62,8 @@ function caches(): { explanations: JsonLruCache<Explanation>; audio: AudioCache 
 }
 
 let inFlight: AbortController | null = null
+/** Repeated hotkeys must not borrow and restore the clipboard concurrently. */
+let capturingSelection = false
 /** What the popup is showing, so "explain this code" can ask again about it. */
 let lastRequest: ExplainRequest | null = null
 
@@ -76,9 +79,16 @@ function emit(state: ExplainState, isNew: boolean): void {
 
 /** Hotkey handler: read the selection and explain it. */
 export async function explainSelection(): Promise<void> {
+  if (capturingSelection) return
   cancelInFlight()
 
-  const result = await captureSelection()
+  capturingSelection = true
+  let result
+  try {
+    result = await captureSelection()
+  } finally {
+    capturingSelection = false
+  }
   if (!result.ok) {
     showPopup({
       mode: 'passage',
