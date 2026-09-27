@@ -8,7 +8,7 @@
     const button = document.createElement('button')
     button.id = 'easytranslate-understand'
     button.textContent = 'Understand video'
-    button.title = 'English analysis from the full transcript · EasyTranslate'
+    button.title = 'English analysis from the full transcript · EasyUnderstand'
     button.style.cssText = 'border:1px solid #7ebcb3;background:#163c36;color:#fff;border-radius:20px;padding:0 16px;height:36px;font:500 14px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap;margin-right:8px;'
     let reconnect = false
     button.addEventListener('click', async () => {
@@ -21,7 +21,7 @@
       } catch {
         reconnect = true
         button.textContent = 'Reload YouTube to reconnect'
-        button.title = 'Click to refresh this YouTube tab and reconnect to EasyTranslate.'
+        button.title = 'Click to refresh this YouTube tab and reconnect to EasyUnderstand.'
         observer.disconnect()
         if (scheduled !== null) clearTimeout(scheduled)
         document.removeEventListener('yt-navigate-finish', mount)

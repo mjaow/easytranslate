@@ -387,11 +387,11 @@ export function Settings(): React.ReactElement {
   if (!boot) return <div className="p-6 text-[13px]">Loading…</div>
   if (boot.settingsApiVersion !== SETTINGS_API_VERSION) return (
     <main className="space-y-4 p-6 text-[13px]">
-      <h1 className="text-lg font-semibold">Restart EasyTranslate to finish the update</h1>
+      <h1 className="text-lg font-semibold">Restart EasyUnderstand to finish the update</h1>
       <p>The Settings window and background app are from different versions. Restart the app before changing settings or testing a model.</p>
       <ol className="list-decimal space-y-2 pl-5">
-        <li>{boot.platform === 'win32' ? 'Open the taskbar’s hidden icons (^), right-click EasyTranslate, and choose Quit EasyTranslate.' : 'Open EasyTranslate’s menu bar icon and choose Quit EasyTranslate.'}</li>
-        <li>Reopen EasyTranslate{boot.platform === 'win32' ? ' with Ctrl+Alt+T or the Start menu' : ' from Applications'}.</li>
+        <li>{boot.platform === 'win32' ? 'Open the taskbar’s hidden icons (^), right-click EasyUnderstand, and choose Quit EasyUnderstand.' : 'Open EasyUnderstand’s menu bar icon and choose Quit EasyUnderstand.'}</li>
+        <li>Reopen EasyUnderstand{boot.platform === 'win32' ? ' with Ctrl+Alt+T or the Start menu' : ' from Applications'}.</li>
       </ol>
       <p style={{ color: 'var(--text-subtle)' }}>Closing this window leaves the background app running. Saved settings and API keys remain stored.</p>
     </main>
@@ -463,9 +463,9 @@ export function Settings(): React.ReactElement {
   return (
     <div className="mx-auto max-w-xl space-y-4 p-5 pb-10">
       <header className="space-y-1">
-        <h1 className="text-[17px] font-semibold">EasyTranslate</h1>
+        <h1 className="text-[17px] font-semibold">EasyUnderstand</h1>
         <p className="text-[12px] leading-snug" style={{ color: 'var(--text-muted)' }}>
-          Select text in any app, press the hotkey, get it explained in English and Chinese.
+          Understand words, code, and videos with explanations, transcript summaries, and a closer look at the reasoning.
         </p>
       </header>
 
@@ -484,8 +484,8 @@ export function Settings(): React.ReactElement {
           className="rounded-lg border px-3 py-2 text-[12px] leading-snug"
           style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
         >
-          macOS is blocking EasyTranslate from reading your selection. Allow it in System Settings
-          → Privacy &amp; Security → Accessibility, then quit and start EasyTranslate again —
+          macOS is blocking EasyUnderstand from reading your selection. Allow it in System Settings
+          → Privacy &amp; Security → Accessibility, then quit and start EasyUnderstand again —
           macOS only checks this when an app launches.
         </div>
       )}
@@ -506,9 +506,9 @@ export function Settings(): React.ReactElement {
           Double-clicking a caption on YouTube or X, or a transcript line, explains it
         </label>
         <p className="text-[11px] leading-snug" style={{ color: 'var(--text-subtle)' }}>
-          Ctrl+C, Ctrl+V and Ctrl+X can never be bound — EasyTranslate will not be the reason a
+          Ctrl+C, Ctrl+V and Ctrl+X can never be bound — EasyUnderstand will not be the reason a
           copy or paste stops working. If a shortcut you pick is already owned by another app,
-          EasyTranslate moves to a free one rather than leaving you with nothing.
+          EasyUnderstand moves to a free one rather than leaving you with nothing.
         </p>
       </Card>
 
@@ -816,7 +816,7 @@ export function Settings(): React.ReactElement {
             checked={config.launchAtLogin}
             onChange={(e) => void patch({ launchAtLogin: e.target.checked })}
           />
-          Start EasyTranslate when I log in
+          Start EasyUnderstand when I log in
         </label>
       </Card>
 
@@ -827,7 +827,7 @@ export function Settings(): React.ReactElement {
         <em> files</em> and app-private formats (an Excel cell range, for instance) cannot be
         restored through Electron and would be lost — rare while reading, but worth knowing.{' '}
         {IS_MAC
-          ? 'macOS will not deliver the synthetic copy at all until EasyTranslate is allowed under Privacy & Security → Accessibility, and a few apps refuse to be automated whatever you allow.'
+          ? 'macOS will not deliver the synthetic copy at all until EasyUnderstand is allowed under Privacy & Security → Accessibility, and a few apps refuse to be automated whatever you allow.'
           : 'Apps running as administrator will ignore the hotkey entirely, which Windows enforces and no unelevated app can work around.'}
       </p>
     </div>

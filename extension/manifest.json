@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "EasyTranslate · Understand video",
+  "name": "EasyUnderstand — YouTube",
   "version": "0.1.0",
-  "description": "English analysis of YouTube transcripts, with evidence, follow-up questions, and optional Chinese translation.",
+  "description": "Understand YouTube ideas and arguments with transcript summaries, timestamp sources, critical analysis, and Chinese translation.",
   "minimum_chrome_version": "120",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmXR8OWJoQyfQ47+ZhOnV0NDvdA5XZ28jVeJVnHtoMOZx2uuEAZNvQd8FsFn/nvIlHzuvHwRwbUYCUEzDiw4inWF8q5wNOlyjLXns090SnrRO47GG5AsfMWD3jL9hMzflg0Ms33nEl61cM3/SHSv9hcEHqMw54Ze+agSWa9MglbECfQ7y6qhJ++6qtGpiHnnby38ZqO2OKbH0hu74YbrarjKtYewPZrwLJHGPAqnlZnoyBPCSnJoFOtllxFLRQDR+c1/unbzbyk3K2H6lVLNu5VeaRUrb5+bsVvhQkqIHpZCb+0OeBESSdjF4ZYuJknnY90J4cuO8Id+KH3k5egFILwIDAQAB",
   "permissions": [

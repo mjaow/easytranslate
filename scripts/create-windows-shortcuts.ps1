@@ -40,7 +40,7 @@ namespace EasyTranslate {
 
 $shell = New-Object -ComObject WScript.Shell
 foreach ($folder in @($programs, $desktop)) {
-  $shortcutPath = Join-Path $folder 'EasyTranslate.lnk'
+  $shortcutPath = Join-Path $folder 'EasyUnderstand.lnk'
   $existed = Test-Path -LiteralPath $shortcutPath
   $shortcut = $shell.CreateShortcut($shortcutPath)
   $shortcut.TargetPath = $electron
@@ -48,13 +48,26 @@ foreach ($folder in @($programs, $desktop)) {
   $shortcut.WorkingDirectory = $app
   $shortcut.IconLocation = $electron + ',0'
   $shortcut.WindowStyle = 1
-  $shortcut.Description = 'Explain any English text in English and Chinese'
+  $shortcut.Description = 'Understand words, code, and videos with explanations and transcript analysis'
 
   # Only the Desktop shortcut owns the launch key. Clear a previous Start menu
   # binding so the two shortcuts never compete for the same key combination.
   $shortcut.Hotkey = ''
   if ($folder -eq $desktop) { $shortcut.Hotkey = 'CTRL+ALT+T' }
   $shortcut.Save()
+
+  # Keep an existing EasyTranslate link usable, but give the launch hotkey only
+  # to the new desktop link. Never alter a link belonging to another checkout.
+  $legacyPath = Join-Path $folder 'EasyTranslate.lnk'
+  if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
+    $legacy = $shell.CreateShortcut($legacyPath)
+    if ($legacy.TargetPath -eq $electron -and $legacy.Arguments -eq $shortcut.Arguments) {
+      $legacy.Hotkey = ''
+      $legacy.Description = $shortcut.Description
+      $legacy.Save()
+      [EasyTranslate.ShortcutShell]::SHChangeNotify(0x00020000, 0x1005, $legacyPath, [IntPtr]::Zero)
+    }
+  }
 
   # Saving a .lnk with a Hotkey does not always register it with Explorer.
   # Notify the shell after saving directly in its final location. SHCNF_PATHW
@@ -64,5 +77,5 @@ foreach ($folder in @($programs, $desktop)) {
 }
 [EasyTranslate.ShortcutShell]::SHChangeNotify(0x00001000, 0x1005, $desktop, [IntPtr]::Zero) # UPDATEDIR
 
-Write-Host 'EasyTranslate shortcuts are ready in the Start menu and on the Desktop.'
+Write-Host 'EasyUnderstand shortcuts are ready in the Start menu and on the Desktop.'
 Write-Host 'Press Ctrl+Alt+T to start it; Ctrl+Alt+E explains selected text once it is running.'

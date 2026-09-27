@@ -15,14 +15,14 @@ npm install
 npm run setup:youtube
 ```
 
-This builds EasyTranslate and the companion, and registers a native messaging host
+This builds EasyUnderstand and the companion, and registers a native messaging host
 for your Windows user in Chrome and Edge. On macOS it writes the equivalent user
 native-host manifests. Windows is the verified platform for this first version.
 
 1. Open `chrome://extensions` or `edge://extensions`.
 2. Enable **Developer mode**, choose **Load unpacked**, and select the **out/extension**
    folder inside this checkout (not the source `extension` folder).
-3. Open EasyTranslate Settings → **YouTube analysis**. The default is **Gemini 3.8
+3. Open EasyUnderstand Settings → **YouTube analysis**. The default is **Gemini 3.8
    Flash**, with its own model, endpoint and API key. Your existing everyday
    translation/explanation settings are preserved. Click **Get this provider’s API
    key**, create a Gemini API key, paste it into **Video API key**, and click **Save**.
@@ -36,7 +36,7 @@ native-host manifests. Windows is the verified platform for this first version.
 
 The companion starts a windowless worker on demand. The tray app does not have to be
 running. Chrome’s own Ask button remains available. No ChatGPT tab is involved;
-requests use the model API configured in EasyTranslate and its applicable pricing
+requests use the model API configured in EasyUnderstand and its applicable pricing
 or free-tier allowance.
 
 After updating code, run `npm run setup:youtube` again, restart the desktop app for
@@ -64,7 +64,7 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
   display account for the remaining time. Hidden panels finish when rendered.
 - The timer always shows the result source: **Fresh model response** with model
   request time, or **Cached summary · No model call**, even when the timing details
-  are closed. Cache refers to EasyTranslate's saved summary. Cached totals cover
+  are closed. Cache refers to EasyUnderstand's saved summary. Cached totals cover
   caption collection, connection, cache loading, and display. Expand the timer to
   see the stage breakdown. Click **Summarize again** to bypass the local summary cache and make one
   fresh model request. Compare the same video and output settings; changing the
@@ -226,14 +226,14 @@ The extension can read the YouTube watch page, open its own side panel, store th
 current tab selection for the browser session, and connect to its named native host.
 The native host allows only the companion’s fixed extension ID.
 
-API keys stay in EasyTranslate’s existing OS-encrypted store. A saved video key is
+API keys stay in EasyUnderstand’s existing OS-encrypted store. A saved video key is
 bound to its endpoint; changing that endpoint requires saving its key again. There
 is no automatic fallback to the everyday API key. The caption text and your questions
 are sent to the video provider. On request, the existing English analysis is sent
 to the everyday provider for Chinese translation. Model responses are
 rendered as text, never injected HTML. Transcript text is untrusted model input.
 
-English and Chinese analyses are saved under `video-cache` in EasyTranslate’s data
+English and Chinese analyses are saved under `video-cache` in EasyUnderstand’s data
 folder, keyed by transcript content, provider endpoint, model, language and prompt
 version; Azure entries also include reasoning effort. Chinese entries also include the translation model/endpoint and the English
 analysis they translate, so model changes cannot return stale translations. The
@@ -250,7 +250,7 @@ the panel/worker for the session; it is not saved in that cache. Use the desktop
 
 - **No handler registered for `config:video-test` / update restart notice:** the
   Settings window loaded new files while the old background app kept running.
-  Use the tray icon → **Quit EasyTranslate**, then reopen it. Closing the Settings
+  Use the tray icon → **Quit EasyUnderstand**, then reopen it. Closing the Settings
   window or launching the shortcut again does not restart an existing instance.
   Saved API keys are preserved. Settings now detects this mismatch before allowing
   model tests or edits.
@@ -273,7 +273,7 @@ the panel/worker for the session; it is not saved in that cache. Use the desktop
   If a previous version captured zero rows despite a working **In this video →
   Transcript** panel, rebuild and reload the extension, then refresh YouTube to
   activate support for that newer layout.
-- **Model error:** verify your provider/key in EasyTranslate Settings and use a model
+- **Model error:** verify your provider/key in EasyUnderstand Settings and use a model
   that supports sufficiently long input and structured JSON. Invalid summaries and
   evidence references are surfaced as errors so you can retry explicitly. Follow-up
   and translation responses may receive one format correction. The panel

@@ -23,7 +23,7 @@ function check(ok: boolean, label: string, detail = ''): void {
 /**
  * Accelerators for the "binds as asked" assertions.
  *
- * Deliberately NOT the app's real defaults: a running EasyTranslate holds those, so
+ * Deliberately NOT the app's real defaults: a running EasyUnderstand holds those, so
  * the test instance would see them as taken and report a conflict that isn't real.
  * Function-key combinations are rarely claimed by anything.
  */
@@ -31,7 +31,7 @@ const FREE_A = 'CommandOrControl+Alt+F9'
 const FREE_B = 'CommandOrControl+Shift+F9'
 
 export function runHotkeyVerification(): void {
-  console.log('\nEasyTranslate — hotkey self-test\n')
+  console.log('\nEasyUnderstand — hotkey self-test\n')
 
   const noop = (): void => {}
 
@@ -39,7 +39,7 @@ export function runHotkeyVerification(): void {
   // third-party conflict. Refuse to report misleading results.
   if (!globalShortcut.register(FREE_A, noop)) {
     console.log(`  Cannot run: ${FREE_A} is already held by something.`)
-    console.log('  Quit any running EasyTranslate and try again.\n')
+    console.log('  Quit any running EasyUnderstand and try again.\n')
     app.exit(2)
     return
   }

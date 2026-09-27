@@ -16,7 +16,7 @@ export type { ButtonState, InputPermission, NativeBridge, Point } from './types.
 const nullBridge: NativeBridge = {
   platform: process.platform,
   isAvailable: () => false,
-  getLoadError: () => `EasyTranslate has no text capture for ${process.platform}.`,
+  getLoadError: () => `EasyUnderstand has no text capture for ${process.platform}.`,
   inputPermission: () => 'denied',
   clipboardSequence: () => 0,
   sendCopy: () => -1,
