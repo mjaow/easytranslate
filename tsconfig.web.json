@@ -26,6 +26,7 @@
     "src/core/tokenize.ts",
     "src/core/notable.ts",
     "src/preload/index.ts",
-    "test/player.test.ts"
+    "test/player.test.ts",
+    "test/popup-copy.test.ts"
   ]
 }

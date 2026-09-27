@@ -180,6 +180,15 @@ export const IPC = {
   popupClose: 'popup:close',
   /** popup → main: explain the current selection as code */
   popupExplainCode: 'popup:explain-code',
+  /**
+   * popup → main: put what the user selected in the popup on the clipboard.
+   *
+   * The popup cannot copy for itself. It never takes focus, so a keyboard copy goes
+   * to whatever app does have focus, and binding the copy chord to reach the popup
+   * instead is forbidden outright. So selecting is the copy, and only the renderer
+   * knows what was selected.
+   */
+  popupCopySelection: 'popup:copy-selection',
   /** popup → main: report content height so the window can size to fit */
   popupResize: 'popup:resize',
   /** popup → main: play audio for text; resolves to an mp3 data url */

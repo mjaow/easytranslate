@@ -127,6 +127,7 @@ Settings opens by itself the first time, since nothing works until step 1 is don
 | Double-click a YouTube or X video while captions are on | Explain the caption on screen |
 | Double-click a line in the YouTube transcript panel | Explain that line |
 | `Esc`, or the shortcut again | Close the popup |
+| Select any words in the popup | Copies them — selecting *is* the copy |
 
 - **Three words or fewer** are treated as a term: dictionary IPA when available,
   part of speech, what it means *here*, an example.
@@ -142,6 +143,10 @@ Settings opens by itself the first time, since nothing works until step 1 is don
   mentions `C++` does not. Settings can point code explanations at a stronger model
   than everyday lookups use, since design and bug reasoning is where that pays off.
 - **🔊** reads it aloud, **🐢** reads it slowly, **⏹** stops.
+- **Drag across anything in the popup to copy it.** Double-click a word, or sweep a
+  phrase; it goes on the clipboard the moment you let go, and the popup says what it
+  took. There is no ⌘C to press and no copy button, for a reason worth knowing — see
+  [How it works](#how-it-works).
 
 The double-click needs no shortcut. On YouTube the words come from the page itself, so
 they are exact; X draws its captions into the picture, so there the lower part of the
@@ -382,7 +387,9 @@ both free.
 1. The desktop selection translator uses no content scripts, injected DOM or page
    listeners. The optional YouTube companion separately adds its own button and
    reads caption data, without borrowing the clipboard or handling selection clicks.
-2. The clipboard is always restored, every format, typically within ~150ms.
+2. A capture always restores the clipboard, every format, typically within ~150ms.
+   Selecting text in the popup explicitly replaces the clipboard with the selected
+   text and leaves it written.
 3. The popup never takes focus, and that is checked rather than assumed. Electron's
    `focusable: false` is
    [unreliable on Windows](https://github.com/electron/electron/issues/11049), so there
@@ -398,6 +405,17 @@ both free.
 4. The platform's copy, paste and cut chords can never be bound, whatever the config
    says — Ctrl+C/V/X and ⌘C/V/X alike, since a config recorded on one platform can be
    read on the other.
+
+**Why selecting in the popup is itself the copy.** Rule 3 closes the ordinary route: a
+window that never takes focus never receives a keystroke either, so ⌘C pressed over the
+popup reaches whatever app *does* have focus — and binding the copy chord so it arrives
+here instead is exactly what rule 4 forbids. A drag, though, needs no focus at all: a
+window that cannot become key still tracks the mouse and still renders a selection,
+which is checked with a real `CGEventPost` drag over the real popup. So the selection is
+the gesture. On mouse-up the renderer hands what was selected to the main process, which
+writes it; the highlight is drawn in the accent colour rather than the system's
+washed-out inactive grey, and the popup names what it took, because silently replacing
+someone's clipboard is no way to behave.
 
 **Why the clipboard change counter.** A fixed sleep is slower than needed on fast apps
 and unreliable on slow ones, and cannot tell "this app is slow" from "this app ignored

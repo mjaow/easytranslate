@@ -114,6 +114,103 @@ function Section({
   )
 }
 
+/**
+ * Selecting text in the popup copies it.
+ *
+ * Not a shortcut taken for convenience — it is the only way out. The popup never takes
+ * focus, so ⌘C and Ctrl+C go to whatever app does have focus, and binding the copy
+ * chord so it reaches the popup instead is exactly what the copy-safety contract
+ * forbids. A drag still selects perfectly well in a window that is not key, so the
+ * selection itself is the gesture.
+ *
+ * On mouse-up rather than on every selection change: mid-drag the selection is not yet
+ * what the user meant, and rewriting the clipboard on each character would be both
+ * wasteful and wrong.
+ *
+ * @returns the copy confirmation or failure, or null when there is no notice.
+ */
+function useCopyOnSelect(lookupText: string | undefined): { text: string; error: boolean } | null {
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null)
+
+  useEffect(() => {
+    let selecting = false
+    let request = 0
+    let active = true
+    const reset = (): void => {
+      selecting = false
+      request++
+      setNotice(null)
+    }
+    reset()
+
+    const start = (event: MouseEvent): void => {
+      const target = event.target
+      selecting =
+        event.button === 0 && target instanceof Element &&
+        target.closest('.et-selectable') !== null && target.closest('button') === null
+    }
+
+    const handle = async (event: MouseEvent): Promise<void> => {
+      const shouldCopy = selecting && event.button === 0
+      selecting = false
+      if (!shouldCopy) return
+
+      const selected = window.getSelection()?.toString().trim() ?? ''
+      // A plain click clears the selection; that is not a request to copy anything.
+      if (!selected) return
+
+      // Copy once per gesture, even when the words match an earlier copy: another
+      // app may have replaced the clipboard since then.
+      const current = ++request
+      setNotice(null)
+      try {
+        const res = await window.easytranslate.copySelection(selected)
+        if (!active || current !== request) return
+        setNotice(
+          res.ok
+            ? { text: copiedNotice(selected), error: false }
+            : { text: res.error || 'Could not copy the selection.', error: true }
+        )
+      } catch (err) {
+        if (!active || current !== request) return
+        setNotice({
+          text: (err instanceof Error ? err.message : String(err)) || 'Could not copy the selection.',
+          error: true
+        })
+      }
+    }
+
+    // On the document rather than the content: a drag often ends outside the element
+    // it started in, and the selection is still exactly what was wanted.
+    const listener = (event: MouseEvent): void => void handle(event)
+    const unsubscribe = window.easytranslate.onStopAudio(reset)
+    document.addEventListener('mousedown', start)
+    document.addEventListener('mouseup', listener)
+    return () => {
+      active = false
+      unsubscribe()
+      document.removeEventListener('mousedown', start)
+      document.removeEventListener('mouseup', listener)
+    }
+  }, [lookupText])
+
+  // Success is brief; a failure stays visible until the next attempt or lookup.
+  useEffect(() => {
+    if (notice === null || notice.error) return
+    const timer = setTimeout(() => setNotice(null), 1600)
+    return () => clearTimeout(timer)
+  }, [notice])
+
+  return notice
+}
+
+/** Short enough to read at a glance, quoted so it is clear what landed. */
+function copiedNotice(text: string): string {
+  const oneLine = text.replace(/\s+/g, ' ')
+  const shown = oneLine.length > 32 ? `${oneLine.slice(0, 32)}…` : oneLine
+  return `Copied “${shown}”`
+}
+
 export function Popup(): React.ReactElement | null {
   const [state, setState] = useState<ExplainState | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -131,6 +228,8 @@ export function Popup(): React.ReactElement | null {
   // The window only hides, it is never destroyed, so playback has to be stopped
   // explicitly when it goes away.
   useEffect(() => window.easytranslate.onStopAudio(() => stopAudio()), [])
+
+  const copyNotice = useCopyOnSelect(state?.text)
 
   // Size the window to whatever the content actually needs.
   useEffect(() => {
@@ -178,7 +277,7 @@ export function Popup(): React.ReactElement | null {
           className="flex items-start gap-1.5 border-b px-3 py-2"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-muted)' }}
         >
-          <div className="min-w-0 flex-1">
+          <div className="et-selectable min-w-0 flex-1">
             <div className={`font-semibold leading-snug ${isCode ? 'font-mono text-[12px]' : 'text-[14px]'}`}>
               {headline || 'EasyTranslate'}
             </div>
@@ -227,7 +326,8 @@ export function Popup(): React.ReactElement | null {
         </div>
 
         {/* ------------------------------------------------------------ body */}
-        <div className="space-y-2.5 px-3 py-2.5">
+        {/* Selectable, and selecting is what copies — see useCopyOnSelect above. */}
+        <div className="et-selectable space-y-2.5 px-3 py-2.5">
           {state.status === 'error' ? (
             <div className="text-[13px] leading-snug" style={{ color: 'var(--danger)' }}>
               {state.error}
@@ -388,6 +488,16 @@ export function Popup(): React.ReactElement | null {
             </div>
           )}
         </div>
+
+        {copyNotice && (
+          <div
+            role={copyNotice.error ? 'alert' : 'status'}
+            className="px-3 pb-2.5 text-[11px]"
+            style={{ color: copyNotice.error ? 'var(--danger)' : 'var(--text-subtle)' }}
+          >
+            {copyNotice.text}
+          </div>
+        )}
       </div>
     </div>
   )

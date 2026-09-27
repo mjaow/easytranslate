@@ -15,7 +15,14 @@ import { existsSync } from 'node:fs'
 import { IPC, SETTINGS_API_VERSION, type AppConfig, type SecretId } from '../shared/types.js'
 import { createPopupWindow, hidePopup, resizePopup, hardenWebContents } from './popup.js'
 import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } from './hotkeys.js'
-import { synthesize, toggleOrExplain, flushCaches, explainClickedTranscript, explainLastAsCode } from './session.js'
+import {
+  synthesize,
+  toggleOrExplain,
+  flushCaches,
+  explainClickedTranscript,
+  explainLastAsCode,
+  copySelection
+} from './session.js'
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
 import { probeConfigured } from '../providers/llm/probe.js'
@@ -363,6 +370,10 @@ function openSettings(): void {
 function registerIpc(): void {
   ipcMain.on(IPC.popupClose, () => hidePopup())
   ipcMain.on(IPC.popupExplainCode, () => void explainLastAsCode())
+
+  ipcMain.handle(IPC.popupCopySelection, (_e, text: unknown) =>
+    copySelection(typeof text === 'string' ? text : '')
+  )
 
   ipcMain.on(IPC.popupResize, (_e, height: unknown) => {
     if (typeof height === 'number' && Number.isFinite(height)) resizePopup(height)
