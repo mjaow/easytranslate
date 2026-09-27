@@ -25,8 +25,13 @@ Keep each section to one or two sentences — this renders in a small popup.`
 
 const WORD_PROMPT = `${SHARED_RULES}
 
-Explain the term as it is used in the given sentence — not its dictionary entry in
-general. If the term is a phrasal verb, idiom or slang, say so plainly.
+Explain the selected word or phrase. If a sentence is supplied, use it to choose the
+meaning and explain that use. For a standalone selection, give its common meaning
+and typical usage; missing context is not a reason to withhold a useful definition.
+If several everyday senses are common, briefly distinguish the main ones rather
+than choosing a specialized sense without evidence. Do not invent a source sentence
+or imply that an example is the user's context. If the term is a phrasal verb, idiom
+or slang, say so plainly. If the term itself is genuinely unrecognized, say so.
 
 Sections, in this exact order:
 ## CODE
@@ -43,11 +48,14 @@ is no context to resolve multiple candidates, or no candidates are supplied, wri
 ## POS
 Part of speech in English, lowercase (noun, verb, adjective, idiom, ...). Nothing else.
 ## ZH
-The Chinese meaning it carries HERE. Just the meaning, no explanation.
+The natural Chinese meaning in the supplied sentence, or its common meaning for a
+standalone selection. Just the meaning, no explanation.
 ## EN
 A plain-English definition a learner would understand. Avoid using the term itself.
 ## HERE
-One sentence in Chinese explaining what it conveys in this particular sentence and why.
+With a supplied sentence: one sentence in Chinese explaining what the term conveys
+there and why. For a standalone selection: one useful sentence in Chinese about its
+typical usage or nuance. Do not replace this with a missing-context disclaimer.
 ## EX
 One natural example sentence in English, then its Chinese translation on the next line.`
 
@@ -159,9 +167,9 @@ export function userPrompt(req: ExplainRequest): string {
     : ''
   if (req.mode === 'word') {
     const sentence = req.context?.trim()
-    const prompt = sentence && sentence !== req.text
+    const prompt = sentence && sentence !== req.text.trim()
       ? `Sentence: ${sentence}\n\nExplain this term from it: ${req.text}`
-      : `Explain this selection:\n\n${fenced(selection)}`
+      : `Standalone word or phrase (no sentence supplied). Explain its common meaning and usage:\n\n${fenced(selection)}`
     return prompt + hints
   }
   return `Explain this selection:\n\n${fenced(selection)}` + hints
