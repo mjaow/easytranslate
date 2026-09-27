@@ -79,7 +79,10 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
   lessons and important stated learning or project expectations. Examples clarify
   the material rather than determining the summary's structure.
   Open **Explore the breakdown** for added depth. The prompt targets 4–6 entries,
-  around 60–90 words each in total, with up to 8 when needed. Examples and caveats
+  around 60–90 words each in total, with up to 8 when needed. This is a prompt
+  target: extra valid entries are preserved rather than failing the whole summary
+  or dropping content. Responses remain bounded at 30 entries, with all citation
+  and field-size checks enforced. Examples and caveats
   are optional; caveats must be material qualifications actually stated by the
   speaker. Empty fields are omitted. **Sources** inside
   each theme reveals timestamp links and caption excerpts. Reading text is 18px.

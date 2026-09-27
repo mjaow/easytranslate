@@ -188,6 +188,16 @@ describe('video workflow', () => {
     expect(events.some(e => e.type === 'result')).toBe(false)
     expect(mocks.calls).toHaveLength(1)
   })
+  it('returns and caches every valid theme beyond eight without a second model call', async () => {
+    const ideas = Array.from({ length: 9 }, (_, index) => ({ ...idea, title: `Theme ${index + 1}` }))
+    mocks.replies.push({ ...summary, ideas })
+    await handleVideo({ id: 'extra-themes', action: 'analyze', transcript: t }, emit, signal())
+    expect(events.at(-1)).toMatchObject({ type: 'result', result: { overview: summary.overview, ideas } })
+    expect(mocks.calls).toHaveLength(1)
+    await handleVideo({ id: 'cached-extra-themes', action: 'analyze', transcript: t }, emit, signal())
+    expect(events.at(-1)).toMatchObject({ cached: true, result: { ideas } })
+    expect(mocks.calls).toHaveLength(1)
+  })
   it('returns and caches cited unanswered questions as strings without a second model call', async () => {
     const question = 'How should we handle the closing concern?'
     const transcript = { ...t, segments: [...t.segments, { start: 3890, duration: 5, text: question }] }
