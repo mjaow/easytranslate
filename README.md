@@ -18,28 +18,93 @@ along the way.
 **Windows 10/11 and macOS 13+.** Full-video analysis uses an optional Chrome/Edge
 extension; Windows is the verified platform for that companion.
 
-### Start with text or code
+## See it in action
 
-Select text in your browser, editor, PDF reader, or another app and press
-`Ctrl+Alt+E` (`⌘⌥E` on a Mac). Read the explanation in a popup, with an option to
-explain code when detected. Double-click a YouTube caption or transcript line to
-understand that passage. [Install the desktop app](#getting-started).
+Real usage screenshots: [plain text](#translate-plain-text),
+[YouTube captions and transcripts](#translate-youtube-captions-and-transcript-lines),
+[Understand video](#understand-a-whole-youtube-video), and
+[YouTube Ask side by side](#compare-with-youtubes-ask-feature).
+
+### Translate plain text
+
+1. [Install and configure the desktop app](#getting-started), then keep it running
+   in the system tray or menu bar.
+2. Select a word or passage in your browser, editor, PDF reader, or another app.
+3. Press **`Ctrl+Alt+E`** on Windows or **`⌘⌥E`** on macOS.
+
+For passages, the popup gives you a Chinese translation, an **In plain English** explanation,
+and **Words worth knowing** with meanings, examples, and pronunciation when
+available. Use the speaker buttons to listen, or the turtle button for slower
+speech. If you select code, the popup offers to explain what it does.
+
+![Selected text in a Wall Street Journal post on X, with an EasyUnderstand popup showing Chinese translation, plain English, and vocabulary.](docs/images/plain-text-translation.png)
+
+*Translate a passage where you are reading it. The popup keeps the original text,
+translation, and vocabulary together.*
 
 The selection popup does not take focus, and text capture restores your clipboard.
 See [How it works](#how-it-works) for the supported capture paths and their limits.
 
+### Translate YouTube captions and transcript lines
+
+With the desktop app running, use either of these gestures:
+
+- **On-screen captions:** turn on YouTube's **CC**, then double-click the caption
+  text itself to explain the current passage. Clicking the video background can
+  trigger YouTube's fullscreen toggle.
+- **Transcript panel:** open YouTube's **Show transcript** (or the **Transcript**
+  tab under **In this video**), then double-click a transcript line. You can also
+  select transcript text and press **`Ctrl+Alt+E`** (**`⌘⌥E`** on macOS).
+
+The popup shows the Chinese translation, simpler English, and vocabulary for that
+passage. Double-click translation can be turned on or off in **Settings**; it uses
+the desktop app and does not require the full-video companion extension.
+
+![A YouTube caption translated in an EasyUnderstand popup over the video, with Chinese, plain English, and explanations of ridicule and rational.](docs/images/youtube-caption-translation.png)
+
+*The caption “to the point of ridicule, and what is the rational reaction for”
+becomes a bilingual explanation with vocabulary you can listen to.*
+
 ### Understand a whole YouTube video
 
-Click **Understand video** to analyze its complete caption transcript in one
-summary request. Read what the speaker believes, why, and what follows; open the
-breakdown for detail and **Assess the argument** to examine the support, gaps, and
-possible checks. Timestamp links let you inspect the source. This assessment
-examines the transcript's reasoning; it does not independently verify external facts.
+1. [Set up the optional Chrome/Edge companion](docs/YouTube.md#install-the-personal-version)
+   and configure its video model and API key in **Settings → YouTube analysis**.
+2. Open a YouTube video with an available caption transcript. Click
+   **Understand video** below the video, or the companion's browser toolbar icon.
+3. Read the **Summary** and **Key takeaways** in the side panel. Open
+   **Explore the breakdown** for the speaker's reasoning, examples, and qualifications.
+   Click timestamp sources to jump to the supporting moments.
+4. Ask follow-up questions below the analysis, choose **Translate to Chinese**,
+   or use **Copy summary + breakdown** to take the analysis with you.
 
-Ask follow-up questions, copy the complete analysis, or translate it to Chinese
-on demand. The panel shows transcript size, processing time, and cache usage.
-Saved summaries expire after 7 days, with at most 30 entries and a clear-cache button.
-[Set up the YouTube companion](docs/YouTube.md).
+![YouTube with the Understand video button below the player and an arrow pointing to the EasyUnderstand summary in the browser side panel.](docs/images/youtube-understand-video.png)
+
+*One click opens an analysis of the complete caption transcript. The panel also
+shows the caption language, transcript size, model, processing time, and cache usage.*
+
+The summary and breakdown are generated together in one request. When relevant,
+**Critical assessment** separately examines the support, gaps, and possible checks
+for substantive claims. It evaluates the transcript's reasoning without independently
+verifying external facts. Saved summaries expire after 7 days, with at most 30
+entries; **Summarize again** requests a fresh analysis and **Clear cache** removes
+saved video results.
+
+### Compare with YouTube's Ask feature
+
+You can keep YouTube's **Ask** panel and EasyUnderstand open together. This
+screenshot shows both summarizing the same DHH interview: YouTube's **Ask about
+this video** on the left and EasyUnderstand on the right.
+
+![Side-by-side summaries of the same interview: YouTube Ask on the left and EasyUnderstand's summary and timestamped key takeaways on the right.](docs/images/youtube-ask-comparison.png)
+
+| In this screenshot | YouTube Ask (left) | EasyUnderstand (right) |
+|---|---|---|
+| Starting point | A “Summarize the video” prompt in a conversation. | A dedicated Summary followed by Key takeaways. |
+| Reading layout | A response organized around key themes, with a question box below. | A separate side panel with an overview and individual takeaways. |
+| Source navigation | Inline timestamp links in the response. | Timestamp buttons beneath the relevant takeaways. |
+
+For more depth in EasyUnderstand, scroll to the breakdown and critical assessment,
+ask a follow-up, or translate the analysis to Chinese.
 
 Use your own model API keys, including Azure OpenAI deployments. Video analysis
 has its own model and encrypted key; everyday explanations and optional Chinese
