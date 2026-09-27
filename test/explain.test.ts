@@ -100,8 +100,10 @@ describe('userPrompt', () => {
     expect(p).toContain('base')
   })
 
-  it('omits the context line when it would just repeat the term', () => {
-    const p = userPrompt({ mode: 'word', text: 'base', context: 'base' })
+  it.each([undefined, '', '  ', 'base', '  base  '])('treats absent or repeated context (%s) as a standalone lookup', context => {
+    const p = userPrompt({ mode: 'word', text: ' base ', context })
     expect(p).not.toContain('Sentence:')
+    expect(p).toContain('Standalone word or phrase')
+    expect(p).toContain('common meaning and usage')
   })
 })
