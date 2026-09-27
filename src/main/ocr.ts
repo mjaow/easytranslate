@@ -152,7 +152,7 @@ async function readOnMac(region: ScreenRegion, language: string): Promise<string
     if (!existsSync(shot)) {
       return {
         reason:
-          'The screen capture produced nothing. Grant EasyTranslate Screen Recording in' +
+          'The screen capture produced nothing. Grant EasyUnderstand Screen Recording in' +
           ' System Settings → Privacy & Security, then restart it.'
       }
     }

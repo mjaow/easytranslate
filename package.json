@@ -1,7 +1,8 @@
 {
   "name": "easytranslate",
+  "productName": "EasyUnderstand",
   "version": "0.1.0",
-  "description": "Select text in any app on Windows or macOS and get it explained in English and Chinese, with American-accent read-aloud.",
+  "description": "Understand words, code, and YouTube videos with bilingual explanations, transcript summaries, timestamp sources, and critical analysis.",
   "main": "./out/main/index.js",
   "author": "mijun",
   "license": "MIT",

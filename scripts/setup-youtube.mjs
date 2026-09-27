@@ -12,7 +12,7 @@ const folder = join(root, 'out', 'native-host')
 await mkdir(folder, { recursive: true })
 const hostEntry = join(root, 'out/main/native-host.js')
 await access(hostEntry)
-const manifest = { name: 'com.easytranslate.video', description: 'EasyTranslate video analysis', type: 'stdio', path: '', allowed_origins: [`chrome-extension://${id}/`] }
+const manifest = { name: 'com.easytranslate.video', description: 'EasyUnderstand video analysis', type: 'stdio', path: '', allowed_origins: [`chrome-extension://${id}/`] }
 if (process.platform === 'win32') {
   const electron = join(root, 'node_modules/electron/dist/electron.exe')
   await access(electron)

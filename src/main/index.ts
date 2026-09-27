@@ -33,6 +33,11 @@ import { startClickWatcher, stopClickWatcher } from './clicks.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
+// Keep the original identity for encrypted keys, data and the single-instance
+// lock when the product's display name changes. The video worker uses it too.
+app.setName('easytranslate')
+app.setPath('userData', join(app.getPath('appData'), 'easytranslate'))
+
 let tray: Tray | null = null
 let settingsWindow: BrowserWindow | null = null
 let hotkeysPaused = false
@@ -137,12 +142,12 @@ function announceCaptureProblems(): void {
   if (!isAvailable()) {
     void dialog.showMessageBox({
       type: 'error',
-      title: 'EasyTranslate',
+      title: 'EasyUnderstand',
       message: 'Text capture is unavailable.',
       detail:
         process.platform === 'win32' || IS_MACOS
           ? `Could not load the ${IS_MACOS ? 'macOS' : 'Windows'} input bindings.\n\n${getLoadError() ?? ''}`
-          : `EasyTranslate supports Windows and macOS. There is no text capture for ${process.platform}.`
+          : `EasyUnderstand supports Windows and macOS. There is no text capture for ${process.platform}.`
     })
     return
   }
@@ -160,15 +165,15 @@ function announceCaptureProblems(): void {
 async function askForAccessibility(): Promise<void> {
   const { response } = await dialog.showMessageBox({
     type: 'warning',
-    title: 'EasyTranslate',
-    message: 'EasyTranslate needs Accessibility permission.',
+    title: 'EasyUnderstand',
+    message: 'EasyUnderstand needs Accessibility permission.',
     detail:
       'macOS will not let any app read your selection until you allow it. Open' +
-      ` Privacy & Security → Accessibility, switch on ${app.isPackaged ? 'EasyTranslate' : 'Electron'},` +
+      ` Privacy & Security → Accessibility, switch on ${app.isPackaged ? 'EasyUnderstand' : 'Electron'},` +
       ' then quit and start it again — macOS only checks this when an app launches.' +
       (app.isPackaged
         ? ''
-        : '\n\nIt is listed as Electron rather than EasyTranslate because this build' +
+        : '\n\nIt is listed as Electron rather than EasyUnderstand because this build' +
           " runs on Electron's own binary."),
     buttons: ['Open System Settings', 'Later'],
     defaultId: 0
@@ -238,7 +243,7 @@ function applyHotkeys(announce = true): void {
   if (result.failed.length > 0) {
     void dialog.showMessageBox({
       type: 'warning',
-      title: 'EasyTranslate',
+      title: 'EasyUnderstand',
       message: 'Some hotkeys could not be registered.',
       detail:
         result.failed.map((f) => `${f.description}: ${f.wanted} — ${f.why}`).join('\n') +
@@ -253,7 +258,7 @@ function applyHotkeys(announce = true): void {
     // Informational, not a warning: everything works, it just moved.
     void dialog.showMessageBox({
       type: 'info',
-      title: 'EasyTranslate',
+      title: 'EasyUnderstand',
       message: 'Some shortcuts were already in use, so they were moved.',
       detail:
         result.reassigned
@@ -291,7 +296,7 @@ function trayIcon(): Electron.NativeImage {
 
 function createTray(): void {
   tray = new Tray(trayIcon())
-  tray.setToolTip('EasyTranslate')
+  tray.setToolTip('EasyUnderstand')
   // A left click on macOS opens the menu, as every other menu bar item does; on
   // Windows the menu is the right click and a left click is the shortcut to Settings.
   if (!IS_MACOS) tray.on('click', () => openSettings())
@@ -322,10 +327,10 @@ function refreshTrayMenu(): void {
         click: () => void shell.openPath(app.getPath('userData'))
       },
       { type: 'separator' },
-      { label: 'Quit EasyTranslate', click: () => app.quit() }
+      { label: 'Quit EasyUnderstand', click: () => app.quit() }
     ])
   )
-  tray.setToolTip(hotkeysPaused ? 'EasyTranslate — paused' : 'EasyTranslate')
+  tray.setToolTip(hotkeysPaused ? 'EasyUnderstand — paused' : 'EasyUnderstand')
 }
 
 // ---------------------------------------------------------------- settings
@@ -344,7 +349,7 @@ function openSettings(): void {
   settingsWindow = new BrowserWindow({
     width: 560,
     height: 720,
-    title: 'EasyTranslate Settings',
+    title: 'EasyUnderstand Settings',
     autoHideMenuBar: true,
     webPreferences: {
       preload: preloadPath(),

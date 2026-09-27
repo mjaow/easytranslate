@@ -1,7 +1,7 @@
 /**
  * Hotkey availability probe: `npm run probe:hotkeys`.
  *
- * Reports which accelerators this machine will actually let EasyTranslate bind, so
+ * Reports which accelerators this machine will actually let EasyUnderstand bind, so
  * picking a working pair is a lookup rather than trial and error.
  *
  * Caveat worth knowing: this tests the OS call Electron itself uses — RegisterHotKey
@@ -105,7 +105,7 @@ export function runHotkeyProbe(): void {
   const config = loadConfig()
   const configured = new Set([config.hotkeys.explain])
 
-  console.log('\nEasyTranslate — hotkey availability\n')
+  console.log('\nEasyUnderstand — hotkey availability\n')
 
   const results = CANDIDATES.map(probe)
   const pad = Math.max(...results.map((r) => r.accelerator.length))
@@ -116,10 +116,10 @@ export function runHotkeyProbe(): void {
     console.log(`  ${mark}  ${r.accelerator.padEnd(pad)}${r.note ? `  (${r.note})` : ''}${current}`)
   }
 
-  // Learned the hard way: a running EasyTranslate holds its own hotkeys, so they
+  // Learned the hard way: a running EasyUnderstand holds its own hotkeys, so they
   // probe as "taken" and look like a third-party conflict. Same for instances left
   // behind by an earlier dev run.
-  console.log('\n  Note: quit any running EasyTranslate first — it holds its own')
+  console.log('\n  Note: quit any running EasyUnderstand first — it holds its own')
   console.log('  shortcuts, which then show up here as TAKEN.')
 
   const free = results.filter((r) => r.status === 'free').map((r) => r.accelerator)

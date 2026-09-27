@@ -1,27 +1,49 @@
-# EasyTranslate
+# EasyUnderstand
 
-Select text in **any** app, press `Ctrl+Alt+E` (`⌘⌥E` on a Mac), and get it explained
-in English and Chinese, with American-accent read-aloud. Works in Edge, Chrome, Safari,
-the ChatGPT desktop app, Teams, PDFs, VS Code, anywhere. On YouTube or X, double-click a
-video with captions on and the caption is explained too.
+**Understand words, code, and videos.**
 
-**Windows 10/11 and macOS 13+.**
+EasyUnderstand (formerly EasyTranslate) is a desktop companion for understanding
+what you read and watch.
+Explain selected text and code without leaving your app, or turn a YouTube
+transcript into a clear account of the speaker's argument, reasoning, and evidence.
+English and Chinese explanations, pronunciation, and read-aloud help you learn
+along the way.
 
-**It will not break your copy and paste.** The desktop selection popup never takes
-focus. The optional YouTube companion adds its own button and browser side panel;
-caption capture does not use the clipboard. Its copy button writes the analysis
-only when clicked. See [How it works](#how-it-works).
+| What you want to understand | What you get |
+|---|---|
+| Words and passages | Plain English and Chinese explanations, common or contextual meanings, examples, dictionary pronunciation, and read-aloud. |
+| Code | Its purpose, step-by-step reasoning, design choices, and possible bugs or edge cases in the selected snippet. |
+| YouTube videos | The core argument and takeaways first, concise breakdowns with timestamp sources, and a separate assessment of the evidence and reasoning. |
 
-### One-click YouTube understanding
+**Windows 10/11 and macOS 13+.** Full-video analysis uses an optional Chrome/Edge
+extension; Windows is the verified platform for that companion.
 
-The optional Chrome/Edge companion reads the complete caption transcript in one
-summary request. Read the core argument and takeaways first, then open concise
-breakdowns, supporting timestamps, and a separate assessment of the reasoning.
-Copy the full analysis, ask follow-up questions, or translate it to Chinese on
-demand. Video analysis has its own model and encrypted key, with Azure Responses
-support. The panel reports transcript size, elapsed time, and cache usage; saved
-summaries expire after 7 days and can be cleared. Run `npm run setup:youtube`, then
-load `out/extension` as an unpacked extension. [Setup and usage](docs/YouTube.md).
+### Start with text or code
+
+Select text in your browser, editor, PDF reader, or another app and press
+`Ctrl+Alt+E` (`⌘⌥E` on a Mac). Read the explanation in a popup, with an option to
+explain code when detected. Double-click a YouTube caption or transcript line to
+understand that passage. [Install the desktop app](#getting-started).
+
+The selection popup does not take focus, and text capture restores your clipboard.
+See [How it works](#how-it-works) for the supported capture paths and their limits.
+
+### Understand a whole YouTube video
+
+Click **Understand video** to analyze its complete caption transcript in one
+summary request. Read what the speaker believes, why, and what follows; open the
+breakdown for detail and **Assess the argument** to examine the support, gaps, and
+possible checks. Timestamp links let you inspect the source. This assessment
+examines the transcript's reasoning; it does not independently verify external facts.
+
+Ask follow-up questions, copy the complete analysis, or translate it to Chinese
+on demand. The panel shows transcript size, processing time, and cache usage.
+Saved summaries expire after 7 days, with at most 30 entries and a clear-cache button.
+[Set up the YouTube companion](docs/YouTube.md).
+
+Use your own model API keys, including Azure OpenAI deployments. Video analysis
+has its own model and encrypted key; everyday explanations and optional Chinese
+translation use separate settings. Code explanations can use their own model too.
 
 ---
 
@@ -36,11 +58,15 @@ irm https://raw.githubusercontent.com/mjaow/easytranslate/main/install.ps1 | iex
 ```
 
 It installs Node.js if you don't have it, downloads and builds the app into
-`%LOCALAPPDATA%\EasyTranslate`, adds **EasyTranslate** to the Start menu and desktop,
+`%LOCALAPPDATA%\EasyTranslate`, adds **EasyUnderstand** to the Start menu and desktop,
 and starts it. The first run takes a few minutes; Settings opens by itself so you can
 paste a key. Run the same line again any time to update.
 
-Press **`Ctrl+Alt+T`** to start EasyTranslate later, without opening a terminal. If it
+Existing installations keep their settings, encrypted keys, and data in the
+original `easytranslate` folder. Older EasyTranslate launch shortcuts still work;
+updated shortcut setup assigns the launch hotkey to EasyUnderstand.
+
+Press **`Ctrl+Alt+T`** to start EasyUnderstand later, without opening a terminal. If it
 is already running, this opens Settings. Keep the desktop shortcut: Windows uses it
 for this launch key. **`Ctrl+Alt+E`** explains selected text once the app is running.
 To change the launch key, right-click the desktop shortcut → **Properties → Shortcut
@@ -58,23 +84,23 @@ curl -fsSL https://raw.githubusercontent.com/mjaow/easytranslate/main/install.sh
 ```
 
 Same idea: Node.js if it is missing, the app built into `~/.easytranslate`,
-**EasyTranslate** in `~/Applications` so Spotlight finds it, and it starts.
+**EasyUnderstand** in `~/Applications` so Spotlight finds it, and it starts.
 
 Then do the one thing no installer can do for you:
 
 > **System Settings → Privacy & Security → Accessibility → switch on Electron**, then
-> quit EasyTranslate and start it again.
+> quit EasyUnderstand and start it again.
 
 macOS will not let *any* app read your selection until you allow it, and it only checks
-at launch — so the restart matters. EasyTranslate says so on first run and offers to
-open the right page. (The switch is labelled **Electron**, not EasyTranslate, because
+at launch — so the restart matters. EasyUnderstand says so on first run and offers to
+open the right page. (The switch is labelled **Electron**, not EasyUnderstand, because
 an installed-from-source build runs on Electron's own binary.)
 
 The app lives in the **menu bar**, near the clock. There is no dock icon and no main
 window.
 
 On either platform, start it later from the Start menu or Spotlight, or turn on
-**Start EasyTranslate when I log in** in Settings and forget about it.
+**Start EasyUnderstand when I log in** in Settings and forget about it.
 
 <details>
 <summary>From source, for development</summary>
@@ -130,7 +156,8 @@ Settings opens by itself the first time, since nothing works until step 1 is don
 | Select any words in the popup | Copies them — selecting *is* the copy |
 
 - **Three words or fewer** are treated as a term: dictionary IPA when available,
-  part of speech, what it means *here*, an example.
+  part of speech, common meanings when selected alone or the relevant meaning when
+  surrounding context is available, and an example.
 - **Anything longer** is treated as a passage: natural Chinese, simpler English, and
   the hard words and idioms in it, each with dictionary IPA when available, Chinese
   and an example.
@@ -177,7 +204,7 @@ model, translation quality, or speech provider.
 ### Changing the shortcut
 
 In Settings, **press the keys you want**; the chord is recorded, not typed. If the
-shortcut is already owned by another app, EasyTranslate binds the next free one and
+shortcut is already owned by another app, EasyUnderstand binds the next free one and
 tells you which. To see which combinations are free on your machine, quit the app
 first (it holds its own shortcuts) and run:
 
@@ -290,7 +317,7 @@ fact.
 **macOS**
 
 - **Nothing works until Accessibility is granted**, and macOS reads that grant only
-  when the app launches — so switching it on while EasyTranslate is running does
+  when the app launches — so switching it on while EasyUnderstand is running does
   nothing until you quit and start it again. The app checks at startup and says so
   rather than letting every press fail in silence.
 - **The switch is labelled "Electron"** for an installed-from-source build, because
@@ -342,7 +369,7 @@ Notepad. macOS: Safari · Chrome · Preview · Notes · VS Code · Terminal.
 ## How it works
 
 ```
-  select text anywhere             your normal selection; EasyTranslate is not involved
+  select text anywhere             your normal selection; EasyUnderstand is not involved
             ↓
   press the hotkey                 global, Ctrl+Alt+E or ⌘⌥E
             ↓

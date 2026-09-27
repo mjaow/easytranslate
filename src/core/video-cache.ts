@@ -18,7 +18,7 @@ export function clearVideoCache(directory: string): VideoCacheClearResult {
   let names: string[]
   try { names = readdirSync(directory) } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return result
-    throw new Error('The video cache could not be opened. Check access to the EasyTranslate data folder.')
+    throw new Error('The video cache could not be opened. Check access to the EasyUnderstand data folder.')
   }
   for (const name of names) {
     if (!ENTRY_NAME.test(name)) continue

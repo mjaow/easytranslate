@@ -12,14 +12,14 @@ import { videoKeyScope, videoReasoningEffort } from '../shared/video-settings.js
 export function createVideoProvider(saved: AppConfig): LlmProvider {
   const { config, model } = resolveVideoConfig(saved)
   const provider = config.llm.provider
-  if (!model) throw new Error('Set the video model in EasyTranslate Settings → YouTube analysis.')
-  if (!config.llm.videoBaseUrl?.trim()) throw new Error('Set the video API base URL in EasyTranslate Settings → YouTube analysis.')
+  if (!model) throw new Error('Set the video model in EasyUnderstand Settings → YouTube analysis.')
+  if (!config.llm.videoBaseUrl?.trim()) throw new Error('Set the video API base URL in EasyUnderstand Settings → YouTube analysis.')
   if (provider !== 'ollama' && !process.env.EASYTRANSLATE_VIDEO_API_KEY &&
       config.llm.videoKeyScope !== videoKeyScope(config.llm)) {
-    throw new Error('Save the dedicated video API key for this endpoint in EasyTranslate Settings → YouTube analysis.')
+    throw new Error('Save the dedicated video API key for this endpoint in EasyUnderstand Settings → YouTube analysis.')
   }
   const key = provider === 'ollama' ? null : getSecret('video')
-  if (provider !== 'ollama' && !key) throw new Error('No video API key is saved. Add it in EasyTranslate Settings → YouTube analysis.')
+  if (provider !== 'ollama' && !key) throw new Error('No video API key is saved. Add it in EasyUnderstand Settings → YouTube analysis.')
   if (config.llm.videoProtocol === 'azure-responses') {
     if (provider !== 'openai') throw new Error('Choose the Azure OpenAI video preset before using an Azure Responses endpoint.')
     return new AzureResponsesProvider({ apiKey: key, model, baseUrl: config.llm.videoBaseUrl,

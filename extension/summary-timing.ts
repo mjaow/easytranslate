@@ -59,7 +59,7 @@ export class SummaryTiming {
     get('timing-request').textContent = event.cached ? 'Not called (cached)' : modelMs === undefined ? 'Unavailable' : duration(modelMs)
     get('timing-other').textContent = modelMs === undefined ? 'Unavailable' : duration(total - this.transcriptMs - modelMs)
     get('timing-note').textContent = event.cached
-      ? 'Loaded from EasyTranslate’s local summary cache (up to 7 days, 30 entries). Time went to collecting captions, connecting, loading the saved summary, and displaying it. Summarize again makes a fresh model request.'
+      ? 'Loaded from EasyUnderstand’s local summary cache (up to 7 days, 30 entries). Time went to collecting captions, connecting, loading the saved summary, and displaying it. Summarize again makes a fresh model request.'
       : 'One model request, including network time and response validation. Total includes opening, connecting, and display. Summarize again makes a fresh request.'
   }
 

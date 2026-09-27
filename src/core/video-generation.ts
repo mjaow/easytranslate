@@ -44,7 +44,7 @@ async function readResponse(provider: LlmProvider, user: string, parent: AbortSi
       const message = Date.now() >= started + totalMs
         ? 'The model exceeded the 3-minute limit for this response.'
         : raw.length ? 'The model stopped sending its response for 45 seconds.' : 'The model sent no analysis text within 60 seconds.'
-      const error = new Error(`${message} Check the video provider in EasyTranslate Settings → YouTube analysis and retry.`)
+      const error = new Error(`${message} Check the video provider in EasyUnderstand Settings → YouTube analysis and retry.`)
       rejectTimeout(error); controller.abort(error)
     }, Math.max(0, until - now))
   }
@@ -87,7 +87,7 @@ export async function generateVideoJson<T>(provider: LlmProvider, user: string, 
       return validate(value)
     } catch (error) {
       if (!(error instanceof VideoModelOutputError)) throw error
-      if (attempt === attempts) throw new Error(`${error.message}\n${attempts === 1 ? 'Please retry the summary.' : 'One automatic correction attempt also failed. Choose another video model in EasyTranslate Settings → YouTube analysis.'}`)
+      if (attempt === attempts) throw new Error(`${error.message}\n${attempts === 1 ? 'Please retry the summary.' : 'One automatic correction attempt also failed. Choose another video model in EasyUnderstand Settings → YouTube analysis.'}`)
       correction = error.message
       // Keep the complete source prompt. A large invalid draft is optional, never
       // grounds for truncating source evidence to make a correction request fit.

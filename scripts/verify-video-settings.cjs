@@ -48,7 +48,7 @@ app.whenReady().then(async () => {
   }
   await win.loadFile(resolve('out/renderer/settings/index.html'))
   if (legacy) {
-    await waitFor('document.body.textContent.includes("Restart EasyTranslate to finish the update")')
+    await waitFor('document.body.textContent.includes("Restart EasyUnderstand to finish the update")')
     assert.equal(await run('document.querySelectorAll("input,select").length'), 0)
     assert.equal(await run('document.body.textContent.includes("Test video model")'), false)
     assert.equal(videoTests, 0); assert.equal(everydayTests, 0); assert.equal(videoKey, false)

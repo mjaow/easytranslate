@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Understand video · Help</title><link rel="stylesheet" href="sidepanel.css"></head>
-<body><header><div class="brand">EasyTranslate · Video</div><h1>Your video, explained.</h1></header>
+<body><header><div class="brand">EasyUnderstand · Video</div><h1>Your video, explained.</h1></header>
 <main>
   <h2>Choose a model once</h2>
-  <p>Open the EasyTranslate desktop app, then Settings → YouTube analysis. Gemini 3.8 Flash is the default. Get an API key using the link in Settings, paste it into Video API key, click Save, then Test video model. The test sends a short sample transcript to verify access and citation structure. Video API usage is billed separately by the provider. Restart the desktop app after an update to see the new Settings.</p>
+  <p>Open the EasyUnderstand desktop app, then Settings → YouTube analysis. Gemini 3.8 Flash is the default. Get an API key using the link in Settings, paste it into Video API key, click Save, then Test video model. The test sends a short sample transcript to verify access and citation structure. Video API usage is billed separately by the provider. Restart the desktop app after an update to see the new Settings.</p>
   <p><strong>Azure OpenAI:</strong> select the Azure GPT-6 Astra preset, enter your deployment name and full <code>/openai/responses?api-version=…</code> endpoint, then save the Azure resource key in Video API key. Use Test video model before opening a video. The Chat Completions demo uses a different API; this companion uses Responses.</p>
   <h2>Use it on YouTube</h2>
   <p>Open a video and click <strong>Understand video</strong>. The complete caption transcript is sent once. Read the central argument and concrete <strong>Key takeaways</strong>, then open <strong>Explore the breakdown</strong> for compact explanations, examples and meaningful caveats. Expand <strong>Sources</strong> inside a theme for timestamp links and caption excerpts.</p>
@@ -14,7 +14,7 @@
   <p><strong>Clear cache</strong> beside Understand video removes saved video summaries and translations and clears the current panel. It makes no model request. API keys, settings, and everyday translation history are kept. Your next summary is generated afresh.</p>
   <p><strong>Translate to Chinese</strong> translates the existing analysis using your everyday translation model and key. <strong>Ask the transcript</strong> uses the video model to answer follow-up questions from the original captions. Video and translation settings are independent.</p>
   <h2>If something goes wrong</h2>
-  <p><strong>Cannot connect:</strong> run <code>npm run setup:youtube</code> from your EasyTranslate checkout, then reload the extension and YouTube. Keep the checkout in place.</p>
+  <p><strong>Cannot connect:</strong> run <code>npm run setup:youtube</code> from your EasyUnderstand checkout, then reload the extension and YouTube. Keep the checkout in place.</p>
   <p><strong>Error after reloading the extension:</strong> refresh the existing YouTube tab once to replace its old extension script. If the button says <strong>Reload YouTube to reconnect</strong>, clicking it refreshes the tab for you.</p>
   <p><strong>Missing captions:</strong> check whether YouTube’s Show transcript button is available. The companion never substitutes the video description as evidence.</p>
   <p><strong>Model error:</strong> check the video model and key in Settings. Providers can block content or hit quota limits. The Alibaba/Qwen provider blocked the political interview excerpt during testing.</p>

@@ -29,7 +29,7 @@ const finish = (): void => {
   socket?.destroy(); server.close(); worker?.kill()
   if (directory) { try { rmSync(directory, { recursive: true, force: true }) } catch { /* already removed */ } }
 }
-const startup = setTimeout(() => { console.error('EasyTranslate worker did not start.'); finish(); process.exitCode = 1 }, 20000)
+const startup = setTimeout(() => { console.error('EasyUnderstand worker did not start.'); finish(); process.exitCode = 1 }, 20000)
 const server = createServer(connection => {
   const decoder = new NativeDecoder()
   let authenticated = false

@@ -36,7 +36,7 @@ const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
     'either, this page blocks copying. Some news sites do. (It can also mean nothing is ' +
     'selected, or that ' +
     (IS_MACOS
-      ? 'EasyTranslate has not been allowed under Privacy & Security → Accessibility.)'
+      ? 'EasyUnderstand has not been allowed under Privacy & Security → Accessibility.)'
       : 'the app is running as administrator.)'),
   empty: 'Nothing was selected.',
   'not-text': 'That selection is an image. Text capture only, for now.'
@@ -46,7 +46,7 @@ const CAPTURE_MESSAGES: Record<CaptureFailure, string> = {
 function permissionNote(): string {
   if (!IS_MACOS || inputPermission() !== 'denied') return ''
   return (
-    'macOS is blocking EasyTranslate from reading your selection. Allow it under System ' +
+    'macOS is blocking EasyUnderstand from reading your selection. Allow it under System ' +
     'Settings → Privacy & Security → Accessibility, then quit and start it again. '
   )
 }

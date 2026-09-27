@@ -213,7 +213,7 @@ async function waitForForeground(win: BrowserWindow, timeoutMs: number): Promise
       lastAttempt = Date.now()
     }
     if (!announced) {
-      console.log('\n  Waiting for focus — click the "EasyTranslate capture test" window.')
+      console.log('\n  Waiting for focus — click the "EasyUnderstand capture test" window.')
       console.log(
         IS_MACOS
           ? '  (It should focus itself; click it if it did not.)\n'
@@ -227,7 +227,7 @@ async function waitForForeground(win: BrowserWindow, timeoutMs: number): Promise
 }
 
 export async function runCaptureVerification(): Promise<void> {
-  console.log('\nEasyTranslate — capture self-test\n')
+  console.log('\nEasyUnderstand — capture self-test\n')
 
   if (!isAvailable()) {
     console.log(`  FAIL  native bindings unavailable — ${getLoadError() ?? 'unknown'}`)
@@ -249,7 +249,7 @@ export async function runCaptureVerification(): Promise<void> {
   const win = new BrowserWindow({
     width: 520,
     height: 200,
-    title: 'EasyTranslate capture test',
+    title: 'EasyUnderstand capture test',
     alwaysOnTop: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true }
   })

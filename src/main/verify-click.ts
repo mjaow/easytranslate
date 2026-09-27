@@ -120,7 +120,7 @@ function makeWindowsMouse(): Mouse {
 }
 
 export async function runClickVerification(): Promise<void> {
-  console.log('\nEasyTranslate — click-to-explain self-test\n')
+  console.log('\nEasyUnderstand — click-to-explain self-test\n')
 
   if (process.platform !== 'win32' && process.platform !== 'darwin') {
     console.log(`  There is no accessibility read for ${process.platform}; nothing to check here.\n`)
@@ -154,7 +154,7 @@ export async function runClickVerification(): Promise<void> {
   await win.loadURL(
     'data:text/html,' +
       encodeURIComponent(
-        `<title>EasyTranslate self-test</title>
+        `<title>EasyUnderstand self-test</title>
          <body style="margin:0;background:#fff;font:18px 'Segoe UI'">
            <h2 style="margin:16px 20px;height:24px;font-size:16px">Transcript</h2>
            ${rows.join('')}

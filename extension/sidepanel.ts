@@ -190,7 +190,7 @@ function native(request: VideoRequest, revision: number): Promise<VideoEvent> {
     port.onDisconnect.addListener(() => {
       const message = chrome.runtime.lastError?.message
       if (!settled) reject(new Error(message
-        ? `Could not connect to EasyTranslate. Run npm run setup:youtube from its folder, then reload this extension.\n${message}`
+        ? `Could not connect to EasyUnderstand. Run npm run setup:youtube from its folder, then reload this extension.\n${message}`
         : 'The request was cancelled or the connection closed.'))
     })
     port.postMessage(request)
@@ -229,7 +229,7 @@ async function analyze(clickedAt?: number): Promise<void> {
   get('evaluation').replaceChildren()
   get('questions-section').hidden = true; get('unanswered-section').hidden = true
   try {
-    status('Connecting to EasyTranslate…')
+    status('Connecting to EasyUnderstand…')
     const connection = await native({ id: crypto.randomUUID(), action: 'ping' }, revision)
     const selectedModel = (connection.result as { model: string }).model
     if (revision !== generation) return
@@ -286,7 +286,7 @@ async function clearCache(): Promise<void> {
       ? `Cleared ${result.cleared} saved entries. Some entries could not be removed.`
       : result.cleared ? `Cache cleared · ${result.cleared} saved ${result.cleared === 1 ? 'entry' : 'entries'} removed. The next summary will use your model.`
       : 'Video cache is already empty. The next summary will use your model.')
-    if (result.failed) error(`${result.failed} saved ${result.failed === 1 ? 'entry could' : 'entries could'} not be removed. Close other EasyTranslate video panels and retry.`)
+    if (result.failed) error(`${result.failed} saved ${result.failed === 1 ? 'entry could' : 'entries could'} not be removed. Close other EasyUnderstand video panels and retry.`)
   } catch (e) {
     if (revision === generation) { error(e instanceof Error ? e.message : String(e)); status('Could not confirm that the video cache was cleared. You can retry.') }
   } finally { if (revision === generation) setBusy(false) }

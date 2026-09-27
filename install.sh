@@ -1,5 +1,5 @@
 #!/bin/bash
-# EasyTranslate — install or update with one command on macOS, then start it.
+# EasyUnderstand — install or update with one command on macOS, then start it.
 #
 #   curl -fsSL https://raw.githubusercontent.com/mjaow/easytranslate/main/install.sh | bash
 #
@@ -7,7 +7,7 @@
 #   1. Makes sure Node.js 20+ is present (installs it with Homebrew if not).
 #   2. Downloads the app source to ~/.easytranslate/app.
 #   3. Builds it there.
-#   4. Puts EasyTranslate in ~/Applications, so Spotlight and Finder can find it.
+#   4. Puts EasyUnderstand in ~/Applications, so Spotlight and Finder can find it.
 #   5. Starts it.
 #
 # Running the same command again updates the app. Your settings live in
@@ -28,7 +28,7 @@ REF="${EASYTRANSLATE_REF:-main}"
 # "easytranslate", and the default macOS filesystem would treat the two as one.
 ROOT="${EASYTRANSLATE_DIR:-$HOME/.easytranslate}"
 APP="$ROOT/app"
-LAUNCHER="$HOME/Applications/EasyTranslate.app"
+LAUNCHER="$HOME/Applications/EasyUnderstand.app"
 
 step() { printf '\n\033[36m==> %s\033[0m\n' "$1"; }
 die() { printf '\n\033[31m%s\033[0m\n' "$1" >&2; exit 1; }
@@ -53,7 +53,7 @@ fi
 echo "Node.js $(node -v)"
 
 # --- 2. Download --------------------------------------------------------------
-step "Downloading EasyTranslate ($REF)"
+step "Downloading EasyUnderstand ($REF)"
 mkdir -p "$ROOT"
 STAGE="$ROOT/stage"
 rm -rf "$STAGE"
@@ -65,7 +65,7 @@ EXTRACTED="$(find "$STAGE" -mindepth 1 -maxdepth 1 -type d | head -1)"
 # A running copy holds its own hotkeys, so an update has to stop it first. It is
 # started again at the end.
 if pgrep -f "Electron.*$APP" >/dev/null 2>&1; then
-  echo 'Stopping the running EasyTranslate for the update...'
+  echo 'Stopping the running EasyUnderstand for the update...'
   pkill -f "Electron.*$APP" || true
   sleep 2
 fi
@@ -94,20 +94,20 @@ ELECTRON="$APP/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
 
 # --- 4. Launcher --------------------------------------------------------------
 #
-# A minimal application bundle, so EasyTranslate is in Spotlight and Finder like
+# A minimal application bundle, so EasyUnderstand is in Spotlight and Finder like
 # anything else. It is a wrapper: the process that actually runs is Electron, which
 # is also the name that appears in the Accessibility list.
-step 'Adding EasyTranslate to ~/Applications'
+step 'Adding EasyUnderstand to ~/Applications'
 mkdir -p "$LAUNCHER/Contents/MacOS"
 cat > "$LAUNCHER/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>EasyTranslate</string>
-  <key>CFBundleDisplayName</key><string>EasyTranslate</string>
+  <key>CFBundleName</key><string>EasyUnderstand</string>
+  <key>CFBundleDisplayName</key><string>EasyUnderstand</string>
   <key>CFBundleIdentifier</key><string>com.mjaow.easytranslate.launcher</string>
-  <key>CFBundleExecutable</key><string>EasyTranslate</string>
+  <key>CFBundleExecutable</key><string>EasyUnderstand</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <!-- A menu bar app: no dock icon, no menu bar of its own. -->
@@ -116,31 +116,31 @@ cat > "$LAUNCHER/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-cat > "$LAUNCHER/Contents/MacOS/EasyTranslate" <<LAUNCH
+cat > "$LAUNCHER/Contents/MacOS/EasyUnderstand" <<LAUNCH
 #!/bin/bash
 exec "$ELECTRON" "$APP"
 LAUNCH
-chmod +x "$LAUNCHER/Contents/MacOS/EasyTranslate"
+chmod +x "$LAUNCHER/Contents/MacOS/EasyUnderstand"
 # Finder caches bundles by path; touching it makes the new one take effect at once.
 touch "$LAUNCHER"
 
 # --- 5. Start -----------------------------------------------------------------
-step 'Starting EasyTranslate'
+step 'Starting EasyUnderstand'
 "$ELECTRON" "$APP" >/dev/null 2>&1 &
 disown || true
 
 cat <<'DONE'
 
-EasyTranslate is running in the menu bar (the two-tone circle near the clock).
+EasyUnderstand is running in the menu bar (the two-tone circle near the clock).
 
 Two things to do now:
   1. macOS blocks apps from reading your selection until you allow them. Open
      System Settings → Privacy & Security → Accessibility and switch on Electron,
-     then quit EasyTranslate and start it again — macOS only checks at launch.
+     then quit EasyUnderstand and start it again — macOS only checks at launch.
   2. Settings opens by itself: paste a model API key there.
 
 Then select any text anywhere and press ⌘⌥E.
 
-To start it later: Spotlight → EasyTranslate, or turn on "Start when I log in".
+To start it later: Spotlight → EasyUnderstand, or turn on "Start when I log in".
 To update: run this same command again.
 DONE

@@ -44,7 +44,7 @@ function check(ok: boolean, label: string, detail = ''): void {
 }
 
 export async function runCodeVerification(): Promise<void> {
-  console.log('\nEasyTranslate — code-or-prose self-test (asks the configured model)\n')
+  console.log('\nEasyUnderstand — code-or-prose self-test (asks the configured model)\n')
 
   const config = loadConfig()
   const secret = getSecret(config.llm.provider)

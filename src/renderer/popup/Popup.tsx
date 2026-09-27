@@ -279,7 +279,7 @@ export function Popup(): React.ReactElement | null {
         >
           <div className="et-selectable min-w-0 flex-1">
             <div className={`font-semibold leading-snug ${isCode ? 'font-mono text-[12px]' : 'text-[14px]'}`}>
-              {headline || 'EasyTranslate'}
+              {headline || 'EasyUnderstand'}
             </div>
             {/* One quiet line: the language for code, IPA and part of speech for a word,
                 and always which model answered — so the source of an answer is never
