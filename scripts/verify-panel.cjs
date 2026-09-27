@@ -91,7 +91,16 @@ app.whenReady().then(async () => {
   const capturedSize = await read('document.getElementById("transcript-size").textContent')
   assert.match(capturedSize, /^Captured 39 words · ≈[\d,]+ tokens \(estimated\)$/, 'counts the caption words, not the title or summary')
   assert.equal(await read('document.getElementById("transcript-size").hidden'), false, 'input size appears before the model finishes')
+  // Background metadata updates now retain the original click. Deliver the same
+  // pending token while busy, and again after completion, without a second run.
+  await read(`fixtureState.updateTitle = title => {
+    const next = {...fixtureState.stored['target:1'],title};
+    fixtureState.stored['target:1']=next;
+    fixtureState.onChange({'target:1':{newValue:next}},'session');
+  };fixtureState.updateTitle('Delayed YouTube title - YouTube')`)
   await finished()
+  await read("fixtureState.updateTitle('Final YouTube title - YouTube')")
+  assert.equal(await read('fixtureState.requests.filter(r=>r.action==="analyze").length'), 1, 'one click produces one summary despite title updates')
   assert.equal(await read('document.getElementById("transcript-size").textContent'), capturedSize)
   assert.equal(await win.webContents.executeJavaScript('document.querySelectorAll("details.idea").length'), 2)
   assert.equal(await win.webContents.executeJavaScript('document.getElementById("overview-card").hidden'), false)
@@ -248,11 +257,7 @@ app.whenReady().then(async () => {
 
   // YouTube changes the URL before the browser title. A later title-only event
   // must update the header without starting work, resetting state, or cancelling.
-  await read(`fixtureState.updateTitle = title => {
-    const next = {...fixtureState.stored['target:1'],title,start:false,token:crypto.randomUUID()};
-    fixtureState.stored['target:1']=next;
-    fixtureState.onChange({'target:1':{newValue:next}},'session');
-  };fixtureState.modelMs=180;fixtureState.requests=[];
+  await read(`fixtureState.modelMs=180;fixtureState.requests=[];
   fixtureState.navigate('jNQXAC9IVRw',false);
   fixtureState.updateTitle('New lecture - YouTube')`)
   assert.equal(await read('document.getElementById("video-title").textContent'), 'New lecture')

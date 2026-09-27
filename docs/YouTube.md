@@ -268,6 +268,12 @@ the panel/worker for the session; it is not saved in that cache. Use the desktop
   model tests or edits.
 - **Could not connect:** run `npm run setup:youtube`, reload the extension, and retry.
   Moving the checkout or removing Node/Electron requires registering it again.
+- **Understand video seems to do nothing:** the button now shows **Opening
+  EasyUnderstand…** until the browser confirms the side panel opened and the request
+  was saved. An opening failure or missing response shows a retry or reconnect
+  message below the video; try again or use the extension's browser toolbar icon.
+  Delayed YouTube title updates also preserve the pending start request. Rebuild and
+  reload the extension, then refresh existing YouTube tabs to receive these fixes.
 - **Extension context invalidated / error in content.js after reloading:** refresh
   the existing YouTube tab once. Reloading the extension invalidates the script
   already attached to that page. The updated button catches both immediate throws
