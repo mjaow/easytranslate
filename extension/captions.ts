@@ -38,6 +38,19 @@ function timestampSeconds(value: unknown): number {
   if (parts.slice(1).some(n => n >= 60)) return NaN
   return parts.reduce((total, n) => total * 60 + n, 0)
 }
+/** An empty snippet is a blank cue; unknown or partly unreadable text is not. */
+function legacyCaptionText(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return
+  const snippet = value as { simpleText?: unknown; runs?: unknown }
+  if (typeof snippet.simpleText === 'string') return snippet.simpleText
+  if (Array.isArray(snippet.runs)) {
+    const runs = snippet.runs as { text?: unknown }[]
+    if (runs.every(run => run && typeof run.text === 'string')) return runs.map(run => run.text).join('')
+    return
+  }
+  if (Object.keys(value).length === 0) return ''
+}
 /** Read caption bodies, not commands in the search box or language menu. */
 export function parseTranscriptData(root: unknown, expectedVideoId?: string): ParsedTranscript {
   const segments: CaptionSegment[] = []
@@ -64,14 +77,16 @@ export function parseTranscriptData(root: unknown, expectedVideoId?: string): Pa
       walk(marker.item, depth + 1, true, marker.onTap?.innertubeCommand?.watchEndpoint?.videoId)
       return
     }
-    const view = obj.transcriptSegmentViewModel as { simpleText?: string; attributedText?: { content?: string }; timestamp?: string } | undefined
+    const view = obj.transcriptSegmentViewModel as { simpleText?: string; attributedText?: { content?: string }; timestamp?: string; textUtf16Length?: number } | undefined
     if (inModernBody && view) {
       const start = timestampSeconds(view.timestamp)
-      const text = view.attributedText?.content ?? view.simpleText ?? ''
+      // YouTube can end a transcript with a timestamp-only blank cue. Missing
+      // text fields are valid there; an unrecognized text object is still an error.
+      const text = view.attributedText?.content ?? view.simpleText ?? (view.attributedText === undefined && view.simpleText === undefined ? '' : undefined)
       if (expectedVideoId && markerVideoId !== expectedVideoId) videoIdMismatch = true
-      if (!Number.isFinite(start) || start < 0 || typeof text !== 'string' || !text.trim()) invalidSegments++
+      if (!Number.isFinite(start) || start < 0 || typeof text !== 'string' || !text.trim() && (view.textUtf16Length ?? 0) > 0) invalidSegments++
       // This format supplies a start timestamp, not an end time.
-      else segments.push({ start, duration: 0, text })
+      else if (text.trim()) segments.push({ start, duration: 0, text })
       return
     }
     // Search results are a subset, even when they have no continuation.
@@ -81,9 +96,9 @@ export function parseTranscriptData(root: unknown, expectedVideoId?: string): Pa
     if (s) {
       const start = Number(s.startMs) / 1000
       const end = Number(s.endMs ?? s.startMs) / 1000
-      const text = textOf(s.snippet)
-      if (s.startMs == null || !Number.isFinite(start) || start < 0 || !Number.isFinite(end) || end < start || !text.trim()) invalidSegments++
-      else segments.push({ start, duration: end - start, text })
+      const text = legacyCaptionText(s.snippet)
+      if (s.startMs == null || !Number.isFinite(start) || start < 0 || !Number.isFinite(end) || end < start || text === undefined) invalidSegments++
+      else if (text.trim()) segments.push({ start, duration: end - start, text })
       // A caption's seek/menu commands do not paginate the transcript.
       return
     }

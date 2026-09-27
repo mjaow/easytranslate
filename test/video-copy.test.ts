@@ -32,6 +32,6 @@ describe('complete summary export', () => {
     expect(text).not.toContain('Central argument.')
     expect(text).toContain('待检验的观点。')
     expect(text).not.toContain('A claim to examine.')
-    expect(text).not.toContain('**Limits of the argument:**')
+    expect(text).not.toContain('**Assumptions and limits:**')
   })
 })

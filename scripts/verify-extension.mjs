@@ -30,6 +30,29 @@ console.log('Caption-track capture retains the closing section.')
 dom = page('', true); result = await dom.window.eval(code)
 assert.equal(result.transcript.source, 'transcript-panel'); assert.equal(result.transcript.segments.length, 2); dom.window.close()
 console.log('Empty caption download falls back to full transcript renderer data.')
+
+dom = page('', true)
+{
+  const list = dom.window.document.querySelector('ytd-transcript-segment-list-renderer')
+  list.data.initialSegments.unshift({ transcriptSegmentRenderer: { startMs: '0', endMs: '5560', snippet: {} } })
+  list.data.initialSegments.push({ transcriptSegmentRenderer: { startMs: '3910000', endMs: '3921000', snippet: {} } })
+  result = await dom.window.eval(code)
+  assert.equal(result.transcript?.segments.length, 2, result.error)
+  assert.equal(result.transcript.complete, true)
+  assert.equal(result.transcript.segments.at(-1).text, 'The closing philosophical argument.')
+  dom.window.close()
+}
+console.log('Legacy blank cues at both ends preserve every spoken caption.')
+
+for (const invalid of [{ startMs: '0', snippet: { unknownText: 'Unrecognized' } }, { startMs: 'invalid', snippet: {} }]) {
+  dom = page('', true)
+  dom.window.document.querySelector('ytd-transcript-segment-list-renderer').data.initialSegments.push({ transcriptSegmentRenderer: invalid })
+  result = await dom.window.eval(code)
+  assert.equal(result.transcript, undefined)
+  assert.match(result.error, /unreadable caption rows/)
+  dom.window.close()
+}
+console.log('Malformed legacy cues still reject partial caption capture.')
 dom = page(''); result = await dom.window.eval(code)
 assert.match(result.error, /transcript button/); assert.equal(result.transcript, undefined); dom.window.close()
 console.log('Missing captions fail explicitly without using the description.')
@@ -195,6 +218,35 @@ assert.equal(result.transcript.language, 'YouTube selected track', 'Do not inven
 assert.equal(dom.window.panelRequests, 1)
 dom.window.close()
 console.log('Modern transcript payload loads directly with hour timestamps and without the legacy renderer.')
+
+// Stanford CS329A (6YnLB0XbTnI) ends with a timestamp-only cue at 1:09:37.
+// Exercise both capture routes, including the native-panel path that used to fail.
+for (const source of ['request', 'panel']) {
+  const list = modernList()
+  const blank = modernMarker('1:09:37', undefined)
+  delete blank.macroMarkersPanelItemViewModel.item.timelineItemViewModel.contentItems[0].transcriptSegmentViewModel.simpleText
+  list.contents = [{ itemSectionRenderer: { contents: [
+    modernMarker('0:00', 'Welcome, everyone, to fall quarter and welcome to CS329A.'),
+    modernMarker('1:09:28', 'No? All right. OK. Thanks, everyone.'), blank
+  ] } }]
+  dom = source === 'request' ? modernPage(modernBody(list)) : page('')
+  const player = dom.window.document.getElementById('movie_player'), data = player.getPlayerResponse()
+  data.videoDetails.lengthSeconds = '4182'
+  player.getPlayerResponse = () => data
+  if (source === 'panel') {
+    const panel = dom.window.document.createElement('ytd-engagement-panel-section-list-renderer')
+    panel.getClientRects = () => [{ width: 400 }]
+    panel.data = { content: { sectionListRenderer: list } }
+    dom.window.document.body.append(panel)
+  }
+  result = await dom.window.eval(code)
+  assert.equal(result.transcript?.segments.length, 2, result.error)
+  assert.equal(result.transcript.complete, true)
+  assert.equal(result.transcript.segments.at(-1).text, 'No? All right. OK. Thanks, everyone.')
+  assert.equal(result.transcript.segments.at(-1).start, 4168)
+  dom.window.close()
+}
+console.log('Timestamp-only blank cues preserve all spoken captions in direct and native modern capture.')
 
 for (const failure of ['next-page', 'wrong-video', 'stale-watch-data', 'unknown-panel']) {
   const list = modernList()

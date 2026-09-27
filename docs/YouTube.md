@@ -71,19 +71,24 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
   video model in Settings takes effect on the next run. Translation and follow-up
   questions leave the completed summary timing unchanged. Cancelled/failed runs
   freeze with their outcome and are not shown as completed speed measurements.
-- Read the central argument and **Key takeaways** first: what the speaker believes,
-  why, and what follows. The overview connects the reasoning; the takeaways explain
-  its essential steps and preserve an explicit concluding framework or recommendation.
-  Examples support those arguments rather than determining the summary's structure.
+- Read the overview and **Key takeaways** first. Summaries adapt to the video's
+  purpose: lectures explain concepts and how they connect; tutorials explain the
+  demonstrated method; discussions explain positions and their reasoning. Course
+  introductions distinguish what this session teaches from topics planned for later
+  lectures, keeping logistics secondary. Takeaways preserve substantive closing
+  lessons and important stated learning or project expectations. Examples clarify
+  the material rather than determining the summary's structure.
   Open **Explore the breakdown** for added depth. The prompt targets 4–6 entries,
   around 60–90 words each in total, with up to 8 when needed. Examples and caveats
   are optional; caveats must be material qualifications actually stated by the
   speaker. Empty fields are omitted. **Sources** inside
   each theme reveals timestamp links and caption excerpts. Reading text is 18px.
-- Open **Assess the argument** for a separate critical assessment of 1–3 central
-  arguments: support offered, material gaps or assumptions, and evidence that could
-  test them. It evaluates the captions and reasoning; it does not check external
-  facts. It should acknowledge real strengths and avoid manufacturing objections.
+- Open **Critical assessment** for a separate assessment of up to 3 substantive
+  claims: support offered, assumptions and limits, and evidence that could test
+  them. For teaching, it focuses on claims about results, methods or applicability;
+  definitions and course objectives do not need a manufactured debate. It is omitted
+  when no substantive assessment is warranted. It evaluates the captions and reasoning;
+  it does not check external facts or manufacture objections.
   This assessment is generated in the same request as the summary and breakdown.
 - **Copy summary + breakdown** copies the current language's overview, takeaways,
   every theme and critical assessment (including collapsed ones), unresolved questions, video URL, model
@@ -189,8 +194,9 @@ interview excerpt during testing, which may affect optional Chinese translation.
   endpoint and the command supplied for the current video. This supports its
   chapter-grouped caption format and hour timestamps without waiting for every
   visual row to render. It accepts only the dedicated transcript body, checks the
-  video IDs, and rejects payloads with pending pages. The new payload does not
-  always identify its language or automatic-caption status; in that case the UI
+  video IDs, and rejects payloads with pending pages. Blank cues in either caption
+  format are skipped; invalid timestamps and unreadable text still fail. The new payload
+  does not always identify its language or automatic-caption status; in that case the UI
   says **YouTube selected track** instead of guessing.
   If needed, it loads YouTube’s native transcript UI, supporting both panel layouts.
   It reads the complete caption body from the list,

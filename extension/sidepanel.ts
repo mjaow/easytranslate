@@ -71,7 +71,7 @@ function sourceButtons(ids: number[], initial = 3): HTMLElement {
 function renderIdea(idea: VideoIdea): void {
   const card = element('details', '', 'idea')
   card.append(element('summary', idea.title), element('p', idea.claim, 'claim'))
-  for (const [label, value] of [['Why', idea.reasoning], ['Example', idea.example], ['Caveat', idea.caveat]]) {
+  for (const [label, value] of [['Explanation', idea.reasoning], ['Example', idea.example], ['Caveat', idea.caveat]]) {
     if (!hasDetail(value)) continue
     const paragraph = element('p', '', 'detail-text')
     paragraph.append(element('strong', `${label}: `), document.createTextNode(value))
@@ -109,7 +109,7 @@ function renderAnalysis(analysis: VideoAnalysis, language: 'en' | 'zh'): void {
   get('evaluation').replaceChildren(...evaluations.map(item => {
     const card = element('article', '', 'assessment')
     card.append(element('h3', item.claim))
-    for (const [label, value] of [['Support offered', item.support], ['Limits of the argument', item.limits], ['Evidence to check', item.test]]) {
+    for (const [label, value] of [['Support offered', item.support], ['Assumptions and limits', item.limits], ['Evidence to check', item.test]]) {
       if (!hasDetail(value)) continue
       const paragraph = element('p', '', 'detail-text')
       paragraph.append(element('strong', `${label}: `), document.createTextNode(value))
@@ -119,7 +119,7 @@ function renderAnalysis(analysis: VideoAnalysis, language: 'en' | 'zh'): void {
     return card
   }))
   get('evaluation-section').hidden = !evaluations.length
-  get('evaluation-count').textContent = `· ${evaluations.length} ${evaluations.length === 1 ? 'argument' : 'arguments'}`
+  get('evaluation-count').textContent = `· ${evaluations.length} ${evaluations.length === 1 ? 'point' : 'points'}`
   get('unanswered').replaceChildren(...analysis.unanswered.map(x => element('li', x)))
   get('unanswered-section').hidden = !analysis.unanswered.length
   get('languages').hidden = false

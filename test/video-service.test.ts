@@ -188,6 +188,26 @@ describe('video workflow', () => {
     expect(events.some(e => e.type === 'result')).toBe(false)
     expect(mocks.calls).toHaveLength(1)
   })
+  it('returns and caches cited unanswered questions as strings without a second model call', async () => {
+    const question = 'How should we handle the closing concern?'
+    const transcript = { ...t, segments: [...t.segments, { start: 3890, duration: 5, text: question }] }
+    mocks.replies.push({ ...summary, unanswered: [{ question, sources: [3] }] })
+    await handleVideo({ id: 'questions', action: 'analyze', transcript }, emit, signal())
+    expect(events.at(-1)!.result).toMatchObject({ overview: summary.overview, unanswered: [question] })
+    expect(mocks.calls).toHaveLength(1)
+    await handleVideo({ id: 'cached-questions', action: 'analyze', transcript }, emit, signal())
+    expect(events.at(-1)).toMatchObject({ cached: true, result: { unanswered: [question] } })
+    expect(mocks.calls).toHaveLength(1)
+  })
+  it('rejects invalid unanswered question references without caching or retrying', async () => {
+    mocks.replies.push({ ...summary, unanswered: [{ question: 'An unresolved question?', sources: [999] }] })
+    await expect(handleVideo({ id: 'questions', action: 'analyze', transcript: t }, emit, signal())).rejects.toThrow(/outside/)
+    expect(events.some(e => e.type === 'result')).toBe(false)
+    expect(mocks.calls).toHaveLength(1)
+    await analyze()
+    expect(events.at(-1)!.cached).not.toBe(true)
+    expect(mocks.calls).toHaveLength(2)
+  })
   it('does not call a model for incomplete or cancelled input', async () => {
     await expect(handleVideo({ id: 'a', action: 'analyze', transcript: { ...t, complete: false } as unknown as VideoTranscript }, emit, signal())).rejects.toThrow(/complete/)
     const controller = new AbortController(); controller.abort()

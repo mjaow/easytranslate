@@ -22,7 +22,7 @@ export function analysisText(analysis: VideoAnalysis, transcript: VideoTranscrip
   lines.push('## Breakdown', '')
   for (const idea of analysis.ideas) {
     lines.push(`### ${idea.title}`, '', idea.claim, '')
-    for (const [label, value] of [['Why', idea.reasoning], ['Example', idea.example], ['Caveat', idea.caveat]]) {
+    for (const [label, value] of [['Explanation', idea.reasoning], ['Example', idea.example], ['Caveat', idea.caveat]]) {
       if (hasDetail(value)) lines.push(`**${label}:** ${value}`, '')
     }
     lines.push(`Sources: ${sources(idea.sources)}`, '')
@@ -31,7 +31,7 @@ export function analysisText(analysis: VideoAnalysis, transcript: VideoTranscrip
     lines.push('## Critical assessment', '', 'Model assessment of the transcript\'s evidence and reasoning. External facts have not been checked.', '')
     for (const item of analysis.evaluation) {
       lines.push(`### ${item.claim}`, '')
-      for (const [label, value] of [['Support offered', item.support], ['Limits of the argument', item.limits], ['Evidence to check', item.test]]) {
+      for (const [label, value] of [['Support offered', item.support], ['Assumptions and limits', item.limits], ['Evidence to check', item.test]]) {
         if (hasDetail(value)) lines.push(`**${label}:** ${value}`, '')
       }
       lines.push(`Relevant captions: ${sources(item.sources)}`, '')
