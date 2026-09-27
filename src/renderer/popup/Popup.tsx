@@ -127,44 +127,81 @@ function Section({
  * what the user meant, and rewriting the clipboard on each character would be both
  * wasteful and wrong.
  *
- * @returns what was just copied, or null. Quietly replacing someone's clipboard would
- *          be a poor way to behave, so the popup says what it took.
+ * @returns the copy confirmation or failure, or null when there is no notice.
  */
-function useCopyOnSelect(): string | null {
-  const [copied, setCopied] = useState<string | null>(null)
-  const lastCopied = useRef('')
+function useCopyOnSelect(lookupText: string | undefined): { text: string; error: boolean } | null {
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null)
 
   useEffect(() => {
-    const handle = async (): Promise<void> => {
+    let selecting = false
+    let request = 0
+    let active = true
+    const reset = (): void => {
+      selecting = false
+      request++
+      setNotice(null)
+    }
+    reset()
+
+    const start = (event: MouseEvent): void => {
+      const target = event.target
+      selecting =
+        event.button === 0 && target instanceof Element &&
+        target.closest('.et-selectable') !== null && target.closest('button') === null
+    }
+
+    const handle = async (event: MouseEvent): Promise<void> => {
+      const shouldCopy = selecting && event.button === 0
+      selecting = false
+      if (!shouldCopy) return
+
       const selected = window.getSelection()?.toString().trim() ?? ''
       // A plain click clears the selection; that is not a request to copy anything.
       if (!selected) return
-      // A drag that ends where it began, or the same words selected twice, would
-      // otherwise rewrite the clipboard with what is already on it.
-      if (selected === lastCopied.current) return
 
-      const res = await window.easytranslate.copySelection(selected)
-      if (!res.ok) return
-      lastCopied.current = selected
-      setCopied(selected)
+      // Copy once per gesture, even when the words match an earlier copy: another
+      // app may have replaced the clipboard since then.
+      const current = ++request
+      setNotice(null)
+      try {
+        const res = await window.easytranslate.copySelection(selected)
+        if (!active || current !== request) return
+        setNotice(
+          res.ok
+            ? { text: copiedNotice(selected), error: false }
+            : { text: res.error || 'Could not copy the selection.', error: true }
+        )
+      } catch (err) {
+        if (!active || current !== request) return
+        setNotice({
+          text: (err instanceof Error ? err.message : String(err)) || 'Could not copy the selection.',
+          error: true
+        })
+      }
     }
 
     // On the document rather than the content: a drag often ends outside the element
     // it started in, and the selection is still exactly what was wanted.
-    const listener = (): void => void handle()
+    const listener = (event: MouseEvent): void => void handle(event)
+    const unsubscribe = window.easytranslate.onStopAudio(reset)
+    document.addEventListener('mousedown', start)
     document.addEventListener('mouseup', listener)
-    return () => document.removeEventListener('mouseup', listener)
-  }, [])
+    return () => {
+      active = false
+      unsubscribe()
+      document.removeEventListener('mousedown', start)
+      document.removeEventListener('mouseup', listener)
+    }
+  }, [lookupText])
 
-  // Kept separate from the read-aloud status line, and cleared again, so a
-  // confirmation never buries a real message or leaves the popup a line taller.
+  // Success is brief; a failure stays visible until the next attempt or lookup.
   useEffect(() => {
-    if (copied === null) return
-    const timer = setTimeout(() => setCopied(null), 1600)
+    if (notice === null || notice.error) return
+    const timer = setTimeout(() => setNotice(null), 1600)
     return () => clearTimeout(timer)
-  }, [copied])
+  }, [notice])
 
-  return copied
+  return notice
 }
 
 /** Short enough to read at a glance, quoted so it is clear what landed. */
@@ -192,7 +229,7 @@ export function Popup(): React.ReactElement | null {
   // explicitly when it goes away.
   useEffect(() => window.easytranslate.onStopAudio(() => stopAudio()), [])
 
-  const copied = useCopyOnSelect()
+  const copyNotice = useCopyOnSelect(state?.text)
 
   // Size the window to whatever the content actually needs.
   useEffect(() => {
@@ -445,12 +482,22 @@ export function Popup(): React.ReactElement | null {
             </>
           )}
 
-          {(copied !== null || status) && (
+          {status && (
             <div className="text-[11px]" style={{ color: 'var(--text-subtle)' }}>
-              {copied !== null ? copiedNotice(copied) : status}
+              {status}
             </div>
           )}
         </div>
+
+        {copyNotice && (
+          <div
+            role={copyNotice.error ? 'alert' : 'status'}
+            className="px-3 pb-2.5 text-[11px]"
+            style={{ color: copyNotice.error ? 'var(--danger)' : 'var(--text-subtle)' }}
+          >
+            {copyNotice.text}
+          </div>
+        )}
       </div>
     </div>
   )
