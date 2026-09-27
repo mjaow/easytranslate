@@ -1,7 +1,7 @@
 /**
  * Orchestrates one lookup: capture → explain → stream into the popup.
  */
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, clipboard, screen } from 'electron'
 import { appendFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CaptureFailure, ExplainRequest, ExplainState } from '../shared/types.js'
@@ -282,6 +282,37 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
     updatePopup(state)
   } finally {
     if (inFlight === controller) inFlight = null
+  }
+}
+
+/**
+ * A selection's worth of text is longer than any explanation the popup can show, so
+ * anything past this is not a selection — it is a bug or a payload, and either way it
+ * has no business on the user's clipboard.
+ */
+const MAX_COPY_CHARS = 20_000
+
+/**
+ * Put what the user selected in the popup on the clipboard.
+ *
+ * This is the one place the app writes the clipboard and leaves it written. The
+ * capture path borrows it and always puts the original back; selecting text in the
+ * popup is the user asking for the opposite, and it is the only way text can leave a
+ * window that never takes focus — their own ⌘C would reach whatever app does have it.
+ */
+export async function copySelection(text: string): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = text.trim()
+  if (!trimmed) return { ok: false }
+  if (trimmed.length > MAX_COPY_CHARS) return { ok: false, error: 'That is too much to copy.' }
+
+  try {
+    // Awaited, not fired and forgotten: Electron's clipboard is asynchronous, so
+    // otherwise the popup would report a copy that had not happened yet, and a failure
+    // would surface as an unhandled rejection rather than a message.
+    await clipboard.writeText(trimmed)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 

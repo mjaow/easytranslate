@@ -61,7 +61,36 @@ body {
 body.popup {
   background: transparent;
   overflow: hidden;
+  /* Off by default so a drag across the chrome does not select button glyphs and
+     icons; the explanation itself opts back in with .et-selectable below. */
   user-select: none;
+}
+
+/* The parts of the popup worth copying out of.
+   Selecting here is how text leaves the popup: the window never takes focus, so a
+   keyboard copy would land in whatever app does have it, and binding the copy chord
+   is the one thing this app will not do. So the selection itself is copied — see
+   Popup.tsx. The text cursor is what makes that discoverable. */
+.et-selectable,
+.et-selectable * {
+  user-select: text;
+  cursor: text;
+}
+
+/* The read-aloud buttons sit inside the selectable body. They are things to press,
+   not words to copy. */
+.et-selectable button {
+  user-select: none;
+  cursor: default;
+}
+
+/* A window that is never key gets the muted "inactive" highlight from the system,
+   which on a dark card is nearly invisible. Since the selection is the gesture that
+   copies, it has to be obvious that something is selected. */
+.et-selectable ::selection,
+.et-selectable::selection {
+  background: var(--accent);
+  color: var(--surface);
 }
 
 body.settings {

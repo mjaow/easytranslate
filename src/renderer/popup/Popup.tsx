@@ -114,6 +114,66 @@ function Section({
   )
 }
 
+/**
+ * Selecting text in the popup copies it.
+ *
+ * Not a shortcut taken for convenience — it is the only way out. The popup never takes
+ * focus, so ⌘C and Ctrl+C go to whatever app does have focus, and binding the copy
+ * chord so it reaches the popup instead is exactly what the copy-safety contract
+ * forbids. A drag still selects perfectly well in a window that is not key, so the
+ * selection itself is the gesture.
+ *
+ * On mouse-up rather than on every selection change: mid-drag the selection is not yet
+ * what the user meant, and rewriting the clipboard on each character would be both
+ * wasteful and wrong.
+ *
+ * @returns what was just copied, or null. Quietly replacing someone's clipboard would
+ *          be a poor way to behave, so the popup says what it took.
+ */
+function useCopyOnSelect(): string | null {
+  const [copied, setCopied] = useState<string | null>(null)
+  const lastCopied = useRef('')
+
+  useEffect(() => {
+    const handle = async (): Promise<void> => {
+      const selected = window.getSelection()?.toString().trim() ?? ''
+      // A plain click clears the selection; that is not a request to copy anything.
+      if (!selected) return
+      // A drag that ends where it began, or the same words selected twice, would
+      // otherwise rewrite the clipboard with what is already on it.
+      if (selected === lastCopied.current) return
+
+      const res = await window.easytranslate.copySelection(selected)
+      if (!res.ok) return
+      lastCopied.current = selected
+      setCopied(selected)
+    }
+
+    // On the document rather than the content: a drag often ends outside the element
+    // it started in, and the selection is still exactly what was wanted.
+    const listener = (): void => void handle()
+    document.addEventListener('mouseup', listener)
+    return () => document.removeEventListener('mouseup', listener)
+  }, [])
+
+  // Kept separate from the read-aloud status line, and cleared again, so a
+  // confirmation never buries a real message or leaves the popup a line taller.
+  useEffect(() => {
+    if (copied === null) return
+    const timer = setTimeout(() => setCopied(null), 1600)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  return copied
+}
+
+/** Short enough to read at a glance, quoted so it is clear what landed. */
+function copiedNotice(text: string): string {
+  const oneLine = text.replace(/\s+/g, ' ')
+  const shown = oneLine.length > 32 ? `${oneLine.slice(0, 32)}…` : oneLine
+  return `Copied “${shown}”`
+}
+
 export function Popup(): React.ReactElement | null {
   const [state, setState] = useState<ExplainState | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -131,6 +191,8 @@ export function Popup(): React.ReactElement | null {
   // The window only hides, it is never destroyed, so playback has to be stopped
   // explicitly when it goes away.
   useEffect(() => window.easytranslate.onStopAudio(() => stopAudio()), [])
+
+  const copied = useCopyOnSelect()
 
   // Size the window to whatever the content actually needs.
   useEffect(() => {
@@ -178,7 +240,7 @@ export function Popup(): React.ReactElement | null {
           className="flex items-start gap-1.5 border-b px-3 py-2"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-muted)' }}
         >
-          <div className="min-w-0 flex-1">
+          <div className="et-selectable min-w-0 flex-1">
             <div className={`font-semibold leading-snug ${isCode ? 'font-mono text-[12px]' : 'text-[14px]'}`}>
               {headline || 'EasyTranslate'}
             </div>
@@ -227,7 +289,8 @@ export function Popup(): React.ReactElement | null {
         </div>
 
         {/* ------------------------------------------------------------ body */}
-        <div className="space-y-2.5 px-3 py-2.5">
+        {/* Selectable, and selecting is what copies — see useCopyOnSelect above. */}
+        <div className="et-selectable space-y-2.5 px-3 py-2.5">
           {state.status === 'error' ? (
             <div className="text-[13px] leading-snug" style={{ color: 'var(--danger)' }}>
               {state.error}
@@ -382,9 +445,9 @@ export function Popup(): React.ReactElement | null {
             </>
           )}
 
-          {status && (
+          {(copied !== null || status) && (
             <div className="text-[11px]" style={{ color: 'var(--text-subtle)' }}>
-              {status}
+              {copied !== null ? copiedNotice(copied) : status}
             </div>
           )}
         </div>

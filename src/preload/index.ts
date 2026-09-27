@@ -31,6 +31,11 @@ const api = {
     ipcRenderer.send(IPC.popupExplainCode)
   },
 
+  /** Put text the user selected in the popup on the clipboard. */
+  copySelection(text: string): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke(IPC.popupCopySelection, text)
+  },
+
   /** Report measured content height so the window can size itself to fit. */
   resize(height: number): void {
     ipcRenderer.send(IPC.popupResize, height)
