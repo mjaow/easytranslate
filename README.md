@@ -7,8 +7,21 @@ video with captions on and the caption is explained too.
 
 **Windows 10/11 and macOS 13+.**
 
-**It will not break your copy and paste.** Nothing of EasyTranslate ever enters a page,
-and the popup never takes focus. See [How it works](#how-it-works).
+**It will not break your copy and paste.** The desktop selection popup never takes
+focus. The optional YouTube companion adds its own button and browser side panel;
+caption capture does not use the clipboard. Its copy button writes the analysis
+only when clicked. See [How it works](#how-it-works).
+
+### One-click YouTube understanding
+
+The optional Chrome/Edge companion reads the complete caption transcript in one
+summary request. Read the core argument and takeaways first, then open concise
+breakdowns, supporting timestamps, and a separate assessment of the reasoning.
+Copy the full analysis, ask follow-up questions, or translate it to Chinese on
+demand. Video analysis has its own model and encrypted key, with Azure Responses
+support. The panel reports transcript size, elapsed time, and cache usage; saved
+summaries expire after 7 days and can be cleared. Run `npm run setup:youtube`, then
+load `out/extension` as an unpacked extension. [Setup and usage](docs/YouTube.md).
 
 ---
 
@@ -183,6 +196,7 @@ ids that key can actually call. Groq and Gemini speak the OpenAI protocol, so th
 
 | Preset | Cost at ~100 lookups/day | Notes |
 |---|---|---|
+| Azure GPT-6 Luna | Azure deployment pricing | Translation and code explanations through the Responses API |
 | **Qwen Flash** | **~$0.07/month** | Alibaba's own model: cheapest, most idiomatic Chinese |
 | Gemini Flash-Lite | free tier | Best Chinese of the free options |
 | Groq | free tier | Fastest; Llama is the weakest here at Chinese |
@@ -194,6 +208,14 @@ ids that key can actually call. Groq and Gemini speak the OpenAI protocol, so th
 Base-URL conventions differ: the Anthropic SDK appends `/v1/messages` itself, while the
 OpenAI SDK appends `/chat/completions`, so an OpenAI-style base URL must already end in
 `/v1`.
+
+For **Azure OpenAI — GPT-6 Luna**, enter your deployment name and the full endpoint
+ending in `/openai/responses?api-version=…`, then save the Azure resource key.
+This provider uses Azure `api-key` authentication and reasoning effort `none`.
+Set **Model for code explanations** to the deployment name too, or leave it empty
+to use the everyday model. Its encrypted Azure key is separate from OpenAI-compatible
+providers and YouTube analysis. **Test connection** checks the configured deployments;
+Azure failures do not attempt a public model listing.
 
 ### Voices
 
@@ -349,7 +371,7 @@ each platform does them its own way:
 Everything above that table — providers, prompts, the streaming parser, the popup and
 settings UIs, the transcript and caption rules — is one implementation, shared.
 
-**Why not a browser extension.** To offer click-to-translate, an extension must inject
+**Why the selection translator is a desktop app.** A click-to-translate extension can inject
 DOM next to your selection, and that overlay collapses the selection so your own Ctrl+C
 grabs nothing. It also only lives in one browser. Running outside every app, driven by a
 global hotkey, is what makes "works everywhere" and "never touches your selection"
@@ -357,7 +379,9 @@ both free.
 
 **The copy-safety contract.** Testable rules the implementation holds to:
 
-1. No content scripts, no injected DOM, no page listeners.
+1. The desktop selection translator uses no content scripts, injected DOM or page
+   listeners. The optional YouTube companion separately adds its own button and
+   reads caption data, without borrowing the clipboard or handling selection clicks.
 2. The clipboard is always restored, every format, typically within ~150ms.
 3. The popup never takes focus, and that is checked rather than assumed. Electron's
    `focusable: false` is

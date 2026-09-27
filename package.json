@@ -8,7 +8,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run typecheck && electron-vite build && npm run build:extension",
     "dev": "electron-vite dev",
     "dist": "npm run build && electron-builder --win nsis",
     "dist:mac": "npm run build && electron-builder --mac dmg",
@@ -19,11 +19,15 @@
     "start": "electron-vite build && electron .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.extension.json",
     "verify:capture": "electron-vite build && electron . --verify-capture",
     "verify:hotkeys": "electron-vite build && electron . --verify-hotkeys",
     "verify:click": "electron-vite build && electron . --verify-click",
-    "verify:code": "electron-vite build && electron . --verify-code"
+    "verify:code": "electron-vite build && electron . --verify-code",
+    "build:extension": "node scripts/build-extension.mjs",
+    "setup:youtube": "npm run build && node scripts/setup-youtube.mjs",
+    "verify:youtube": "node scripts/verify-content.mjs && node scripts/verify-extension.mjs && node scripts/verify-native.mjs",
+    "verify:settings": "node scripts/verify-settings-ipc.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
@@ -32,6 +36,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.13",
+    "@types/chrome": "^0.3.0",
     "@types/node": "^22.15.3",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
@@ -39,6 +44,8 @@
     "electron": "^44.3.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^26.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwindcss": "^4.1.13",

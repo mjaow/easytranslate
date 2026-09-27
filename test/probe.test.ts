@@ -10,6 +10,7 @@ function cfg(baseUrl: string, model = 'nonexistent-model'): AppConfig {
       provider: 'ollama',
       models: { ollama: model },
       codeModel: '',
+      videoModel: '',
       baseUrls: { ollama: baseUrl }
     },
     tts: {

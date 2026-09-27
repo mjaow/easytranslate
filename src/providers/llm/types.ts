@@ -5,6 +5,7 @@ export interface LlmProvider {
   readonly label: string
   /** Yields text fragments as they arrive. Throws with a user-readable message. */
   explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string>
+  generate(req: GenerationRequest, signal: AbortSignal): AsyncIterable<string>
   /**
    * Smallest possible real request, to prove the key and model actually work.
    * Throws the same errors `explain` would.
@@ -16,6 +17,13 @@ export interface ProviderOptions {
   apiKey: string | null
   model: string
   baseUrl?: string
+}
+
+export interface GenerationRequest {
+  system: string
+  user: string
+  maxTokens: number
+  json?: boolean
 }
 
 /** Errors whose message is safe and useful to show directly in the popup. */

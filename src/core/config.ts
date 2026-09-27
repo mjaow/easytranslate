@@ -9,6 +9,8 @@ import { app, safeStorage } from 'electron'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import type { AppConfig, LlmProviderId, SecretId } from '../shared/types.js'
+import { DEFAULT_VIDEO_PRESET } from '../shared/presets.js'
+import { withVideoDefaults } from './video-config.js'
 
 export const DEFAULT_CONFIG: AppConfig = {
   hotkeys: {
@@ -34,6 +36,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     models: {
       claude: 'claude-haiku-4-5',
       openai: 'qwen-flash',
+      azure: 'gpt-6-luna',
       ollama: 'qwen2.5:3b'
     },
     // Note the differing conventions: the Anthropic SDK appends /v1/messages to its
@@ -42,9 +45,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     baseUrls: {
       claude: 'https://api.anthropic.com',
       openai: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+      azure: 'https://YOUR-RESOURCE-NAME.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview',
       ollama: 'http://localhost:11434'
     },
-    codeModel: ''
+    codeModel: '',
+    videoProvider: DEFAULT_VIDEO_PRESET.provider,
+    videoBaseUrl: DEFAULT_VIDEO_PRESET.baseUrl,
+    videoModel: DEFAULT_VIDEO_PRESET.model
   },
   tts: {
     // Online by default: the Windows voices are noticeably robotic, and hearing a
@@ -80,13 +87,18 @@ function merge(stored: unknown): AppConfig {
   return {
     hotkeys: { ...DEFAULT_CONFIG.hotkeys, ...s.hotkeys },
     doubleClickTranscripts: s.doubleClickTranscripts ?? DEFAULT_CONFIG.doubleClickTranscripts,
-    llm: {
+    llm: withVideoDefaults({
       ...DEFAULT_CONFIG.llm,
       ...s.llm,
       models: { ...DEFAULT_CONFIG.llm.models, ...s.llm?.models },
       baseUrls: { ...DEFAULT_CONFIG.llm.baseUrls, ...s.llm?.baseUrls },
-      codeModel: s.llm?.codeModel ?? ''
-    },
+      codeModel: s.llm?.codeModel ?? '',
+      // Old files lack video fields or store an empty optional override.
+      // Never accidentally apply an old model ID to the new Google endpoint.
+      videoProvider: s.llm?.videoProvider,
+      videoBaseUrl: s.llm?.videoBaseUrl,
+      videoModel: s.llm?.videoModel ?? ''
+    }),
     tts: { ...DEFAULT_CONFIG.tts, ...s.tts },
     launchAtLogin: s.launchAtLogin ?? DEFAULT_CONFIG.launchAtLogin
   }
@@ -170,6 +182,8 @@ export function getSecret(provider: SecretId): string | null {
   const fromEnv =
     provider === 'claude'
       ? process.env.ANTHROPIC_API_KEY
+      : provider === 'video'
+        ? process.env.EASYTRANSLATE_VIDEO_API_KEY
       : provider === 'openai' || provider === 'tts'
         ? process.env.OPENAI_API_KEY
         : undefined

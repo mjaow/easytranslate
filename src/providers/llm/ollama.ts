@@ -1,6 +1,6 @@
 import type { ExplainRequest } from '../../shared/types.js'
 import { systemPrompt, userPrompt } from '../../core/explain.js'
-import { ProviderError, type LlmProvider, type ProviderOptions } from './types.js'
+import { ProviderError, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
 
 /**
  * Local models via Ollama. No SDK — Ollama's chat endpoint streams newline-delimited
@@ -38,6 +38,10 @@ export class OllamaProvider implements LlmProvider {
   }
 
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
+    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: 1024 }, signal)
+  }
+
+  async *generate(req: GenerationRequest, signal: AbortSignal): AsyncIterable<string> {
     const base = (this.opts.baseUrl ?? 'http://localhost:11434').replace(/\/$/, '')
 
     let res: Response
@@ -49,9 +53,11 @@ export class OllamaProvider implements LlmProvider {
         body: JSON.stringify({
           model: this.opts.model,
           stream: true,
+          options: { num_predict: req.maxTokens, ...(req.json ? { num_ctx: 32768 } : {}) },
+          ...(req.json ? { format: 'json' } : {}),
           messages: [
-            { role: 'system', content: systemPrompt(req.mode) },
-            { role: 'user', content: userPrompt(req) }
+            { role: 'system', content: req.system },
+            { role: 'user', content: req.user }
           ]
         })
       })
