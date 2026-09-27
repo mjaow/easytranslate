@@ -198,6 +198,26 @@ describe('video workflow', () => {
     expect(events.at(-1)).toMatchObject({ cached: true, result: { ideas } })
     expect(mocks.calls).toHaveLength(1)
   })
+  it('returns and caches all supported takeaways beyond six without a second model call', async () => {
+    const takeaways = Array.from({ length: 7 }, (_, index) => ({ text: `Supported point ${index + 1}.`, sources: [1, 2] }))
+    mocks.replies.push({ ...summary, takeaways })
+    await handleVideo({ id: 'extra-takeaways', action: 'analyze', transcript: t }, emit, signal())
+    expect(events.at(-1)).toMatchObject({ type: 'result', result: { overview: summary.overview, takeaways } })
+    expect(mocks.calls).toHaveLength(1)
+    await handleVideo({ id: 'cached-extra-takeaways', action: 'analyze', transcript: t }, emit, signal())
+    expect(events.at(-1)).toMatchObject({ cached: true, result: { takeaways } })
+    expect(mocks.calls).toHaveLength(1)
+  })
+  it('rejects an unsupported seventh takeaway without caching or retrying', async () => {
+    const takeaways = [...Array(6).fill(summary.takeaways[0]), { text: 'Unsupported point.', sources: [999] }]
+    mocks.replies.push({ ...summary, takeaways })
+    await expect(handleVideo({ id: 'bad-takeaway', action: 'analyze', transcript: t }, emit, signal())).rejects.toThrow(/outside/)
+    expect(events.some(e => e.type === 'result')).toBe(false)
+    expect(mocks.calls).toHaveLength(1)
+    await analyze()
+    expect(events.at(-1)!.cached).not.toBe(true)
+    expect(mocks.calls).toHaveLength(2)
+  })
   it('returns and caches cited unanswered questions as strings without a second model call', async () => {
     const question = 'How should we handle the closing concern?'
     const transcript = { ...t, segments: [...t.segments, { start: 3890, duration: 5, text: question }] }

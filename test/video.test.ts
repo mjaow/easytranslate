@@ -43,6 +43,23 @@ describe('video evidence boundaries', () => {
     expect(() => parseSummary({ ...summary, takeaways: [{ text: 'Unsupported.', sources: [999] }] }, chunk)).toThrow(/outside/)
     expect(() => parseSummary({ ...summary, takeaways: [{ text: 'Unsupported.', sources: [] }] }, chunk)).toThrow(/supporting captions/)
   })
+  it('preserves supported takeaways beyond six while enforcing output and evidence bounds', () => {
+    const chunk = { first: 1, last: 606, text: '' }
+    const takeaways = Array.from({ length: 30 }, (_, index) => ({ text: `Supported point ${index + 1}.`, sources: [index + 1, 606] }))
+    const summary = { overview: 'An overview.', takeaways: takeaways.slice(0, 7), connections: '', ideas: [], evaluation: [], unanswered: [] }
+    expect(parseSummary(summary, chunk).takeaways).toEqual(takeaways.slice(0, 7))
+    expect(parseSummary({ ...summary, takeaways }, chunk).takeaways).toEqual(takeaways)
+    expect(() => parseSummary({ ...summary, takeaways: [...takeaways, takeaways[0]] }, chunk)).toThrow(/30 takeaways.*31 received/)
+    for (const invalid of [undefined, null, {}, 'A takeaway', []]) {
+      expect(() => parseSummary({ ...summary, takeaways: invalid }, chunk)).toThrow(/non-empty takeaways array/)
+    }
+    // An invalid extra point must still fail, rather than being dropped at the prompt target.
+    const extra = takeaways[6]
+    for (const invalid of [null, 'A takeaway', { ...extra, sources: [607] }, { ...extra, sources: [] },
+      { ...extra, sources: ['606'] }, { ...extra, text: ' ' }, { ...extra, text: 'x'.repeat(601) }]) {
+      expect(() => parseSummary({ ...summary, takeaways: [...takeaways.slice(0, 6), invalid] }, chunk)).toThrow()
+    }
+  })
   it('keeps the model assessment separate and requires references to the argument being assessed', () => {
     const chunk = chunkCaptions(transcript.segments)[0]
     const item = { claim: 'Stagnation has risks.', support: 'The speaker asserts this.', limits: 'No comparison is given.', test: '', sources: [1] }

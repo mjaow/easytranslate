@@ -201,20 +201,25 @@ app.whenReady().then(async () => {
   await finished()
   assert.equal(await read('document.getElementById("timing-source").textContent'), freshSource, 'next summary is generated afresh')
 
-  // An extra valid theme must remain readable and exportable, not disappear at
-  // the prompt's eight-theme target. The service tests cover its validation.
-  await read(`fixtureState.analysis={...fixtureState.analysis,ideas:Array.from({length:9},(_,index)=>({
+  // Extra valid takeaways and themes must remain readable and exportable beyond
+  // the prompt targets. The service tests cover their validation.
+  await read(`fixtureState.analysis={...fixtureState.analysis,takeaways:Array.from({length:7},(_,index)=>({
+    text:'Supported takeaway '+(index+1),sources:[1,2]
+  })),ideas:Array.from({length:9},(_,index)=>({
     ...fixtureState.analysis.ideas[index%fixtureState.analysis.ideas.length],title:'Theme '+(index+1)
   }))};document.getElementById('understand').click()`)
   await finished()
   assert.equal(await read('document.getElementById("error").hidden'), true)
+  assert.equal(await read('document.querySelectorAll("#takeaways > li").length'), 7)
+  assert.equal(await read('document.querySelector("#takeaways > li:last-child > p").textContent'), 'Supported takeaway 7')
   assert.equal(await read('document.querySelectorAll("#ideas > details.idea").length'), 9)
   assert.equal(await read('document.getElementById("idea-count").textContent'), '· 9 key themes')
   assert.equal(await read('document.querySelector("#ideas > details.idea:last-child > summary").textContent'), 'Theme 9')
   await read('document.getElementById("copy-summary").click()')
   await waitFor('document.getElementById("copy-status").textContent.startsWith("Copied")')
+  assert.match(await read('fixtureState.copied'), /- Supported takeaway 7\n/)
   assert.match(await read('fixtureState.copied'), /### Theme 9/)
-  console.log('All nine valid themes render and copy, including the extra theme beyond the prompt target.')
+  console.log('All seven takeaways and nine themes render and copy, including entries beyond the prompt targets.')
 
   await read('fixtureState.mode="failure";document.getElementById("understand").click()')
   await finished()
