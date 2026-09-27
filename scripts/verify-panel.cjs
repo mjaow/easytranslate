@@ -5,7 +5,7 @@ const { readFileSync, writeFileSync, mkdirSync, unlinkSync } = require('node:fs'
 const { resolve } = require('node:path')
 const assert = require('node:assert/strict')
 app.disableHardwareAcceleration()
-const timer = setTimeout(() => app.exit(1), 20000)
+const timer = setTimeout(() => { console.error('Panel verification exceeded 40 seconds.'); app.exit(1) }, 40000)
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 440, height: 1150, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } })
   const fixture = { overview: 'Thiel weighs the risks of AI against the political risks of stagnation. He argues that slowing progress is itself a consequential choice, rather than a neutral baseline.',
@@ -240,6 +240,43 @@ app.whenReady().then(async () => {
   const consumed = await read('({...fixtureState.stored["target:1"],start:true,token:fixtureState.stored["started:1"]})')
   await read(`fixtureState.onChange({'target:1':{newValue:${JSON.stringify(consumed)}}},'session')`)
   assert.equal(await read('document.getElementById("timing").hidden'), true)
+
+  // YouTube changes the URL before the browser title. A later title-only event
+  // must update the header without starting work, resetting state, or cancelling.
+  await read(`fixtureState.updateTitle = title => {
+    const next = {...fixtureState.stored['target:1'],title,start:false,token:crypto.randomUUID()};
+    fixtureState.stored['target:1']=next;
+    fixtureState.onChange({'target:1':{newValue:next}},'session');
+  };fixtureState.modelMs=180;fixtureState.requests=[];
+  fixtureState.navigate('jNQXAC9IVRw',false);
+  fixtureState.updateTitle('New lecture - YouTube')`)
+  assert.equal(await read('document.getElementById("video-title").textContent'), 'New lecture')
+  assert.equal(await read('fixtureState.requests.length'), 0, 'a title change does not start a summary')
+
+  // The captured player metadata is tied to the checked video ID. It also fixes
+  // a stale tab title when its title event is delayed or never reaches the panel.
+  await read(`fixtureState.updateTitle('Previous video - YouTube');
+    fixtureState.transcript={...fixtureState.transcript,title:'Current lecture from the player'};
+    document.getElementById('understand').click()`)
+  await waitFor('fixtureState.requests.at(-1)?.action === "analyze"')
+  assert.equal(await read('document.getElementById("video-title").textContent'), 'Current lecture from the player')
+  await read("fixtureState.updateTitle('Late browser title - YouTube')")
+  await finished()
+  assert.equal(await read('document.getElementById("video-title").textContent'), 'Current lecture from the player')
+  assert.equal(await read('document.getElementById("error").hidden'), true)
+  assert.equal(await read('fixtureState.requests.filter(r=>r.action==="analyze").length'), 1)
+  const titleUpdateTotal = await total()
+  await read("fixtureState.updateTitle('Another delayed title - YouTube')")
+  assert.equal(await total(), titleUpdateTotal, 'metadata updates preserve the completed summary timing')
+  assert.equal(await read('document.getElementById("overview-card").hidden'), false)
+  await read('document.getElementById("copy-summary").click()')
+  await waitFor('document.getElementById("copy-status").textContent.startsWith("Copied")')
+  assert.match(await read('fixtureState.copied'), /^# Current lecture from the player\n/)
+  assert.match(await read('fixtureState.copied'), /watch\?v=jNQXAC9IVRw/)
+  await read("fixtureState.navigate('B7yl7fEHeKM',false);fixtureState.updateTitle('Next video - YouTube')")
+  assert.equal(await read('document.getElementById("video-title").textContent'), 'Next video')
+  assert.equal(await read('document.getElementById("overview-card").hidden'), true)
+  console.log('Delayed title changes, captured video titles, copy titles, and navigation reset passed without extra summary requests.')
   console.log('Summary, breakdown, separate critical assessment, 18px/narrow layout, full/translated copy, and existing timing/cache/cancel flows passed.')
   unlinkSync(resolve('out/extension/preview.html'))
   clearTimeout(timer); win.destroy(); app.exit(0)

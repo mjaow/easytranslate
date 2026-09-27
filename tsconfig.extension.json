@@ -5,5 +5,5 @@
     "strict": true, "noUnusedLocals": true, "noUnusedParameters": true,
     "skipLibCheck": true, "noEmit": true
   },
-  "include": ["extension/**/*.ts", "src/shared/video.ts"]
+  "include": ["extension/**/*.ts", "src/shared/video.ts", "test/video-background.test.ts"]
 }
