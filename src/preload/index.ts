@@ -65,6 +65,10 @@ const api = {
     return ipcRenderer.invoke(IPC.llmTest)
   },
 
+  testVideoModel(): Promise<{ ok: boolean; message: string }> {
+    return ipcRenderer.invoke(IPC.videoTest)
+  },
+
   /** Which providers have a key stored. Never returns the keys themselves. */
   secretStatus(): Promise<Record<string, boolean>> {
     return ipcRenderer.invoke(IPC.configSecretStatus)

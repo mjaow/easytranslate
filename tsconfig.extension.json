@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["chrome"],
+    "strict": true, "noUnusedLocals": true, "noUnusedParameters": true,
+    "skipLibCheck": true, "noEmit": true
+  },
+  "include": ["extension/**/*.ts", "src/shared/video.ts"]
+}

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { AppConfig, LlmProviderId, TtsProviderId } from '@shared/types'
-import { ENDPOINT_PRESETS } from '@shared/presets'
+import { SETTINGS_API_VERSION, type AppConfig, type LlmProviderId, type TtsProviderId, type VideoReasoningEffort } from '@shared/types'
+import { ENDPOINT_PRESETS, VIDEO_PRESETS } from '@shared/presets'
+import { videoKeyScope, videoReasoningEffort } from '@shared/video-settings'
 import { toAccelerator, formatAccelerator } from '@shared/accelerator'
 
 interface Bootstrap {
+  settingsApiVersion?: number
   config: AppConfig
   providers: { id: LlmProviderId; label: string; needsKey: boolean }[]
   captureAvailable: boolean
@@ -80,9 +82,13 @@ const inputClass = 'w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-n
  * unguessable error into a click.
  */
 function ConnectionTester({
-  onPickModel
+  onPickModel,
+  video = false,
+  disabled = false
 }: {
   onPickModel: (model: string) => Promise<void>
+  video?: boolean
+  disabled?: boolean
 }): React.ReactElement {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{
@@ -96,7 +102,7 @@ function ConnectionTester({
     setBusy(true)
     setResult(null)
     try {
-      setResult(await window.easytranslate.testLlm())
+      setResult(await (video ? window.easytranslate.testVideoModel() : window.easytranslate.testLlm()))
     } catch (err) {
       setResult({ ok: false, message: err instanceof Error ? err.message : String(err) })
     } finally {
@@ -108,11 +114,11 @@ function ConnectionTester({
     <div className="space-y-1.5">
       <button
         onClick={() => void run()}
-        disabled={busy}
+        disabled={busy || disabled}
         className="rounded-md border px-3 py-1.5 text-[13px] font-medium disabled:opacity-40"
         style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
       >
-        {busy ? 'Testing…' : 'Test connection'}
+        {busy ? 'Testing…' : video ? 'Test video model' : 'Test connection'}
       </button>
 
       {result && (
@@ -365,16 +371,31 @@ export function Settings(): React.ReactElement {
   const [secrets, setSecrets] = useState<Record<string, boolean>>({})
   const [keyDraft, setKeyDraft] = useState('')
   const [ttsKeyDraft, setTtsKeyDraft] = useState('')
+  const [videoKeyDraft, setVideoKeyDraft] = useState('')
+  const [videoNote, setVideoNote] = useState<string | null>(null)
+  const [videoTestRevision, setVideoTestRevision] = useState(0)
   const [note, setNote] = useState<string | null>(null)
 
   useEffect(() => {
     void (async () => {
-      setBoot((await window.easytranslate.getConfig()) as unknown as Bootstrap)
-      setSecrets(await window.easytranslate.secretStatus())
+      const runtime = (await window.easytranslate.getConfig()) as unknown as Bootstrap
+      setBoot(runtime)
+      if (runtime.settingsApiVersion === SETTINGS_API_VERSION) setSecrets(await window.easytranslate.secretStatus())
     })()
   }, [])
 
   if (!boot) return <div className="p-6 text-[13px]">Loading…</div>
+  if (boot.settingsApiVersion !== SETTINGS_API_VERSION) return (
+    <main className="space-y-4 p-6 text-[13px]">
+      <h1 className="text-lg font-semibold">Restart EasyTranslate to finish the update</h1>
+      <p>The Settings window and background app are from different versions. Restart the app before changing settings or testing a model.</p>
+      <ol className="list-decimal space-y-2 pl-5">
+        <li>{boot.platform === 'win32' ? 'Open the taskbar’s hidden icons (^), right-click EasyTranslate, and choose Quit EasyTranslate.' : 'Open EasyTranslate’s menu bar icon and choose Quit EasyTranslate.'}</li>
+        <li>Reopen EasyTranslate{boot.platform === 'win32' ? ' with Ctrl+Alt+T or the Start menu' : ' from Applications'}.</li>
+      </ol>
+      <p style={{ color: 'var(--text-subtle)' }}>Closing this window leaves the background app running. Saved settings and API keys remain stored.</p>
+    </main>
+  )
   const { config } = boot
 
   const patch = async (p: Partial<AppConfig>): Promise<void> => {
@@ -395,7 +416,24 @@ export function Settings(): React.ReactElement {
     setSecrets(await window.easytranslate.secretStatus())
   }
 
+  const saveVideoKey = async (): Promise<void> => {
+    const res = await window.easytranslate.setSecret('video', videoKeyDraft.trim())
+    if (res.ok) await patch({ llm: { ...config.llm, videoKeyScope: videoKeyScope(config.llm) } })
+    setVideoNote(res.ok ? 'Video key saved. Click Test video model to verify access.' : (res.error ?? 'Could not save the video key.'))
+    setVideoTestRevision(r => r + 1)
+    setVideoKeyDraft('')
+    setSecrets(await window.easytranslate.secretStatus())
+  }
+
   const provider = boot.providers.find((p) => p.id === config.llm.provider)
+  const azureEveryday = config.llm.provider === 'azure'
+  const azureVideo = config.llm.videoProtocol === 'azure-responses'
+  const videoEffort = videoReasoningEffort(config.llm)
+  const videoKeySaved = !!secrets.video && config.llm.videoKeyScope === videoKeyScope(config.llm)
+  const videoPreset = VIDEO_PRESETS.find(p => p.provider === config.llm.videoProvider &&
+    (p.protocol ?? 'standard') === (config.llm.videoProtocol ?? 'standard') &&
+    (azureVideo || p.baseUrl === config.llm.videoBaseUrl) && p.model === config.llm.videoModel &&
+    (!azureVideo || (p.reasoningEffort ?? 'low') === videoEffort))
 
   // A preset is "active" when provider, model and base URL all still match it —
   // edit any field by hand and the picker falls back to Custom, which is honest
@@ -404,7 +442,7 @@ export function Settings(): React.ReactElement {
     (p) =>
       p.provider === config.llm.provider &&
       p.model === config.llm.models[config.llm.provider] &&
-      p.baseUrl === config.llm.baseUrls[config.llm.provider]
+      (azureEveryday || p.baseUrl === config.llm.baseUrls[config.llm.provider])
   )
 
   const applyPreset = async (id: string): Promise<void> => {
@@ -415,7 +453,8 @@ export function Settings(): React.ReactElement {
         ...config.llm,
         provider: preset.provider,
         models: { ...config.llm.models, [preset.provider]: preset.model },
-        baseUrls: { ...config.llm.baseUrls, [preset.provider]: preset.baseUrl }
+        baseUrls: { ...config.llm.baseUrls, [preset.provider]: preset.provider === 'azure' && config.llm.baseUrls.azure?.trim()
+          ? config.llm.baseUrls.azure : preset.baseUrl }
       }
     })
     setNote(null)
@@ -521,10 +560,10 @@ export function Settings(): React.ReactElement {
         </Field>
 
         <DraftInput
-          label="Model"
+          label={azureEveryday ? 'Azure deployment name' : 'Model'}
           value={config.llm.models[config.llm.provider] ?? ''}
           hint={
-            config.llm.provider === 'claude'
+            azureEveryday ? 'Your Azure deployment name, e.g. gpt-6-luna. Reasoning is set to none for fast explanations.' : config.llm.provider === 'claude'
               ? 'e.g. claude-haiku-4-5 (best value) or claude-opus-5 (smartest).'
               : 'The exact model id this endpoint expects, e.g. gemini-3.1-flash-lite.'
           }
@@ -543,9 +582,9 @@ export function Settings(): React.ReactElement {
         />
 
         <DraftInput
-          label="Base URL"
+          label={azureEveryday ? 'Azure Responses endpoint' : 'Base URL'}
           value={config.llm.baseUrls[config.llm.provider] ?? ''}
-          hint="Set by the preset. Only change it for a proxy or a local server."
+          hint={azureEveryday ? 'Paste the full URL ending in /openai/responses?api-version=…, from your Azure resource.' : 'Set by the preset. Only change it for a proxy or a local server.'}
           onCommit={(v) =>
             patch({
               llm: { ...config.llm, baseUrls: { ...config.llm.baseUrls, [config.llm.provider]: v } }
@@ -595,6 +634,68 @@ export function Settings(): React.ReactElement {
             })
           }
         />
+      </Card>
+
+      <Card title="YouTube analysis">
+        <p className="text-[12px]" style={{ color: 'var(--text-subtle)' }}>
+          English analysis and transcript questions use this model and its own API key.
+          Optional Chinese translation uses your everyday explanation model ({config.llm.models[config.llm.provider]}).
+        </p>
+        <Field label="Video provider" hint={videoPreset?.note ?? 'Custom configuration. Use a reasoning effort supported by your deployment. Video API usage is billed by the selected provider.'}>
+          <select className={inputClass} style={inputStyle}
+            value={videoPreset?.id ?? 'custom'}
+            onChange={e => {
+              const preset = VIDEO_PRESETS.find(p => p.id === e.target.value)
+              setVideoKeyDraft('')
+              setVideoNote(null)
+              if (preset) void patch({ llm: { ...config.llm, videoProvider: preset.provider,
+                videoBaseUrl: azureVideo && preset.protocol === 'azure-responses' && config.llm.videoBaseUrl?.trim()
+                  ? config.llm.videoBaseUrl : preset.baseUrl,
+                videoModel: preset.model, videoProtocol: preset.protocol ?? 'standard',
+                videoReasoningEffort: preset.reasoningEffort } })
+            }}>
+            <option value="custom" disabled>Custom video endpoint</option>
+            {VIDEO_PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        </Field>
+        {videoPreset?.keyUrl && <button className="text-[12px] underline" style={{ color: 'var(--accent)' }}
+          onClick={() => window.open(videoPreset.keyUrl, '_blank')}>Get this provider’s API key →</button>}
+        <DraftInput label={azureVideo ? 'Azure deployment name' : 'Model for YouTube analysis'} value={config.llm.videoModel}
+          hint={azureVideo ? 'Use the deployment name from your Azure resource, such as gpt-6-luna. Selecting a preset does not create a deployment.' : 'The exact model ID for the video endpoint above.'}
+          onCommit={v => patch({ llm: { ...config.llm, videoModel: v.trim() } })} />
+        {azureVideo && <Field label="Video reasoning effort"
+          hint="None reduces latency on GPT-6 Luna and Sol. Astra requires low or higher. Higher effort can help difficult analysis but adds time and cost.">
+          <select aria-label="Video reasoning effort" className={inputClass} style={inputStyle} value={videoEffort}
+            onChange={e => { setVideoNote(null); void patch({ llm: { ...config.llm, videoReasoningEffort: e.target.value as VideoReasoningEffort } }) }}>
+            <option value="none">None — fastest</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </Field>}
+        {config.llm.videoProvider && <>
+          <DraftInput label={azureVideo ? 'Azure Responses endpoint' : 'Video API base URL'} value={config.llm.videoBaseUrl ?? ''}
+            hint={azureVideo ? 'Paste the full /openai/responses?api-version=… URL from Azure. Changing it requires saving the key again.' : 'Set by the provider preset. Changing the endpoint requires saving its key again.'}
+            onCommit={v => patch({ llm: { ...config.llm, videoBaseUrl: v.trim() } })} />
+          {config.llm.videoProvider !== 'ollama' && <Field label="Video API key"
+            hint={videoKeySaved ? 'A dedicated key is saved for this endpoint. Paste a new key only to replace it.'
+              : secrets.video ? 'A saved video key is not enabled for this setup. Save a key to use it.'
+              : `Saved separately, encrypted via ${KEY_STORE}.`}>
+            {videoKeySaved && <div role="status" className="text-[12px] font-medium" style={{ color: 'var(--accent)' }}>✓ Key saved</div>}
+            <div className="flex gap-2">
+              <input type="password" className={inputClass} style={inputStyle} value={videoKeyDraft}
+                placeholder={videoKeySaved ? '••••••••••••' : azureVideo ? 'Paste your Azure resource API key' : 'Paste the video provider’s key'} onChange={e => { setVideoKeyDraft(e.target.value); setVideoTestRevision(r => r + 1) }} />
+              <button className="shrink-0 rounded-md border px-3 text-[12px] disabled:opacity-40" style={inputStyle} disabled={!videoKeyDraft.trim()} onClick={() => void saveVideoKey()}>{videoKeySaved ? 'Replace' : 'Save'}</button>
+            </div>
+          </Field>}
+        </>}
+        {videoNote && <p role="status" className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{videoNote}</p>}
+        <p className="text-[11px]" style={{ color: 'var(--text-subtle)' }}>
+          Get a key, save it here, then test. The test sends a short sample transcript and may incur a small API charge.
+        </p>
+        <ConnectionTester video disabled={!!videoKeyDraft.trim()}
+          key={`${config.llm.videoProtocol}|${config.llm.videoProvider}|${config.llm.videoBaseUrl}|${config.llm.videoModel}|${videoEffort}|${videoTestRevision}`}
+          onPickModel={m => patch({ llm: { ...config.llm, videoModel: m } })} />
       </Card>
 
       <Card title="Read aloud">

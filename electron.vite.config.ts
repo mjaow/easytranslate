@@ -13,7 +13,7 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
-    build: { rollupOptions: { input: resolve('src/main/index.ts') } }
+    build: { rollupOptions: { input: { index: resolve('src/main/index.ts'), 'native-host': resolve('src/main/native-host.ts') } } }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
