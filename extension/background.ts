@@ -19,5 +19,8 @@ chrome.tabs.onActivated.addListener(info => {
   void chrome.tabs.get(info.tabId).then(tab => chrome.storage.session.set({ [`target:${tab.windowId}`]: targetFor(tab, false) }))
 })
 chrome.tabs.onUpdated.addListener((_id, change, tab) => {
-  if (tab.active && change.url) void chrome.storage.session.set({ [`target:${tab.windowId}`]: targetFor(tab, false) })
+  // YouTube often updates the watch URL before the tab title during navigation.
+  if (tab.active && (change.url !== undefined || change.title !== undefined)) {
+    void chrome.storage.session.set({ [`target:${tab.windowId}`]: targetFor(tab, false) })
+  }
 })

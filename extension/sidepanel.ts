@@ -20,6 +20,11 @@ const history: { question: string; answer: string }[] = []
 
 function status(message: string): void { get('status').textContent = message }
 function error(message: string): void { get('error').textContent = message; get('error').hidden = false }
+function renderVideoTitle(): void {
+  // Captured player metadata belongs to the checked video ID; tab titles can lag.
+  const title = transcript?.videoId === target?.videoId && transcript?.title.trim() ? transcript.title : target?.title ?? ''
+  get('video-title').textContent = target?.videoId ? title.replace(/ - YouTube$/, '') : 'Open a YouTube video to get started.'
+}
 function setBusy(value: boolean): void {
   busy = value
   for (const id of ['chinese', 'ask', 'clear-cache']) get<HTMLButtonElement>(id).disabled = value
@@ -142,6 +147,7 @@ async function copyAnalysis(): Promise<void> {
 }
 function renderTranscript(): void {
   if (!transcript) return
+  renderVideoTitle()
   // Count the captured caption text only, using Unicode word boundaries rather
   // than spaces so unspaced languages also get a meaningful word count.
   const segmenter = new Intl.Segmenter('en', { granularity: 'word' })
@@ -318,6 +324,7 @@ function startTarget(next: PanelTarget): void {
 function setTarget(next: PanelTarget): void {
   if (target?.videoId === next.videoId && target?.tabId === next.tabId) {
     target = next
+    renderVideoTitle()
     startTarget(next)
     return
   }
@@ -325,7 +332,7 @@ function setTarget(next: PanelTarget): void {
   timing.reset(); refreshNext = false; setBusy(false)
   for (const id of ['overview-card', 'ideas-section', 'evaluation-section', 'unanswered-section', 'transcript-section', 'transcript-size', 'questions-section', 'languages', 'error']) get(id).hidden = true
   for (const id of ['ideas', 'evaluation', 'takeaways', 'copy-status', 'conversation', 'source-meta']) get(id).replaceChildren()
-  get('video-title').textContent = next.videoId ? next.title.replace(/ - YouTube$/, '') : 'Open a YouTube video to get started.'
+  renderVideoTitle()
   get<HTMLButtonElement>('understand').disabled = !next.videoId
   get<HTMLDetailsElement>('ideas-section').open = false
   get<HTMLDetailsElement>('evaluation-section').open = false
