@@ -64,6 +64,22 @@ describe('video evidence boundaries', () => {
     expect(() => parseSummary({ ...summary, evaluation: [{ ...item, limits: ['invalid'] }] }, chunk)).toThrow(/assessment limits/)
     expect(() => parseSummary({ ...summary, evaluation: [{ ...item, support: null }] }, chunk)).toThrow(/assessment support/)
   })
+  it('accepts the cited unanswered questions returned for the Stanford video as plain text', () => {
+    const chunk = { first: 1, last: 613, text: '' }
+    // Captured gpt-6-luna response for 6YnLB0XbTnI, 2026-09-26.
+    const question = 'How does the latency compare with generating many samples versus using a larger model?'
+    const summary = { overview: 'Repeated sampling can improve success.', takeaways: [{ text: 'More samples can improve success.', sources: [226] }],
+      connections: '', ideas: [], evaluation: [], unanswered: [{ question, sources: [226, 228, 230, 231] }, 'How should repeated sampling be handled when there is no verifier?'] }
+    expect(parseSummary(summary, chunk).unanswered).toEqual([question, summary.unanswered[1]])
+    expect(() => parseSummary({ ...summary, unanswered: [{ question, sources: [614] }] }, chunk)).toThrow(/outside/)
+    expect(() => parseSummary({ ...summary, unanswered: [{ question, sources: ['226'] }] }, chunk)).toThrow(/integer IDs/)
+    expect(() => parseSummary({ ...summary, unanswered: [{ question, sources: [] }] }, chunk)).toThrow(/supporting captions/)
+    expect(() => parseSummary({ ...summary, unanswered: [{ question }] }, chunk)).toThrow(/integer IDs/)
+  })
+  it.each([null, 42, [], {}, { question: null, sources: [1] }, { text: 'Wrong field', sources: [1] }, '', '   ', 'x'.repeat(2001),
+    { question: 'x'.repeat(2001), sources: [1] }])('identifies invalid unanswered question text without discarding it (case %#)', question => {
+    expect(() => parseIdeas({ ideas: [], unanswered: [question] }, { first: 1, last: 2, text: '' })).toThrow(/unanswered question/)
+  })
 })
 describe('caption collector parsing', () => {
   it('keeps timestamps, Unicode and separate statements; drops empty paint events', () => {
@@ -92,6 +108,39 @@ describe('caption collector parsing', () => {
   it('reports unreadable caption rows instead of silently treating remaining rows as complete', () => {
     expect(parseTranscriptData({ initialSegments: [{ transcriptSegmentRenderer: { snippet: { simpleText: 'Missing timestamp' } } }] })).toMatchObject({ hasSegmentList: true, invalidSegments: 1, segments: [] })
   })
+  it('skips empty legacy caption cues at the beginning and end of the live Stanford transcript', () => {
+    // Live Edge panel, 6YnLB0XbTnI, 2026-09-26: a newer-looking panel can
+    // still expose transcriptSegmentRenderer rows with empty snippet objects.
+    const parsed = parseTranscriptData({ initialSegments: [
+      { transcriptSegmentRenderer: { startMs: '0', endMs: '5560', snippet: {} } },
+      { transcriptSegmentRenderer: { startMs: '5560', endMs: '10320', snippet: { runs: [{ text: 'Welcome, everyone.' }] } } },
+      { transcriptSegmentRenderer: { startMs: '4168000', endMs: '4177720', snippet: { simpleText: 'Thanks, everyone.' } } },
+      { transcriptSegmentRenderer: { startMs: '4177720', endMs: '4182000', snippet: {} } }
+    ] })
+    expect(parsed).toMatchObject({ hasSegmentList: true, modern: false, invalidSegments: 0 })
+    expect(parsed.segments).toMatchObject([
+      { start: 5.56, text: 'Welcome, everyone.' },
+      { start: 4168, text: 'Thanks, everyone.' }
+    ])
+    expect(parsed.segments[0].duration).toBeCloseTo(4.76)
+    expect(parsed.segments[1].duration).toBeCloseTo(9.72)
+  })
+  it.each([
+    { startMs: '0', endMs: '1000', snippet: { simpleText: '' } },
+    { startMs: '0', endMs: '1000', snippet: { runs: [{ text: ' \n ' }] } }
+  ])('skips readable empty legacy text: %j', row => {
+    expect(parseTranscriptData({ initialSegments: [{ transcriptSegmentRenderer: row }] })).toMatchObject({ invalidSegments: 0, segments: [] })
+  })
+  it.each([
+    { startMs: 'bad', snippet: {} },
+    { startMs: '1000', endMs: '0', snippet: {} },
+    { startMs: '0' },
+    { startMs: '0', snippet: { content: 'Unsupported text representation' } },
+    { startMs: '0', snippet: { runs: [{ text: 42 }] } },
+    { startMs: '0', snippet: { runs: [{ text: 'Readable' }, { unexpected: 'Must not lose this' }] } }
+  ])('rejects malformed legacy cues instead of discarding their text: %j', row => {
+    expect(parseTranscriptData({ initialSegments: [{ transcriptSegmentRenderer: row }] })).toMatchObject({ invalidSegments: 1, segments: [] })
+  })
   it('reads the modern transcript body and hour timestamps, excluding other timelines', () => {
     const list = { targetId: 'PAmodern_transcript_view', contents: [{ macroMarkersPanelItemViewModel: {
       onTap: { innertubeCommand: { watchEndpoint: { videoId: 'NYFGCESmikA' } } },
@@ -105,6 +154,50 @@ describe('caption collector parsing', () => {
     const view = list.contents[0].macroMarkersPanelItemViewModel.item.timelineItemViewModel.contentItems[0].transcriptSegmentViewModel
     view.timestamp = '5:75:31'
     expect(parseTranscriptData(list).invalidSegments).toBe(1)
+  })
+  it('accepts the timestamp-only ending cue in the Stanford CS329A transcript', () => {
+    // 6YnLB0XbTnI get_panel response, 2026-09-26: the final row at 1:09:37
+    // has a timestamp but no simpleText, attributedText or textUtf16Length.
+    const views = [
+      { timestamp: '0:00', simpleText: 'Welcome, everyone, to fall quarter and welcome to CS329A.' },
+      { timestamp: '1:09:28', simpleText: 'No? All right. OK. Thanks, everyone.' },
+      { timestamp: '1:09:37', timestampUtf16Length: 7 }
+    ]
+    const list = { targetId: 'PAmodern_transcript_view', contents: views.map(view => ({ macroMarkersPanelItemViewModel: {
+      onTap: { innertubeCommand: { watchEndpoint: { videoId: '6YnLB0XbTnI' } } },
+      item: { timelineItemViewModel: { contentItems: [{ transcriptSegmentViewModel: view }] } }
+    } })) }
+    const parsed = parseTranscriptData(list, '6YnLB0XbTnI')
+    expect(parsed).toMatchObject({ hasSegmentList: true, modern: true, continuation: false, videoIdMismatch: false, invalidSegments: 0 })
+    expect(parsed.segments).toEqual([
+      { start: 0, duration: 0, text: views[0].simpleText },
+      { start: 4168, duration: 0, text: views[1].simpleText }
+    ])
+    // Even a blank cue must belong to the requested video.
+    list.contents[2].macroMarkersPanelItemViewModel.onTap.innertubeCommand.watchEndpoint.videoId = 'NYFGCESmikA'
+    expect(parseTranscriptData(list, '6YnLB0XbTnI').videoIdMismatch).toBe(true)
+  })
+  it('skips empty modern cues but retains non-speech captions', () => {
+    const views = [
+      { timestamp: '0:00', simpleText: '' },
+      { timestamp: '0:01', attributedText: { content: ' \n ' }, textUtf16Length: 0 },
+      { timestamp: '0:02', simpleText: '[Music]' },
+      { timestamp: '0:03', attributedText: { content: '[Applause]' } }
+    ]
+    const parsed = parseTranscriptData({ targetId: 'PAmodern_transcript_view', contents: views.map(view => ({ transcriptSegmentViewModel: view })) })
+    expect(parsed.invalidSegments).toBe(0)
+    expect(parsed.segments.map(s => s.text)).toEqual(['[Music]', '[Applause]'])
+  })
+  it.each([
+    { timestamp: '1:75:37' },
+    { simpleText: '' },
+    { timestamp: '0:00', simpleText: 42 },
+    { timestamp: '0:00', attributedText: {} },
+    { timestamp: '0:00', textUtf16Length: 20 },
+    { timestamp: '0:00', simpleText: '', textUtf16Length: 20 }
+  ])('still rejects malformed modern cues: %j', view => {
+    const parsed = parseTranscriptData({ targetId: 'PAmodern_transcript_view', contents: [{ transcriptSegmentViewModel: view }] })
+    expect(parsed).toMatchObject({ invalidSegments: 1, segments: [] })
   })
 })
 describe('native message framing', () => {
