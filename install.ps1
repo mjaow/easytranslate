@@ -19,7 +19,10 @@ param(
   # Which branch or tag to install. The default is what everyone should run.
   [string]$Ref = 'main',
   # Where to install. The default is per-user and needs no administrator rights.
-  [string]$Dir = (Join-Path $env:LOCALAPPDATA 'EasyTranslate')
+  [string]$Dir = (Join-Path $env:LOCALAPPDATA 'EasyTranslate'),
+  # Opt in to the companion's local browser connection. Loading the extension is
+  # still an explicit one-time action in the browser's Extensions page.
+  [switch]$YouTube
 )
 
 $ErrorActionPreference = 'Stop'
@@ -101,6 +104,12 @@ try {
     throw 'build failed'
   }
   $log | Select-Object -Last 1 | ForEach-Object { Write-Host $_ }
+  & node scripts/build-extension.mjs
+  if ($LASTEXITCODE -ne 0) { throw 'Browser companion build failed' }
+  if ($YouTube) {
+    & node scripts/setup-youtube.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'YouTube companion registration failed' }
+  }
 } finally {
   Pop-Location
 }

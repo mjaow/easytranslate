@@ -1,5 +1,8 @@
 /** Types shared across main, preload and renderer. Keep this dependency-free. */
 
+/** Bump when new Settings require handlers unavailable in older background apps. */
+export const SETTINGS_API_VERSION = 3
+
 // ---------------------------------------------------------------- capture
 
 /** Why a capture attempt produced no usable text. Drives the message the popup shows. */
@@ -102,7 +105,9 @@ export interface ExplainState {
 
 // ---------------------------------------------------------------- config
 
-export type LlmProviderId = 'claude' | 'openai' | 'ollama'
+export type LlmProviderId = 'claude' | 'openai' | 'azure' | 'ollama'
+export type VideoProtocol = 'standard' | 'azure-responses'
+export type VideoReasoningEffort = 'none' | 'low' | 'medium' | 'high'
 export type TtsProviderId = 'online' | 'system'
 
 /**
@@ -110,7 +115,7 @@ export type TtsProviderId = 'online' | 'system'
  * LLM's: the `openai` LLM slot often holds a Gemini or Groq key, since those speak
  * the OpenAI protocol, and such a key would be rejected by OpenAI's speech API.
  */
-export type SecretId = LlmProviderId | 'tts'
+export type SecretId = LlmProviderId | 'tts' | 'video'
 
 export interface AppConfig {
   hotkeys: {
@@ -131,6 +136,16 @@ export interface AppConfig {
      * off, and it is paid only when the user clicks for it.
      */
     codeModel: string
+    /** Whole-video analysis has its own model, endpoint and API key. */
+    videoModel: string
+    videoProvider?: LlmProviderId
+    videoBaseUrl?: string
+    /** Azure Responses uses a full URL and api-key authentication, not chat completions. */
+    videoProtocol?: VideoProtocol
+    /** Explicit Azure effort; older configurations keep their low-reasoning behavior. */
+    videoReasoningEffort?: VideoReasoningEffort
+    /** Bind the dedicated video key to the endpoint for which the user saved it. */
+    videoKeyScope?: string
   }
   tts: {
     provider: TtsProviderId
@@ -186,5 +201,6 @@ export const IPC = {
   /** settings → main: can this accelerator be bound right now? */
   hotkeyCheck: 'config:hotkey-check',
   /** settings → main: does the configured key and model actually work? */
-  llmTest: 'config:llm-test'
+  llmTest: 'config:llm-test',
+  videoTest: 'config:video-test'
 } as const

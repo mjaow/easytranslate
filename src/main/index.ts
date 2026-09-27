@@ -12,7 +12,7 @@ import {
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { IPC, type AppConfig, type SecretId } from '../shared/types.js'
+import { IPC, SETTINGS_API_VERSION, type AppConfig, type SecretId } from '../shared/types.js'
 import { createPopupWindow, hidePopup, resizePopup, hardenWebContents } from './popup.js'
 import { registerHotkeys, unregisterHotkeys, bindingsFor, checkAvailability } from './hotkeys.js'
 import {
@@ -26,6 +26,8 @@ import {
 import { loadConfig, saveConfig, setSecret, hasSecret, getSecret } from '../core/config.js'
 import { LLM_PROVIDERS } from '../providers/llm/registry.js'
 import { probeConfigured } from '../providers/llm/probe.js'
+import { testVideoModel } from './video-model.js'
+import { pruneVideoCache } from '../core/video-cache.js'
 import { IS_MACOS, inputPermission, isAvailable, getLoadError } from './native/index.js'
 import { startClickWatcher, stopClickWatcher } from './clicks.js'
 
@@ -52,6 +54,7 @@ const PROBE_HOTKEYS = process.argv.includes('--probe-hotkeys')
 const VERIFY_HOTKEYS = process.argv.includes('--verify-hotkeys')
 const VERIFY_CLICK = process.argv.includes('--verify-click')
 const VERIFY_CODE = process.argv.includes('--verify-code')
+const VERIFY_SETTINGS = process.argv.includes('--verify-settings')
 
 if (VERIFY_CAPTURE) {
   // Self-test mode: skip the single-instance lock and the tray entirely.
@@ -79,6 +82,11 @@ if (VERIFY_CAPTURE) {
     const { runHotkeyProbe } = await import('./probe-hotkeys.js')
     runHotkeyProbe()
   })
+} else if (VERIFY_SETTINGS) {
+  void app.whenReady().then(async () => {
+    const { runSettingsVerification } = await import('./verify-settings.js')
+    await runSettingsVerification(registerIpc, preloadPath())
+  })
 } else if (!app.requestSingleInstanceLock()) {
   // A second instance would fight over the same global hotkeys, so hand off instead.
   app.quit()
@@ -88,6 +96,11 @@ if (VERIFY_CAPTURE) {
 }
 
 function main(): void {
+  const cleanVideoCache = (): void => pruneVideoCache(join(app.getPath('userData'), 'video-cache'))
+  cleanVideoCache()
+  const videoCacheCleanup = setInterval(cleanVideoCache, 60 * 60 * 1000)
+  videoCacheCleanup.unref()
+  app.on('before-quit', () => clearInterval(videoCacheCleanup))
   // This is a tray app: closing the settings window must not quit it, and on Windows
   // there's no dock to hide from.
   app.on('window-all-closed', () => {
@@ -105,7 +118,7 @@ function main(): void {
 
   // Nothing works until a model key is pasted, and a new user cannot be expected
   // to find a tray icon. Open Settings on a first run rather than sit there silently.
-  if (!hasSecret(loadConfig().llm.provider)) openSettings()
+  if (process.argv.includes('--settings') || !hasSecret(loadConfig().llm.provider)) openSettings()
   applyHotkeys()
   applyClickWatcher()
 
@@ -377,6 +390,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.configGet, () => ({
+    settingsApiVersion: SETTINGS_API_VERSION,
     config: loadConfig(),
     providers: LLM_PROVIDERS,
     captureAvailable: isAvailable(),
@@ -416,10 +430,13 @@ function registerIpc(): void {
     return probeConfigured(config, getSecret(config.llm.provider))
   })
 
+  ipcMain.handle(IPC.videoTest, () => testVideoModel(loadConfig()))
+
   ipcMain.handle(IPC.configSecretStatus, () =>
     Object.fromEntries([
       ...LLM_PROVIDERS.map((p) => [p.id, hasSecret(p.id)]),
-      ['tts', hasSecret('tts')]
+      ['tts', hasSecret('tts')],
+      ['video', hasSecret('video')]
     ])
   )
 }

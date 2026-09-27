@@ -356,7 +356,7 @@ export function Popup(): React.ReactElement | null {
                 </Section>
               )}
               {ex.here && (
-                <Section label="in context">
+                <Section label={state.context?.trim() && state.context.trim() !== state.text.trim() ? 'in context' : 'usage'}>
                   <span style={{ color: 'var(--text)' }}>{ex.here}</span>
                 </Section>
               )}

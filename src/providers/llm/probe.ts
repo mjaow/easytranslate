@@ -65,6 +65,14 @@ export async function probeProvider(
     const e = describeError(providerId, err)
     const detail = [e.message, e.hint].filter(Boolean).join(' ')
 
+    // Azure resource deployments are not a public /models catalogue. Do not send
+    // a second, incorrectly authenticated request to a Responses URL on failure.
+    if (providerId === 'azure') {
+      if (status === 403) return { ok: false, message: `Azure denied access to "${model}" (403). Check the resource key, deployment access, and network restrictions.` }
+      if (status === 404) return { ok: false, message: `Azure could not find "${model}" or the requested API (404). Check the deployment name, full Responses endpoint, and api-version.` }
+      return { ok: false, message: detail }
+    }
+
     // 403/404 on a request that carried a model id is nearly always the model, not
     // the key — so offer what else this endpoint will serve.
     if (status === 403 || status === 404) {

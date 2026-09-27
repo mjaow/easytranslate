@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ExplainRequest } from '../../shared/types.js'
 import { systemPrompt, userPrompt } from '../../core/explain.js'
-import { ProviderError, type LlmProvider, type ProviderOptions } from './types.js'
+import { ProviderError, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
 
 /** A dictionary entry is short; this is ample and keeps latency down. */
 const MAX_TOKENS = 1024
@@ -26,16 +26,20 @@ export class ClaudeProvider implements LlmProvider {
   }
 
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
+    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: MAX_TOKENS }, signal)
+  }
+
+  async *generate(req: GenerationRequest, signal: AbortSignal): AsyncIterable<string> {
     const stream = this.client.messages.stream(
       {
         model: this.opts.model,
-        max_tokens: MAX_TOKENS,
-        system: systemPrompt(req.mode),
+        max_tokens: req.maxTokens,
+        system: req.system,
         // Thinking is on by default on Opus 5. Low effort is the supported way to
         // keep a popup lookup snappy — disabling thinking outright is documented to
         // cause tag leakage and stray tool-call text.
         output_config: { effort: 'low' },
-        messages: [{ role: 'user', content: userPrompt(req) }]
+        messages: [{ role: 'user', content: req.user }]
       },
       { signal }
     )
@@ -49,6 +53,7 @@ export class ClaudeProvider implements LlmProvider {
     // A policy decline arrives as HTTP 200 with stop_reason 'refusal', so it has to
     // be checked explicitly rather than caught.
     const final = await stream.finalMessage()
+    if (final.stop_reason === 'max_tokens') throw new ProviderError('The model stopped at its output limit. Try a model with a larger output limit.')
     if (final.stop_reason === 'refusal') {
       throw new ProviderError('Claude declined to explain this text.')
     }

@@ -29,6 +29,7 @@
     "src/core/**/*",
     "src/providers/**/*",
     "src/shared/**/*",
+    "extension/captions.ts",
     "test/**/*"
   ],
   // Renderer tests are type-checked by tsconfig.web.json instead: they import DOM
