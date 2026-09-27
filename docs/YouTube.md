@@ -77,7 +77,10 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
   introductions distinguish what this session teaches from topics planned for later
   lectures, keeping logistics secondary. Takeaways preserve substantive closing
   lessons and important stated learning or project expectations. Examples clarify
-  the material rather than determining the summary's structure.
+  the material rather than determining the summary's structure. The prompt targets
+  1–3 takeaways for short transcripts and 4–6 for long ones. Extra valid takeaways
+  are preserved up to a 30-item output bound; every point still needs readable text
+  and valid supporting caption IDs. A seventh takeaway does not fail the summary.
   Open **Explore the breakdown** for added depth. The prompt targets 4–6 entries,
   around 60–90 words each in total, with up to 8 when needed. This is a prompt
   target: extra valid entries are preserved rather than failing the whole summary

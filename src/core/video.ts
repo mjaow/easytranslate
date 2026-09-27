@@ -83,8 +83,13 @@ export function parseSummary(value: unknown, chunk: CaptionChunk): VideoSummary 
   const v = value as Record<string, unknown>
   const overview = stringField(v.overview, 2400, 'overview')
   if (!overview.trim()) throw new VideoModelOutputError('The summary needs a readable overview.')
-  if (!Array.isArray(v.takeaways) || !v.takeaways.length || v.takeaways.length > 6) {
-    throw new VideoModelOutputError('The summary needs 1-6 concrete takeaways with supporting captions.')
+  if (!Array.isArray(v.takeaways) || !v.takeaways.length) {
+    throw new VideoModelOutputError('The summary needs a non-empty takeaways array with text and supporting captions for each point.')
+  }
+  // Six is a prompt target, like the breakdown's eight-theme target above.
+  // Preserve extra supported points within the same 30-entry output bound.
+  if (v.takeaways.length > 30) {
+    throw new VideoModelOutputError(`The summary exceeds the supported limit of 30 takeaways (${v.takeaways.length} received).`)
   }
   const takeaways = v.takeaways.map(item => {
     if (!item || typeof item !== 'object') throw new VideoModelOutputError('The model returned an invalid takeaway.')
