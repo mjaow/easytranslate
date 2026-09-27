@@ -33,13 +33,12 @@ describe('video evidence boundaries', () => {
     expect(() => sourcesField([1, 301], 301, 605)).toThrow(/1 outside.*301–605/)
     expect(() => sourcesField(['301'], 301, 605)).toThrow(/integer IDs/)
   })
-  it('requires a summary and caps the breakdown at eight grouped themes', () => {
+  it('requires a readable overview and supported takeaways', () => {
     const chunk = chunkCaptions(transcript.segments)[0]
     const idea = { title: 'Progress', claim: 'Stagnation is risky.', reasoning: 'Not provided.', example: '', caveat: '', sources: [1] }
     const summary = { overview: 'Stagnation has risks too.', takeaways: [{ text: 'Stagnation is also risky.', sources: [1] }], connections: '', ideas: [idea], evaluation: [], unanswered: [] }
     expect(parseSummary(summary, chunk).overview).toBe(summary.overview)
     expect(() => parseSummary({ ...summary, overview: '' }, chunk)).toThrow(/readable overview/)
-    expect(() => parseSummary({ ...summary, ideas: Array(9).fill(idea) }, chunk)).toThrow(/at most 8/)
     expect(() => parseSummary({ ...summary, takeaways: [] }, chunk)).toThrow(/takeaways/)
     expect(() => parseSummary({ ...summary, takeaways: [{ text: 'Unsupported.', sources: [999] }] }, chunk)).toThrow(/outside/)
     expect(() => parseSummary({ ...summary, takeaways: [{ text: 'Unsupported.', sources: [] }] }, chunk)).toThrow(/supporting captions/)
@@ -63,6 +62,20 @@ describe('video evidence boundaries', () => {
     expect(optional.connections).toBe('')
     expect(() => parseSummary({ ...summary, evaluation: [{ ...item, limits: ['invalid'] }] }, chunk)).toThrow(/assessment limits/)
     expect(() => parseSummary({ ...summary, evaluation: [{ ...item, support: null }] }, chunk)).toThrow(/assessment support/)
+  })
+  it('preserves valid themes beyond the prompt target while enforcing output and evidence bounds', () => {
+    const chunk = { first: 1, last: 30, text: '' }
+    const ideas = Array.from({ length: 30 }, (_, index) => ({ title: `Theme ${index + 1}`, claim: `Point ${index + 1}`,
+      reasoning: '', example: '', caveat: '', sources: [index + 1] }))
+    const summary = { overview: 'An overview.', takeaways: [{ text: 'A supported takeaway.', sources: [1] }],
+      connections: '', ideas: ideas.slice(0, 9), evaluation: [], unanswered: [] }
+    expect(parseSummary(summary, chunk).ideas).toEqual(ideas.slice(0, 9))
+    expect(parseSummary({ ...summary, ideas }, chunk).ideas).toEqual(ideas)
+    expect(() => parseSummary({ ...summary, ideas: [...ideas, ideas[0]] }, chunk)).toThrow(/invalid section/)
+    const extra = ideas[8]
+    for (const invalid of [{ ...extra, sources: [31] }, { ...extra, sources: [] }, { ...extra, claim: 'x'.repeat(601) }]) {
+      expect(() => parseSummary({ ...summary, ideas: [...ideas.slice(0, 8), invalid] }, chunk)).toThrow()
+    }
   })
   it('accepts the cited unanswered questions returned for the Stanford video as plain text', () => {
     const chunk = { first: 1, last: 613, text: '' }

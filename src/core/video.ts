@@ -73,8 +73,10 @@ Before returning, check that the overview and takeaways convey what was actually
 }
 
 export function parseSummary(value: unknown, chunk: CaptionChunk): VideoSummary {
+  // Eight themes is an editorial target in the prompt, not a validity boundary.
+  // Preserve extra valid entries rather than discarding or truncating the answer.
+  // parseIdeas still enforces the 30-entry output bound and all citation checks.
   const part = parseIdeas(value, chunk)
-  if (part.ideas.length > 8) throw new VideoModelOutputError('Return at most 8 key themes for the summary; group related ideas.')
   for (const idea of part.ideas) {
     for (const field of [idea.claim, idea.reasoning, idea.example, idea.caveat]) stringField(field, 600)
   }
