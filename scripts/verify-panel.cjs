@@ -21,7 +21,7 @@ app.whenReady().then(async () => {
   await win.loadFile(resolve('out/extension/preview.html'))
   await win.webContents.executeJavaScript(`
     window.fixtureState = {
-      mode: 'success', requests: [], modelMs: 180, captureMs: 90, pingMs: 60, cacheClearFails: false, copyFails: false, copied: '',
+      mode: 'success', requests: [], connections: 0, disconnects: 0, modelMs: 180, captureMs: 90, pingMs: 60, cacheClearFails: false, copyFails: false, copied: '',
       transcript: ${JSON.stringify(transcript)}, analysis: ${JSON.stringify(fixture)},
       stored: {'target:1': {tabId:2,windowId:1,videoId:'B7yl7fEHeKM',title:${JSON.stringify(transcript.title)},start:true,token:'fixture',clickedAt:performance.timeOrigin+performance.now()-600}}
     };
@@ -43,10 +43,11 @@ app.whenReady().then(async () => {
         return [{result:{transcript:snapshot}}];
       } },
       runtime: { connectNative: () => {
+        state.connections++;
         let listener, onDisconnect, timer;
         return {
           onMessage: {addListener: f => listener=f}, onDisconnect: {addListener: f => onDisconnect=f},
-          disconnect: () => {clearTimeout(timer);onDisconnect?.()},
+          disconnect: () => {clearTimeout(timer);state.disconnects++},
           postMessage: r => {
             state.requests.push(r);
             const cached = r.action === 'analyze' && state.mode === 'cache' && !r.fresh;
@@ -136,9 +137,17 @@ app.whenReady().then(async () => {
   assert.equal(await read('document.getElementById("timing").open'), false)
   assert.equal(await read('document.getElementById("timing-source").getBoundingClientRect().height > 0'), true, 'origin is visible without opening timing details')
   const transcriptTime = parseFloat(await read('document.getElementById("timing-transcript").textContent'))
-  const otherTime = parseFloat(await read('document.getElementById("timing-other").textContent'))
+  const openingTime = parseFloat(await read('document.getElementById("timing-opening").textContent'))
+  const connectionTime = parseFloat(await read('document.getElementById("timing-connection").textContent'))
+  const transferTime = parseFloat(await read('document.getElementById("timing-transfer").textContent'))
+  const displayTime = parseFloat(await read('document.getElementById("timing-display").textContent'))
   assert.ok(transcriptTime >= 0.08, 'caption loading is separately measured')
-  assert.ok(Math.abs(parseFloat(firstTotal) - transcriptTime - 0.18 - otherTime) <= 0.002, 'breakdown accounts for total')
+  assert.ok(openingTime >= 0.6, 'opening time remains separate from the helper connection')
+  assert.ok(connectionTime >= 0.05, 'helper connection is separately measured')
+  assert.ok(transferTime >= 0.06, 'non-model request time is separately measured')
+  assert.ok(Math.abs(parseFloat(firstTotal) - openingTime - connectionTime - transcriptTime - 0.18 - transferTime - displayTime) <= 0.004, 'breakdown accounts for total')
+  assert.equal(await read('fixtureState.connections'), 1, 'ping and analysis share one helper')
+  assert.equal(await read('fixtureState.disconnects'), 0, 'successful requests keep the helper warm')
   assert.equal(await read('document.getElementById("understand").textContent'), 'Summarize again')
   await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   mkdirSync('out/verification', { recursive: true })
@@ -170,6 +179,7 @@ app.whenReady().then(async () => {
   assert.equal(await total(), firstTotal, 'translation and questions do not overwrite summary time')
   assert.equal(await read('document.getElementById("timing-source").textContent'), freshSource, 'origin remains attached to the original summary timing')
   assert.equal(await read('document.getElementById("transcript-size").textContent'), capturedSize, 'translation and questions retain captured input counts')
+  assert.equal(await read('fixtureState.connections'), 1, 'translation and questions reuse the same helper')
 
   await read('fixtureState.mode="cache";fixtureState.navigate("jNQXAC9IVRw")')
   await finished()
@@ -180,6 +190,8 @@ app.whenReady().then(async () => {
   await read('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   writeFileSync('out/verification/panel-cached.png', (await win.webContents.capturePage()).toPNG())
   assert.equal(await read('document.getElementById("transcript-size").textContent'), capturedSize, 'cached summaries show current transcript counts')
+  assert.equal(await read('fixtureState.connections'), 2, 'navigation starts a helper for the new video')
+  assert.equal(await read('fixtureState.disconnects'), 1, 'navigation releases the previous helper')
   await read('document.getElementById("understand").click()')
   assert.equal(await read('document.getElementById("timing-source").hidden'), true, 'rerun clears previous cache origin')
   assert.equal(await read('document.getElementById("transcript-size").hidden'), true, 'recapture clears old counts until captions load')
@@ -187,6 +199,7 @@ app.whenReady().then(async () => {
   assert.equal(await read('fixtureState.requests.at(-1).fresh'), true, 'rerun bypasses saved summary')
   assert.equal(await read('document.getElementById("timing-label").textContent'), 'Click → summary ready')
   assert.equal(await read('document.getElementById("timing-source").textContent'), freshSource, 'rerun reports a fresh model response')
+  assert.equal(await read('fixtureState.connections'), 2, 'repeat summary keeps the helper connection')
 
   const beforeClear = await read('fixtureState.requests.length')
   await read('fixtureState.cacheClearFails=true;document.getElementById("clear-cache").click()')
@@ -244,6 +257,7 @@ app.whenReady().then(async () => {
   assert.equal(await read('document.getElementById("timing-label").textContent'), 'Cancelled after')
   assert.equal(await read('document.getElementById("timing-source").hidden'), true)
   const cancelledTotal = await total()
+  assert.equal(await read('fixtureState.disconnects'), 2, 'cancel closes the active helper')
   await new Promise(r => setTimeout(r, 150))
   assert.equal(await total(), cancelledTotal, 'cancellation freezes timer')
   await read('fixtureState.navigate("B7yl7fEHeKM",false)')

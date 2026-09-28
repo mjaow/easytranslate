@@ -1,6 +1,6 @@
 import { clockTime, type VideoAnalysis, type VideoAnswer, type VideoCacheClearResult, type VideoEvent, type VideoIdea, type VideoRequest, type VideoTranscript } from '../src/shared/video.js'
 import type { PanelTarget } from './background.js'
-import { VideoEventReader } from '../src/shared/video-wire.js'
+import { VideoNativeClient } from './native-client.js'
 import { SummaryTiming } from './summary-timing.js'
 import { analysisText, hasDetail } from '../src/shared/video-export.js'
 
@@ -10,7 +10,7 @@ let transcript: VideoTranscript | null = null
 let english: VideoAnalysis | null = null
 let chinese: VideoAnalysis | null = null
 let displayedAnalysis: VideoAnalysis | null = null
-let activePort: chrome.runtime.Port | null = null
+const nativeClient = new VideoNativeClient()
 let generation = 0
 let busy = false
 let refreshNext = false
@@ -40,7 +40,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', class
 function stop(): void {
   generation++
   timing.stop('Cancelled')
-  activePort?.disconnect(); activePort = null
+  nativeClient.disconnect()
   setBusy(false)
 }
 function sourceButtons(ids: number[], initial = 3): HTMLElement {
@@ -178,29 +178,7 @@ function renderTranscript(): void {
   }
 }
 function native(request: VideoRequest, revision: number): Promise<VideoEvent> {
-  return new Promise((resolve, reject) => {
-    const port = chrome.runtime.connectNative('com.easytranslate.video')
-    activePort = port
-    let settled = false
-    const reader = new VideoEventReader(request.id)
-    const finish = (): void => { settled = true; if (activePort === port) activePort = null; port.disconnect() }
-    port.onMessage.addListener((value: Parameters<VideoEventReader['read']>[0]) => {
-      if (value.id !== request.id || revision !== generation) return
-      let event: VideoEvent | null
-      try { event = reader.read(value) } catch (e) { finish(); reject(e); return }
-      if (!event) return
-      if (event.type === 'status') status(event.message ?? '')
-      if (event.type === 'error') { finish(); reject(new Error(event.message)); }
-      if (event.type === 'result') { finish(); resolve(event); }
-    })
-    port.onDisconnect.addListener(() => {
-      const message = chrome.runtime.lastError?.message
-      if (!settled) reject(new Error(message
-        ? `Could not connect to EasyUnderstand. Run npm run setup:youtube from its folder, then reload this extension.\n${message}`
-        : 'The request was cancelled or the connection closed.'))
-    })
-    port.postMessage(request)
-  })
+  return nativeClient.request(request, message => { if (revision === generation) status(message) })
 }
 /** Let the rendered summary reach a paint before freezing the end-to-end clock. */
 function afterDisplay(): Promise<void> {
@@ -219,7 +197,7 @@ function afterDisplay(): Promise<void> {
 }
 async function analyze(clickedAt?: number): Promise<void> {
   if (!target?.videoId || busy) return
-  stop(); const revision = generation; const capturedTarget = target
+  const revision = ++generation; const capturedTarget = target
   timing.start(clickedAt)
   get('error').hidden = true; setBusy(true)
   english = null; chinese = null; displayedAnalysis = null
@@ -253,6 +231,7 @@ async function analyze(clickedAt?: number): Promise<void> {
     timing.loadedTranscript()
     const event = await native({ id: crypto.randomUUID(), action: 'analyze', transcript, fresh: refreshNext }, revision)
     if (revision !== generation) return
+    timing.receivedResult()
     english = event.result as VideoAnalysis; renderAnalysis(english, 'en')
     timing.model(english.model)
     await afterDisplay()
@@ -340,6 +319,7 @@ function setTarget(next: PanelTarget): void {
   startTarget(next)
 }
 get('understand').addEventListener('click', () => void analyze())
+window.addEventListener('pagehide', () => nativeClient.disconnect())
 get('clear-cache').addEventListener('click', () => void clearCache())
 get('cancel').addEventListener('click', () => { stop(); status(english ? 'Stopped. Your summary is still available.' : 'Cancelled. Click Understand video to try again.') })
 get('english').addEventListener('click', () => { if (english) renderAnalysis(english, 'en') })

@@ -34,5 +34,5 @@
   ],
   // Renderer and extension tests use their respective configs for DOM/Chrome
   // types, which are not available to the main process.
-  "exclude": ["test/player.test.ts", "test/popup-copy.test.ts", "test/video-background.test.ts"]
+  "exclude": ["test/player.test.ts", "test/popup-copy.test.ts", "test/video-background.test.ts", "test/video-native-client.test.ts", "test/video-timing.test.ts"]
 }

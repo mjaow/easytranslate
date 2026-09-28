@@ -34,7 +34,11 @@ native-host manifests. Windows is the verified platform for this first version.
 4. Reload an existing YouTube tab. Click **Understand video** next to the video’s
    controls, or click the companion’s browser toolbar icon.
 
-The companion starts a windowless worker on demand. The tray app does not have to be
+The companion starts a windowless worker on demand and reuses the connection for
+the model check, summary, repeat summaries, translations, and questions while the
+panel stays on that video. Cancel, video navigation, and closing the panel release
+the worker. A disconnected request is not automatically replayed; the next explicit
+request opens a new connection. The tray app does not have to be
 running. Chrome’s own Ask button remains available. No ChatGPT tab is involved;
 requests use the model API configured in EasyUnderstand and its applicable pricing
 or free-tier allowance.
@@ -58,10 +62,14 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
 - The live **Elapsed** clock runs from clicking the YouTube/panel button until the
   summary is ready to display, including panel opening and connection. The final
   **Click → summary ready** time stays visible in seconds to three decimal places.
-  Expand it for **Transcript loading**, **Model request**, and **Setup & display**.
+  Expand it for **Panel opening**, **Helper connection**, **Transcript loading**,
+  **Model request**, **Helper & transfer**, and **Display**.
   Model request time includes provider/network waiting, the full response stream,
-  and JSON validation; it is not a provider-only inference measurement. Setup and
-  display account for the remaining time. Hidden panels finish when rendered.
+  and JSON validation; it is not a provider-only inference measurement. Helper
+  connection includes panel preparation and checking the configured model. Helper
+  & transfer is the analysis request round trip minus model time, including request
+  preparation, cache access, and communication. Display measures rendering and
+  waiting for the browser to paint. Hidden panels finish when rendered.
 - The timer always shows the result source: **Fresh model response** with model
   request time, or **Cached summary · No model call**, even when the timing details
   are closed. Cache refers to EasyUnderstand's saved summary. Cached totals cover
