@@ -30,6 +30,32 @@ beforeEach(() => {
 afterEach(() => { client.disconnect(); vi.unstubAllGlobals() })
 
 describe('video native connection', () => {
+  it('warms a single local helper without sending any requests and retains it across idle navigation', async () => {
+    client.warmup(); client.warmup(); client.cancelPending()
+    expect(connect).toHaveBeenCalledTimes(1)
+    expect(connected[0].postMessage).not.toHaveBeenCalled()
+    expect(connected[0].disconnect).not.toHaveBeenCalled()
+    const pending = client.request({ id: 'check', action: 'ping' }, vi.fn())
+    connected[0].receive(result('check')); await pending
+    expect(connect).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels busy navigation while leaving the next request free to reconnect', async () => {
+    const pending = client.request({ id: 'check', action: 'ping' }, vi.fn())
+    const cancelled = expect(pending).rejects.toThrow('cancelled')
+    client.cancelPending(); await cancelled
+    client.warmup()
+    expect(connect).toHaveBeenCalledTimes(2)
+  })
+
+  it('recovers when speculative warmup fails without failing an explicit request', async () => {
+    connect.mockImplementationOnce(() => { throw new Error('Helper unavailable') })
+    expect(() => client.warmup()).not.toThrow()
+    const pending = client.request({ id: 'check', action: 'ping' }, vi.fn())
+    connected[0].receive(result('check')); await pending
+    expect(connect).toHaveBeenCalledTimes(2)
+  })
+
   it('reuses one helper for sequential requests and keeps status scoped to the request', async () => {
     const oldStatus = vi.fn(), currentStatus = vi.fn()
     const first = client.request({ id: 'ping', action: 'ping' }, oldStatus)

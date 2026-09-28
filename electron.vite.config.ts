@@ -11,7 +11,9 @@ const alias = {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // Bundle the SDKs so a new video helper does not resolve/read hundreds of
+    // provider modules before it can answer its first message.
+    plugins: [externalizeDepsPlugin({ exclude: ['openai', '@anthropic-ai/sdk'] })],
     resolve: { alias },
     build: { rollupOptions: { input: { index: resolve('src/main/index.ts'), 'native-host': resolve('src/main/native-host.ts') } } }
   },

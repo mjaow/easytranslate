@@ -37,10 +37,11 @@ function setBusy(value: boolean): void {
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); e.textContent = text; e.className = className; return e
 }
-function stop(): void {
+function stop(releaseHelper = true): void {
   generation++
   timing.stop('Cancelled')
-  nativeClient.disconnect()
+  if (releaseHelper) nativeClient.disconnect()
+  else nativeClient.cancelPending()
   setBusy(false)
 }
 function sourceButtons(ids: number[], initial = 3): HTMLElement {
@@ -212,24 +213,35 @@ async function analyze(clickedAt?: number): Promise<void> {
   get('evaluation-section').hidden = true; get<HTMLDetailsElement>('evaluation-section').open = false
   get('evaluation').replaceChildren()
   get('questions-section').hidden = true; get('unanswered-section').hidden = true
+  let failed = false
   try {
-    status('Connecting to EasyUnderstand…')
-    const connection = await native({ id: crypto.randomUUID(), action: 'ping' }, revision)
-    const selectedModel = (connection.result as { model: string }).model
-    if (revision !== generation) return
-    timing.model(selectedModel)
-    status('Loading the complete caption transcript… YouTube may open its transcript panel.')
+    status('Loading captions and connecting to EasyUnderstand… YouTube may open its transcript panel.')
+    let selectedModel = ''
     timing.loadingTranscript()
-    const result = await chrome.scripting.executeScript({ target: { tabId: capturedTarget.tabId }, world: 'MAIN', files: ['collector.js'] })
-    if (revision !== generation) return
-    const captured = result[0]?.result as { transcript?: VideoTranscript; error?: string } | undefined
-    if (!captured?.transcript) throw new Error(captured?.error ?? 'YouTube did not return a readable transcript.')
-    if (captured.transcript.videoId !== capturedTarget.videoId) throw new Error('The video changed during capture. Try again.')
-    transcript = captured.transcript
-    renderTranscript()
-    get('source-meta').textContent = `${transcript.language} · ${transcript.segments.length} caption segments · ${clockTime(transcript.duration)} video · ${selectedModel}`
-    timing.loadedTranscript()
-    const event = await native({ id: crypto.randomUUID(), action: 'analyze', transcript, fresh: refreshNext }, revision)
+    // Both prerequisites can run together. Always observe both promises, and
+    // discard late capture/model-check results after failure, cancellation or navigation.
+    const connection = native({ id: crypto.randomUUID(), action: 'ping' }, revision).then(event => {
+      if (failed || revision !== generation) return
+      selectedModel = (event.result as { model: string }).model
+      timing.model(selectedModel)
+    })
+    const capture = (async () => {
+      const result = await chrome.scripting.executeScript({ target: { tabId: capturedTarget.tabId }, world: 'MAIN', files: ['collector.js'] })
+      if (failed || revision !== generation) return
+      const captured = result[0]?.result as { transcript?: VideoTranscript; error?: string } | undefined
+      if (!captured?.transcript) throw new Error(captured?.error ?? 'YouTube did not return a readable transcript.')
+      if (captured.transcript.videoId !== capturedTarget.videoId) throw new Error('The video changed during capture. Try again.')
+      transcript = captured.transcript
+      renderTranscript()
+      timing.loadedTranscript()
+      if (!selectedModel) status('Captions ready. Waiting for EasyUnderstand to connect…')
+      return captured.transcript
+    })()
+    const [, capturedTranscript] = await Promise.all([connection, capture])
+    if (revision !== generation || !capturedTranscript) return
+    get('source-meta').textContent = `${capturedTranscript.language} · ${capturedTranscript.segments.length} caption segments · ${clockTime(capturedTranscript.duration)} video · ${selectedModel}`
+    timing.requestingModel()
+    const event = await native({ id: crypto.randomUUID(), action: 'analyze', transcript: capturedTranscript, fresh: refreshNext }, revision)
     if (revision !== generation) return
     timing.receivedResult()
     english = event.result as VideoAnalysis; renderAnalysis(english, 'en')
@@ -239,7 +251,7 @@ async function analyze(clickedAt?: number): Promise<void> {
     timing.finish(event)
     refreshNext = true
     status(`${event.cached ? 'Saved summary' : 'Summary ready'} · Based on the whole caption transcript. Open the breakdown to explore further.`)
-  } catch (e) { if (revision === generation) { timing.stop('Failed'); error(e instanceof Error ? e.message : String(e)); status('Analysis did not finish. You can retry.'); get('ideas').replaceChildren(); get('ideas-section').hidden = true } }
+  } catch (e) { failed = true; if (revision === generation) { nativeClient.disconnect(); timing.stop('Failed'); error(e instanceof Error ? e.message : String(e)); status('Analysis did not finish. You can retry.'); get('ideas').replaceChildren(); get('ideas-section').hidden = true } }
   finally { if (revision === generation) setBusy(false) }
 }
 async function translate(): Promise<void> {
@@ -307,7 +319,7 @@ function setTarget(next: PanelTarget): void {
     startTarget(next)
     return
   }
-  stop(); target = next; transcript = null; english = null; chinese = null; displayedAnalysis = null; history.length = 0
+  stop(!next.videoId); target = next; transcript = null; english = null; chinese = null; displayedAnalysis = null; history.length = 0
   timing.reset(); refreshNext = false; setBusy(false)
   for (const id of ['overview-card', 'ideas-section', 'evaluation-section', 'unanswered-section', 'transcript-section', 'transcript-size', 'questions-section', 'languages', 'error']) get(id).hidden = true
   for (const id of ['ideas', 'evaluation', 'takeaways', 'copy-status', 'conversation', 'source-meta']) get(id).replaceChildren()
@@ -316,6 +328,7 @@ function setTarget(next: PanelTarget): void {
   get<HTMLDetailsElement>('ideas-section').open = false
   get<HTMLDetailsElement>('evaluation-section').open = false
   status('One complete transcript. A thorough summary, with the breakdown below.')
+  if (next.videoId) nativeClient.warmup()
   startTarget(next)
 }
 get('understand').addEventListener('click', () => void analyze())

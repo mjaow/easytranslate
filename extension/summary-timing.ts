@@ -1,13 +1,12 @@
 import type { VideoEvent } from '../src/shared/video.js'
 
-const get = (id: string): HTMLElement => document.getElementById(id)!
-const duration = (ms: number): string => `${(Math.max(0, ms) / 1000).toFixed(3)} s`
+const get = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T
+const duration = (ms: number, precision = 2): string => `${(Math.max(0, ms) / 1000).toFixed(precision)} s`
 
 /** One click-to-result clock, independent of provider progress or later actions. */
 export class SummaryTiming {
   private started = 0
   private openingMs = 0
-  private connectionMs = 0
   private transcriptStarted: number | null = null
   private transcriptMs = 0
   private transcriptDone = false
@@ -25,12 +24,14 @@ export class SummaryTiming {
     get('timing').hidden = false
     get('timing-label').textContent = 'Elapsed'
     get('timing-model').textContent = 'Connecting to your video model…'
-    get('timing-opening').textContent = duration(this.openingMs)
+    get('timing-opening').textContent = duration(this.openingMs, 3)
     get('timing-connection').textContent = 'In progress'
     get('timing-transcript').textContent = 'Waiting'
     get('timing-request').textContent = 'Waiting'
     get('timing-transfer').textContent = 'Waiting'
     get('timing-display').textContent = 'Waiting'
+    get('timing-app').textContent = 'In progress'
+    get<HTMLDetailsElement>('timing-app-details').open = false
     get('timing-note').textContent = 'From your click until the summary is ready to display.'
     this.tick()
     this.ticker = setInterval(() => this.tick(), 100)
@@ -40,17 +41,23 @@ export class SummaryTiming {
 
   loadingTranscript(): void {
     this.transcriptStarted = performance.now()
-    this.connectionMs = this.transcriptStarted - this.started
-    get('timing-connection').textContent = duration(this.connectionMs)
+    get('timing-connection').textContent = 'Alongside captions'
     this.tick()
   }
 
   loadedTranscript(): void {
-    this.requestStarted = performance.now()
-    if (this.transcriptStarted !== null) this.transcriptMs = this.requestStarted - this.transcriptStarted
+    if (this.transcriptStarted !== null) this.transcriptMs = performance.now() - this.transcriptStarted
     this.transcriptStarted = null
     this.transcriptDone = true
     get('timing-transcript').textContent = duration(this.transcriptMs)
+    get('timing-connection').textContent = 'In progress'
+  }
+
+  requestingModel(): void {
+    this.requestStarted = performance.now()
+    // Captions and the helper connect in parallel. Charge only preparation and
+    // connection waiting not already counted as transcript loading.
+    get('timing-connection').textContent = duration(this.requestStarted - this.started - this.transcriptMs, 3)
     get('timing-request').textContent = 'In progress'
     get('timing-transfer').textContent = 'In progress'
   }
@@ -66,20 +73,21 @@ export class SummaryTiming {
     const now = performance.now()
     const total = this.openingMs + now - this.started
     this.clearTicker()
-    get('timing-label').textContent = event.cached ? 'Saved summary loaded' : 'Click → summary ready'
+    get('timing-label').textContent = event.cached ? 'Saved summary loaded' : 'Summary ready'
     get('timing-total').textContent = duration(total)
     const modelMs = event.cached ? 0 : event.timing?.modelMs
     // Keep the origin and model cost visible even when the breakdown is closed.
     get('timing-source').textContent = event.cached
       ? 'Cached summary · No model call'
-      : `Fresh model response · ${modelMs === undefined ? 'Model time unavailable' : `${duration(modelMs)} model time`}`
+      : 'Fresh model response'
     get('timing-source').hidden = false
     get('timing-request').textContent = event.cached ? 'Not called (cached)' : modelMs === undefined ? 'Unavailable' : duration(modelMs)
-    get('timing-transfer').textContent = modelMs === undefined ? 'Unavailable' : duration(this.requestMs - modelMs)
-    get('timing-display').textContent = this.displayStarted === null ? 'Unavailable' : duration(now - this.displayStarted)
+    get('timing-app').textContent = modelMs === undefined ? 'Unavailable' : duration(total - this.transcriptMs - modelMs)
+    get('timing-transfer').textContent = modelMs === undefined ? 'Unavailable' : duration(this.requestMs - modelMs, 3)
+    get('timing-display').textContent = this.displayStarted === null ? 'Unavailable' : duration(now - this.displayStarted, 3)
     get('timing-note').textContent = event.cached
-      ? 'Loaded from EasyUnderstand’s local summary cache (up to 7 days, 30 entries). Helper & transfer includes loading the saved summary and sending it to the panel. Summarize again makes a fresh model request.'
-      : 'One model request, including network time and response validation. Helper & transfer is the remaining request time for preparation, cache saving, and communication. Display includes rendering and waiting for the browser to paint. Summarize again makes a fresh request.'
+      ? 'Loaded from your saved summary. Summarize again makes a fresh model request.'
+      : 'Model time includes waiting for the provider, receiving the answer, and checking it. Summarize again makes a fresh request.'
   }
 
   stop(outcome: 'Cancelled' | 'Failed'): void {
@@ -88,8 +96,9 @@ export class SummaryTiming {
     this.clearTicker()
     get('timing-label').textContent = `${outcome} after`
     if (this.transcriptStarted !== null) get('timing-transcript').textContent += ' (unfinished)'
-    get('timing-request').textContent = this.transcriptDone ? 'Not completed' : 'Not called'
-    if (!this.transcriptDone && this.transcriptStarted === null) get('timing-connection').textContent += ' (unfinished)'
+    get('timing-request').textContent = this.requestStarted !== null ? 'Not completed' : 'Not called'
+    if (this.requestStarted === null) get('timing-connection').textContent = 'Not completed'
+    get('timing-app').textContent = 'Not completed'
     get('timing-transfer').textContent = 'Not completed'
     get('timing-display').textContent = 'Not completed'
     get('timing-note').textContent = 'Stopped before a complete summary. This is not a completed speed measurement.'
@@ -100,7 +109,6 @@ export class SummaryTiming {
     this.transcriptStarted = null
     this.transcriptMs = 0
     this.transcriptDone = false
-    this.connectionMs = 0
     this.requestStarted = null
     this.requestMs = 0
     this.displayStarted = null
@@ -112,7 +120,7 @@ export class SummaryTiming {
   private elapsed(): number { return this.openingMs + performance.now() - this.started }
   private tick(): void {
     get('timing-total').textContent = duration(this.elapsed())
-    if (!this.transcriptDone && this.transcriptStarted === null) get('timing-connection').textContent = duration(performance.now() - this.started)
+    if (this.transcriptDone && this.requestStarted === null) get('timing-connection').textContent = duration(performance.now() - this.started - this.transcriptMs, 3)
     if (this.transcriptStarted !== null) get('timing-transcript').textContent = duration(performance.now() - this.transcriptStarted)
   }
   private clearTicker(): void {

@@ -66,14 +66,18 @@ a { color: var(--accent); }
 [hidden] { display: none !important; }
 #timing { margin: 12px 0 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; font-size: 14px; }
 #timing summary { font-size: 14px; }
-#timing-total { float: right; font-variant-numeric: tabular-nums; font-weight: 650; margin-left: 8px; }
+#timing-total, #timing-app { float: right; font-variant-numeric: tabular-nums; font-weight: 650; margin-left: 8px; }
+.timing-heading { font-weight: 650; }
 #timing dl { margin: 8px 0; }
 #timing dl > div { display: flex; justify-content: space-between; gap: 12px; }
 #timing dt { color: var(--muted); }
-#timing dd { margin: 0; font-variant-numeric: tabular-nums; }
+#timing dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#timing-app-details { border-top: 1px solid var(--line); padding-top: 8px; }
+#timing-app-details dl > div { margin: 10px 0; }
+#timing-app-details small { display: block; font-size: 12px; font-weight: 400; line-height: 1.4; margin-top: 3px; }
 #timing-model { overflow-wrap: anywhere; }
 #timing-note { margin-bottom: 0; }
-#timing-source { display: block; clear: both; margin: 5px 0 0 14px; color: var(--accent); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+#timing-source { display: block; margin-top: 3px; color: var(--accent); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #17201d; --card: #202c27; --ink: #e3eae5; --muted: #aebcb3; --line: #35473d; --accent: #92d4b7; --soft: #2b4538; }
   .primary { background: #327b5b; color: #fff; border-color: #327b5b; }
