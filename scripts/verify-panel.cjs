@@ -38,8 +38,11 @@ app.whenReady().then(async () => {
       }, onChanged: { addListener: f => state.onChange = f } },
       tabs: { query: async () => [] },
       scripting: { executeScript: async () => {
+        state.captureStartedAt = performance.now();
         const snapshot = {...state.transcript};
         await new Promise(resolve => setTimeout(resolve, state.captureMs));
+        state.captureFinishedAt = performance.now();
+        if (state.captureFails) throw new Error('Fixture capture failure');
         return [{result:{transcript:snapshot}}];
       } },
       runtime: { connectNative: () => {
@@ -50,8 +53,11 @@ app.whenReady().then(async () => {
           disconnect: () => {clearTimeout(timer);state.disconnects++},
           postMessage: r => {
             state.requests.push(r);
+            if (r.action === 'analyze') state.analyzePostedAt = performance.now();
             const cached = r.action === 'analyze' && state.mode === 'cache' && !r.fresh;
             timer = setTimeout(() => {
+              if (r.action === 'ping') state.pingFinishedAt = performance.now();
+              if (r.action === 'ping' && state.pingFails) {listener({id:r.id,type:'error',message:'Fixture connection failure'});return}
               if (r.action === 'analyze' && state.mode === 'failure') {listener({id:r.id,type:'error',message:'Fixture provider failure'});return}
               if (r.action === 'clear-cache' && state.cacheClearFails) {listener({id:r.id,type:'error',message:'Fixture cache access failure'});return}
               let result = r.action === 'ping' ? {model:'Fixture model'} : state.analysis;
@@ -130,11 +136,12 @@ app.whenReady().then(async () => {
   await read('fixtureState.copyFails=false;document.getElementById("copy-status").textContent=""')
   const firstTotal = await total()
   assert.ok(parseFloat(firstTotal) >= 0.93, 'total includes opening, ping, collection and model')
-  assert.equal(await read('document.getElementById("timing-label").textContent'), 'Click → summary ready')
-  assert.equal(await read('document.getElementById("timing-request").textContent'), '0.180 s')
-  const freshSource = 'Fresh model response · 0.180 s model time'
+  assert.equal(await read('document.getElementById("timing-label").textContent'), 'Summary ready')
+  assert.equal(await read('document.getElementById("timing-request").textContent'), '0.18 s')
+  const freshSource = 'Fresh model response'
   assert.equal(await read('document.getElementById("timing-source").textContent'), freshSource)
-  assert.equal(await read('document.getElementById("timing").open'), false)
+  assert.equal(await read('document.getElementById("timing-app-details").open'), false)
+  assert.equal(await read('document.getElementById("timing-request").getBoundingClientRect().height > 0'), true, 'main timings are visible without expanding details')
   assert.equal(await read('document.getElementById("timing-source").getBoundingClientRect().height > 0'), true, 'origin is visible without opening timing details')
   const transcriptTime = parseFloat(await read('document.getElementById("timing-transcript").textContent'))
   const openingTime = parseFloat(await read('document.getElementById("timing-opening").textContent'))
@@ -143,18 +150,28 @@ app.whenReady().then(async () => {
   const displayTime = parseFloat(await read('document.getElementById("timing-display").textContent'))
   assert.ok(transcriptTime >= 0.08, 'caption loading is separately measured')
   assert.ok(openingTime >= 0.6, 'opening time remains separate from the helper connection')
-  assert.ok(connectionTime >= 0.05, 'helper connection is separately measured')
+  assert.ok(connectionTime >= 0, 'connection only counts extra wait beyond caption loading')
+  assert.equal(await read('fixtureState.captureStartedAt < fixtureState.pingFinishedAt'), true, 'caption capture starts before the helper responds')
+  assert.equal(await read('fixtureState.analyzePostedAt >= Math.max(fixtureState.pingFinishedAt, fixtureState.captureFinishedAt)'), true, 'analysis waits for both prerequisites')
   assert.ok(transferTime >= 0.06, 'non-model request time is separately measured')
-  assert.ok(Math.abs(parseFloat(firstTotal) - openingTime - connectionTime - transcriptTime - 0.18 - transferTime - displayTime) <= 0.004, 'breakdown accounts for total')
+  assert.ok(Math.abs(parseFloat(firstTotal) - openingTime - connectionTime - transcriptTime - 0.18 - transferTime - displayTime) <= 0.012, 'breakdown accounts for total without double-counting parallel stages')
+  const appTime = parseFloat(await read('document.getElementById("timing-app").textContent'))
+  assert.ok(Math.abs(parseFloat(firstTotal) - transcriptTime - 0.18 - appTime) <= 0.02, 'three main rows account for total')
   assert.equal(await read('fixtureState.connections'), 1, 'ping and analysis share one helper')
   assert.equal(await read('fixtureState.disconnects'), 0, 'successful requests keep the helper warm')
   assert.equal(await read('document.getElementById("understand").textContent'), 'Summarize again')
   await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   mkdirSync('out/verification', { recursive: true })
   writeFileSync('out/verification/panel-english.png', (await win.webContents.capturePage()).toPNG())
-  await read('document.getElementById("timing").open=true; new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   writeFileSync('out/verification/panel-timing.png', (await win.webContents.capturePage()).toPNG())
-  await read('document.getElementById("timing").open=false')
+  await read('document.getElementById("timing-app-details").open=true; new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+  writeFileSync('out/verification/panel-timing-details.png', (await win.webContents.capturePage()).toPNG())
+  win.setSize(360, 1150)
+  await read('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+  assert.equal(await read('document.documentElement.scrollWidth <= window.innerWidth'), true, 'timing explanations fit a narrow panel')
+  writeFileSync('out/verification/panel-timing-details-narrow.png', (await win.webContents.capturePage()).toPNG())
+  win.setSize(440, 1150)
+  await read('document.getElementById("timing-app-details").open=false')
   await win.webContents.executeJavaScript('document.getElementById("ideas-section").open=true; document.querySelector("details.idea").open=true; document.getElementById("ideas-section").scrollIntoView(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   writeFileSync('out/verification/panel-breakdown.png', (await win.webContents.capturePage()).toPNG())
   win.setSize(360, 1000)
@@ -190,16 +207,16 @@ app.whenReady().then(async () => {
   await read('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   writeFileSync('out/verification/panel-cached.png', (await win.webContents.capturePage()).toPNG())
   assert.equal(await read('document.getElementById("transcript-size").textContent'), capturedSize, 'cached summaries show current transcript counts')
-  assert.equal(await read('fixtureState.connections'), 2, 'navigation starts a helper for the new video')
-  assert.equal(await read('fixtureState.disconnects'), 1, 'navigation releases the previous helper')
+  assert.equal(await read('fixtureState.connections'), 1, 'navigation keeps an idle helper warm for the new video')
+  assert.equal(await read('fixtureState.disconnects'), 0, 'idle navigation does not restart the helper')
   await read('document.getElementById("understand").click()')
   assert.equal(await read('document.getElementById("timing-source").hidden'), true, 'rerun clears previous cache origin')
   assert.equal(await read('document.getElementById("transcript-size").hidden'), true, 'recapture clears old counts until captions load')
   await finished()
   assert.equal(await read('fixtureState.requests.at(-1).fresh'), true, 'rerun bypasses saved summary')
-  assert.equal(await read('document.getElementById("timing-label").textContent'), 'Click → summary ready')
+  assert.equal(await read('document.getElementById("timing-label").textContent'), 'Summary ready')
   assert.equal(await read('document.getElementById("timing-source").textContent'), freshSource, 'rerun reports a fresh model response')
-  assert.equal(await read('fixtureState.connections'), 2, 'repeat summary keeps the helper connection')
+  assert.equal(await read('fixtureState.connections'), 1, 'repeat summary keeps the helper connection')
 
   const beforeClear = await read('fixtureState.requests.length')
   await read('fixtureState.cacheClearFails=true;document.getElementById("clear-cache").click()')
@@ -257,7 +274,7 @@ app.whenReady().then(async () => {
   assert.equal(await read('document.getElementById("timing-label").textContent'), 'Cancelled after')
   assert.equal(await read('document.getElementById("timing-source").hidden'), true)
   const cancelledTotal = await total()
-  assert.equal(await read('fixtureState.disconnects'), 2, 'cancel closes the active helper')
+  assert.equal(await read('fixtureState.disconnects'), 2, 'failure and cancel each close the active helper')
   await new Promise(r => setTimeout(r, 150))
   assert.equal(await total(), cancelledTotal, 'cancellation freezes timer')
   await read('fixtureState.navigate("B7yl7fEHeKM",false)')
@@ -301,6 +318,31 @@ app.whenReady().then(async () => {
   assert.equal(await read('document.getElementById("video-title").textContent'), 'Next video')
   assert.equal(await read('document.getElementById("overview-card").hidden'), true)
   console.log('Delayed title changes, captured video titles, copy titles, and navigation reset passed without extra summary requests.')
+
+  // Parallel prerequisites must fail together without orphaning a helper request
+  // or allowing late captions to mutate the failed/cancelled panel.
+  await read('fixtureState.requests=[];fixtureState.captureFails=true;fixtureState.captureMs=20;fixtureState.pingMs=600;document.getElementById("understand").click()')
+  await finished()
+  assert.match(await read('document.getElementById("error").textContent'), /capture failure/)
+  assert.equal(await read('fixtureState.requests.some(r=>r.action==="analyze")'), false)
+  await read('fixtureState.captureFails=false;fixtureState.pingFails=true;fixtureState.pingMs=20;fixtureState.captureMs=200;document.getElementById("understand").click()')
+  await finished()
+  const connectionFailureTime = await total()
+  await new Promise(r => setTimeout(r, 250))
+  assert.equal(await total(), connectionFailureTime, 'late captions cannot change failed timing')
+  assert.equal(await read('document.getElementById("transcript-size").hidden'), true, 'late captions after connection failure are discarded')
+  await read('fixtureState.pingFails=false;fixtureState.captureMs=200;fixtureState.requests=[];document.getElementById("understand").click();document.getElementById("cancel").click()')
+  await new Promise(r => setTimeout(r, 250))
+  assert.equal(await read('document.getElementById("timing-label").textContent'), 'Cancelled after')
+  assert.equal(await read('fixtureState.requests.some(r=>r.action==="analyze")'), false, 'cancelled prerequisites never start the model')
+  await read('fixtureState.captureMs=90;fixtureState.pingMs=60;document.getElementById("understand").click()')
+  await finished()
+  assert.equal(await read('document.getElementById("error").hidden'), true, 'explicit retry after parallel failure/cancellation works')
+  const requestsBeforeWarmup = await read('fixtureState.requests.length')
+  await read('fixtureState.navigate("jNQXAC9IVRw",false)')
+  assert.equal(await read('fixtureState.requests.length'), requestsBeforeWarmup, 'idle warmup sends no model or transcript request')
+  console.log('Parallel caption/connection loading, failure cleanup, cancellation, retry, and request-free warmup passed.')
+
   console.log('Summary, breakdown, separate critical assessment, 18px/narrow layout, full/translated copy, and existing timing/cache/cancel flows passed.')
   unlinkSync(resolve('out/extension/preview.html'))
   clearTimeout(timer); win.destroy(); app.exit(0)

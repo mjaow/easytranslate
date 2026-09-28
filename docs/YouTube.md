@@ -34,11 +34,14 @@ native-host manifests. Windows is the verified platform for this first version.
 4. Reload an existing YouTube tab. Click **Understand video** next to the video’s
    controls, or click the companion’s browser toolbar icon.
 
-The companion starts a windowless worker on demand and reuses the connection for
-the model check, summary, repeat summaries, translations, and questions while the
-panel stays on that video. Cancel, video navigation, and closing the panel release
-the worker. A disconnected request is not automatically replayed; the next explicit
-request opens a new connection. The tray app does not have to be
+The companion warms a windowless worker when its panel has a YouTube video selected.
+Warmup starts only the local process; it sends no captions or model requests.
+The connection is reused for model checks, summaries, translations, and questions,
+including across videos while the panel stays open. Navigating during an active
+request cancels that request; idle navigation keeps the worker ready. Cancel,
+leaving YouTube, and closing the panel release the worker. A disconnected request
+is not automatically replayed; the next explicit request opens a new connection.
+The tray app does not have to be
 running. Chrome’s own Ask button remains available. No ChatGPT tab is involved;
 requests use the model API configured in EasyUnderstand and its applicable pricing
 or free-tier allowance.
@@ -61,20 +64,22 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
   text, or three minutes total. Invalid summaries are reported without another call.
 - The live **Elapsed** clock runs from clicking the YouTube/panel button until the
   summary is ready to display, including panel opening and connection. The final
-  **Click → summary ready** time stays visible in seconds to three decimal places.
-  Expand it for **Panel opening**, **Helper connection**, **Transcript loading**,
-  **Model request**, **Helper & transfer**, and **Display**.
+  **Summary ready** time stays visible in seconds to two decimal places, with three
+  rows: **Transcript loading**, **Model request**, and **App setup & display**.
+  Expand the app row for **Open sidebar**, **Connect to app**, **Prepare and deliver**,
+  and **Show summary**, each with an explanation and three-decimal precision.
   Model request time includes provider/network waiting, the full response stream,
-  and JSON validation; it is not a provider-only inference measurement. Helper
-  connection includes panel preparation and checking the configured model. Helper
-  & transfer is the analysis request round trip minus model time, including request
-  preparation, cache access, and communication. Display measures rendering and
-  waiting for the browser to paint. Hidden panels finish when rendered.
-- The timer always shows the result source: **Fresh model response** with model
-  request time, or **Cached summary · No model call**, even when the timing details
-  are closed. Cache refers to EasyUnderstand's saved summary. Cached totals cover
-  caption collection, connection, cache loading, and display. Expand the timer to
-  see the stage breakdown. Click **Summarize again** to bypass the local summary cache and make one
+  and JSON validation; it is not a provider-only inference measurement. Captions
+  load while the local app connects. Connection time counts only panel preparation
+  and the extra wait beyond caption loading, so overlapping stages are not counted
+  twice. Prepare and deliver is the analysis request round trip minus model time,
+  including preparation, cache access, and communication. Show summary measures
+  rendering and waiting for the browser to paint. Hidden panels finish when rendered.
+- The timer always shows the result source: **Fresh model response**
+  or **Cached summary · No model call**, with model time in its own row. Cache refers
+  to EasyUnderstand's saved summary. Cached totals cover
+  caption collection, connection, cache loading, and display. Click **Summarize again**
+  to bypass the local summary cache and make one
   fresh model request. Compare the same video and output settings; changing the
   video model in Settings takes effect on the next run. Translation and follow-up
   questions leave the completed summary timing unchanged. Cancelled/failed runs
