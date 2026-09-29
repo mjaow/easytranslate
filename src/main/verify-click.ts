@@ -14,9 +14,9 @@
 import { app, BrowserWindow, screen } from 'electron'
 import koffi from 'koffi'
 import { startClickWatcher, stopClickWatcher, type Click } from './clicks.js'
-import { readTranscriptAtPoint, readCaptionFromVideo } from './a11y.js'
+import { readTranscriptAtPoint } from './a11y.js'
 import { cursorPosition } from './native/index.js'
-import { dipToScreen, dipToScreenRect } from './coords.js'
+import { dipToScreen } from './coords.js'
 
 const LINES = [
   ['9 seconds', 'A few years ago, I broke into my own house.'],
@@ -246,31 +246,17 @@ export async function runClickVerification(): Promise<void> {
       caption ? `got "${caption}"` : 'got nothing'
     )
 
-    // An X-style video: the tree holds no caption, only the video's rectangle. The
-    // caption is read off the pixels on the row that was double-clicked — and the
-    // logo in the corner, which is also text, must not be what comes back.
+    // Removing CC leaves a video frame with no transcript text to explain.
+    await win.webContents.executeJavaScript("document.querySelector('.ytp-caption-window-container').remove()")
+    const { text: noCaption, read: playerRead } = await readTranscriptAtPoint(video.x, video.y)
+    check(playerRead?.video != null, 'a YouTube player without captions is still identified')
+    check(noCaption === null, 'a YouTube video without captions produces no text')
+
+    // Text visible only in the picture must never become transcript evidence.
     const xVideo = dipToScreen({ x: bounds.x + 450, y: bounds.y + X_TOP + X_HEIGHT - 30 })
     const { text: xText, read: xRead } = await readTranscriptAtPoint(xVideo.x, xVideo.y)
-    check(xText === null && xRead?.video !== null, 'a native-caption video reports its rectangle', xRead?.video ? `${xRead.video.width}x${xRead.video.height}` : 'no rectangle')
-    if (xRead?.video) {
-      const started = Date.now()
-      const frame = dipToScreenRect(display.bounds)
-      const ocr = await readCaptionFromVideo(xVideo, xRead.video, frame)
-      const words = (s: string): string[] => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean)
-      const want = words(X_CAPTION)
-      const got = new Set(words(ocr.text ?? ''))
-      const ratio = want.filter((w) => got.has(w)).length / want.length
-      check(ratio >= 0.8, 'the caption on the clicked row is read off the pixels', `${Math.round(ratio * 100)}% of words, ${Date.now() - started}ms — "${ocr.text}"`)
-      check(!/\bGPS\b/.test(ocr.text ?? ''), 'the logo in the corner is not mistaken for the caption')
-
-      // The tree's rectangle can be stale — an inline box while the video is shown
-      // large. A rectangle that does not contain the point must not steer the read.
-      const stale = { x: xRead.video.x, y: xRead.video.y - 5000, width: 200, height: 100 }
-      const fallback = await readCaptionFromVideo(xVideo, stale, frame)
-      const gotFallback = new Set(words(fallback.text ?? ''))
-      const ratioFallback = want.filter((w) => gotFallback.has(w)).length / want.length
-      check(ratioFallback >= 0.8, 'a stale video rectangle falls back to the row on screen', `${Math.round(ratioFallback * 100)}% of words`)
-    }
+    check(xRead?.video != null, 'an embedded video is identified without reading pixels')
+    check(xText === null, 'text drawn into a video frame is ignored')
 
     // A drag is a selection, not a click.
     const seen = clicks.length

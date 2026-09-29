@@ -7,7 +7,7 @@
 #   LINE:<text>     the line of text under the point, if the app exposes text there
 #   CAPTION:<text>  the caption drawn on a video player the point is inside, if any
 #   VIDEO:<x y w h> the on-screen rectangle of a video the point is inside, in
-#                   physical pixels — for players whose captions are not in the tree
+#                   physical pixels — distinguishes player controls from transcript text
 #   CHAIN:<...>     one line per ancestor, for diagnostics
 #
 # Deciding whether that is a transcript line happens in the caller
@@ -69,10 +69,10 @@ try {
     if ($null -eq $player -and $c.ClassName -and $c.ClassName.Contains('html5-video-player')) { $player = $current }
 
     # Any video: X names its player "Embedded video" and its control strip after the
-    # captions button; Chromium calls a bare <video> element "video". Its rectangle
-    # lets the caller read a caption off the pixels when the tree does not carry it.
+    # captions button; Chromium calls a bare <video> element "video". Mark the
+    # player so its controls are ignored when no caption is exposed by the page.
     $looksLikeVideo = ($c.Name -eq 'Embedded video') -or ($c.LocalizedControlType -eq 'video') -or
-                      ($c.Name -match 'captions') -or ($c.ClassName -and $c.ClassName -match 'video-stream')
+                      ($c.Name -match 'captions') -or ($c.ClassName -and $c.ClassName -match 'html5-video-player|video-stream')
     if ($null -eq $video -and $looksLikeVideo) { $video = $current }
 
     # In Chromium the leaf under the pointer is usually a plain container; TextPattern

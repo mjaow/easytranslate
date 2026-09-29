@@ -69,14 +69,14 @@ describe('assembling a point read', () => {
     expect(transcriptLineAt(read)).toBe('so I quickly ran around and tried all the other doors')
   })
 
-  it('a video with no caption in the tree reports only its rectangle, for the pixels', () => {
+  it('a video with no caption in the tree provides no transcript text', () => {
     const read = buildPointRead(
       [node({ role: 'AXGroup', title: 'Embedded video' })],
       [],
       { x: 20, y: 300, width: 900, height: 500 }
     )
 
-    // Nothing to explain yet — this is the read that sends the caller to OCR.
+    // There is no caption to explain, even if the frame contains visible text.
     expect(transcriptLineAt(read)).toBeNull()
     expect(read.video).toEqual({ x: 20, y: 300, width: 900, height: 500 })
   })

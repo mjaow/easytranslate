@@ -1,9 +1,8 @@
 /**
  * Screen coordinates, in the one unit the rest of the app uses.
  *
- * Everything to do with pointing at the screen — where the pointer is, where a video
- * sits, which band of pixels to read — is in *physical screen pixels*, because that
- * is what the OS pointing and screen-reading APIs take on both platforms. Electron,
+ * Pointer positions and accessibility hit tests use *physical screen pixels*,
+ * because that is what the OS pointing and accessibility APIs take. Electron,
  * meanwhile, talks in device-independent pixels.
  *
  * On Windows those two differ whenever a display is scaled, and Electron provides
@@ -13,7 +12,7 @@
  * Windows-only and does not define them elsewhere, so this is where the difference is
  * absorbed and nowhere else.
  */
-import { screen, type Rectangle } from 'electron'
+import { screen } from 'electron'
 
 interface Point {
   x: number
@@ -30,9 +29,4 @@ export function screenToDip(point: Point): Point {
 /** Device-independent pixels → the physical screen pixels the OS APIs take. */
 export function dipToScreen(point: Point): Point {
   return NEEDS_CONVERSION ? screen.dipToScreenPoint(point) : point
-}
-
-/** The same for a rectangle — a display's bounds, in practice. */
-export function dipToScreenRect(rect: Rectangle): Rectangle {
-  return NEEDS_CONVERSION ? screen.dipToScreenRect(null, rect) : rect
 }

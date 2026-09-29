@@ -47,7 +47,7 @@ export function isCaptionNode(node: AxNode): boolean {
   return /caption-window/.test(node.domId) || /caption-window/.test(node.domClass)
 }
 
-/** Whether an element is a video player worth reading pixels from. */
+/** Whether an element is a video player whose caption nodes can be inspected. */
 export function isVideoNode(node: AxNode): boolean {
   if (/html5-video-player|video-stream/.test(node.domClass)) return true
   if (node.role === 'AXVideo' || node.role === 'AXVideoArea') return true

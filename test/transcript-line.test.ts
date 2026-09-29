@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   transcriptLineAt,
-  parsePointRead,
-  captionBandAround,
-  captionLinesNear
+  parsePointRead
 } from '../src/core/transcript.js'
 
 /**
@@ -70,6 +68,17 @@ describe('transcriptLineAt', () => {
   it('ignores a time that is the whole name', () => {
     expect(transcriptLineAt({ button: '5 seconds', line: null, caption: null, video: null, chain: '' })).toBeNull()
   })
+
+  it.each([
+    { button: null, line: null, chain: 'video-stream html5-main-video' },
+    { button: null, line: '0:07 / 1:30', chain: 'html5-video-player' },
+    { button: '0:07 / 1:30', line: null, chain: 'html5-video-player' },
+    { button: 'Play (k)', line: 'A title about transcripts', chain: 'html5-video-player name="Transcript lesson - YouTube"' }
+  ])('ignores a video without caption text: %j', fields => {
+    expect(transcriptLineAt({
+      ...fields, caption: null, video: { x: 0, y: 0, width: 640, height: 360 }
+    })).toBeNull()
+  })
 })
 
 describe('parsePointRead', () => {
@@ -93,76 +102,5 @@ describe('parsePointRead', () => {
     const read = parsePointRead('VIDEO:-1798 777 858 483\n')
     expect(read.video).toEqual({ x: -1798, y: 777, width: 858, height: 483 })
     expect(parsePointRead('VIDEO:1 2 0 5').video).toBeNull()
-  })
-})
-
-describe('captionBandAround', () => {
-  const screen = { x: 0, y: 0, width: 1920, height: 1080 }
-
-  it('is a band around the point, as wide as the video', () => {
-    const video = { x: 100, y: 200, width: 800, height: 400 }
-    const band = captionBandAround({ x: 500, y: 500 }, video, screen)
-    expect(band.x).toBe(100)
-    expect(band.width).toBe(800)
-    expect(band.height).toBe(90)
-    expect(band.y).toBe(455)
-  })
-
-  it('stays inside the video', () => {
-    const video = { x: 100, y: 200, width: 800, height: 400 }
-    expect(captionBandAround({ x: 500, y: 595 }, video, screen).y).toBe(510)
-  })
-
-  it('uses the screen when the rectangle does not contain the point', () => {
-    const stale = { x: 100, y: 200, width: 800, height: 400 }
-    const band = captionBandAround({ x: 960, y: 1000 }, stale, screen)
-    expect(band.x).toBe(0)
-    expect(band.width).toBe(1920)
-    expect(band.y + band.height).toBeLessThanOrEqual(1080)
-  })
-})
-
-describe('captionLinesNear', () => {
-  const caption = { text: 'to discuss it further. Mustafa Suleiman co-founded DeepMind', x: 160, y: 900, width: 1450, height: 44 }
-  const logo = { text: 'GPS', x: 40, y: 60, width: 120, height: 60 }
-  const watermark = { text: 'FAREED ZAKARIA', x: 1620, y: 910, width: 200, height: 30 }
-  const readout = { text: '0:07 / 1:30', x: 200, y: 1010, width: 120, height: 30 }
-
-  it('keeps the row that was pointed at and drops the corners', () => {
-    expect(captionLinesNear([logo, caption, watermark, readout], { x: 800, y: 922 })).toBe(
-      'to discuss it further. Mustafa Suleiman co-founded DeepMind'
-    )
-  })
-
-  it('drops a small source label on the same row, as seen on X', () => {
-    // Positions from a real read: the caption in 62px type, the label in 14px at the far left.
-    const seen = [
-      { text: 'eight billion dollars in taxes over five years', x: -1469, y: 1147, width: 1018, height: 62 },
-      { text: 'From Wall St Engine', x: -1893, y: 1207, width: 153, height: 14 },
-      { text: '0:15/ 1:20 @', x: -285, y: 1268, width: 192, height: 20 }
-    ]
-    expect(captionLinesNear(seen, { x: -1116, y: 1185 })).toBe(
-      'eight billion dollars in taxes over five years'
-    )
-  })
-
-  it('does not let a label off to the side become the anchor', () => {
-    const label = { text: 'From Wall St Engine', x: 0, y: 930, width: 153, height: 14 }
-    expect(captionLinesNear([label, caption], { x: 800, y: 930 })).toBe(
-      'to discuss it further. Mustafa Suleiman co-founded DeepMind'
-    )
-  })
-
-  it('joins a two-line caption in reading order', () => {
-    const second = { text: 'and now runs Microsoft AI.', x: 400, y: 948, width: 900, height: 44 }
-    expect(captionLinesNear([second, caption], { x: 800, y: 940 })).toBe(
-      'to discuss it further. Mustafa Suleiman co-founded DeepMind and now runs Microsoft AI.'
-    )
-  })
-
-  it('says nothing when only a readout or a logo is near', () => {
-    expect(captionLinesNear([readout], { x: 250, y: 1025 })).toBe('')
-    expect(captionLinesNear([logo], { x: 100, y: 90 })).toBe('GPS')
-    expect(captionLinesNear([], { x: 0, y: 0 })).toBe('')
   })
 })

@@ -58,7 +58,9 @@ With the desktop app running, use either of these gestures:
 
 The popup shows the Chinese translation, simpler English, and vocabulary for that
 passage. Double-click translation can be turned on or off in **Settings**; it uses
-the desktop app and does not require the full-video companion extension.
+the desktop app and does not require the full-video companion extension. Text comes
+only from the page's captions or transcript. If neither is available, the click
+produces no popup; video frames and images are never read with OCR.
 
 ![A YouTube caption translated in an EasyUnderstand popup over the video, with Chinese, plain English, and explanations of ridicule and rational.](docs/images/youtube-caption-translation.png)
 
@@ -223,7 +225,7 @@ Settings opens by itself the first time, since nothing works until step 1 is don
 | Gesture | Result |
 |---|---|
 | Select text, press `Ctrl+Alt+E` (`⌘⌥E`) | Explain the selection |
-| Double-click a YouTube or X video while captions are on | Explain the caption on screen |
+| Double-click a YouTube caption exposed by the page | Explain the current caption |
 | Double-click a line in the YouTube transcript panel | Explain that line |
 | `Esc`, or the shortcut again | Close the popup |
 | Select any words in the popup | Copies them — selecting *is* the copy |
@@ -248,10 +250,9 @@ Settings opens by itself the first time, since nothing works until step 1 is don
   took. There is no ⌘C to press and no copy button, for a reason worth knowing — see
   [How it works](#how-it-works).
 
-The double-click needs no shortcut. On YouTube the words come from the page itself, so
-they are exact; X draws its captions into the picture, so there the lower part of the
-video is read with local OCR (nothing is uploaded). Only a caption or a transcript line
-produces a popup; everything else on the page stays a plain click. YouTube treats a
+The double-click needs no shortcut. Words come only from captions or transcript
+lines exposed by the page's accessibility tree. Text baked into a video frame or
+image is ignored, including on X. Missing captions produce no popup. YouTube treats a
 double-click on the video as its fullscreen toggle, so double-click the caption text
 itself to avoid that. The double-click can be turned off in Settings.
 
@@ -354,10 +355,9 @@ throughout.
   and useless if the file is copied elsewhere. If the OS cannot encrypt, the app
   refuses to store the key rather than writing plaintext. `ANTHROPIC_API_KEY` and
   `OPENAI_API_KEY` environment variables take precedence.
-- **Nothing is read off the screen except when you ask.** The OCR path runs only on a
-  double-click inside a video that has no caption in its accessibility tree, reads one
-  band of pixels, and recognises it with the OS's own engine — `Windows.Media.Ocr` or
-  Apple's Vision. No image leaves the machine.
+- **Video frames and images are never read with OCR.** Double-click translation
+  uses only caption or transcript text exposed by the page. Missing text does not
+  trigger screen capture or image recognition.
 - **Nothing is sent anywhere except the provider you configure.** No telemetry.
 - `npm audit --omit=dev` reports 0 vulnerabilities.
 
@@ -377,8 +377,9 @@ fact.
   the key. If a combination probes free yet never fires, pick another.
 - **DRM'd text and text baked into images can't be captured.** There is nothing for
   the copy to copy.
-- **Double-click-to-explain covers YouTube and X.** A double-click is only examined
-  when a window titled "YouTube" or "… / X" is in front. If a caption or line ever
+- **Double-click-to-explain requires accessible caption or transcript text.** A
+  double-click is only examined when a window titled "YouTube" or "… / X" is in front.
+  Captions baked into the picture are unsupported. If a caption or line ever
   fails to register, `last-click.log` in the data folder (tray → *Open data folder*)
   records what the accessibility tree reported.
 
@@ -399,9 +400,6 @@ fact.
 - **Secure input fields block the copy.** While a password field has focus — or any
   app has turned on secure event input — macOS refuses synthetic keystrokes from
   everyone. This is the macOS counterpart of the elevated-window rule above.
-- **Reading captions off the picture needs Screen Recording** as well, since that path
-  takes a picture of one band of the screen. Only X needs it; YouTube's captions come
-  from the page. The popup says which permission is missing.
 
 ### If Electron fails to start
 
@@ -469,7 +467,6 @@ each platform does them its own way:
 | pointer + button | `GetCursorPos`, `GetAsyncKeyState` | `CGEventGetLocation`, `CGEventSourceButtonState` |
 | window in front | `GetWindowTextW` | `AXFocusedWindow` → `AXTitle` |
 | tree under a point | UI Automation, via PowerShell | Accessibility API, in process |
-| reading the screen | `Windows.Media.Ocr` | Vision, via JavaScript for Automation |
 | offline voice | SAPI (`System.Speech`) | `say` |
 | key storage | DPAPI | login Keychain |
 
@@ -531,9 +528,8 @@ for and the one a plain call would never exercise.
 **The YouTube double-click.** The mouse button is polled, nothing is hooked. A
 double-click on a YouTube window is looked up in the page's accessibility tree: a
 transcript line is a button named with its spoken time, and a caption is a
-`caption-window` element inside the player. X draws captions natively, where no
-accessibility tree can see them, so there the tree supplies the video's rectangle and
-the lower part of it is read with the OS's own text recogniser.
+`caption-window` element inside the player. If the page exposes neither, the click
+is ignored. The app never extracts text from the video picture or falls back to OCR.
 
 The two trees do not look alike, and that is the one place the platforms genuinely
 differ rather than merely spell things differently. UI Automation hands back Chromium's
@@ -583,7 +579,6 @@ src/
 │  ├─ coords.ts    physical screen pixels ↔ Electron's device-independent ones
 │  ├─ a11y.ts      what the accessibility tree holds under a point, either platform
 │  ├─ a11y-macos.ts  the macOS walk (Windows uses a PowerShell script in resources/)
-│  ├─ ocr.ts       read a screen region, for natively drawn captions
 │  ├─ popup.ts     the non-activating window
 │  └─ verify*.ts   self-tests, loaded only behind their CLI flags
 ├─ core/           mode detection, prompts, streaming parser, transcript and tree rules, cache, config
@@ -592,9 +587,7 @@ src/
 └─ shared/         types used across all three processes
 
 resources/
-├─ transcript-at-point.ps1   the Windows accessibility read
-├─ snip-ocr.ps1              Windows.Media.Ocr
-└─ snip-ocr.js               Apple Vision, through JavaScript for Automation
+└─ transcript-at-point.ps1   the Windows accessibility read
 ```
 
 ## Platform support
@@ -603,7 +596,7 @@ Windows 10/11 and macOS 13+, from the same source tree.
 
 `src/main/native/` is where the difference lives. Outside it, the code that still has
 to know is small and named: `coords.ts` (one unit conversion Windows needs and macOS
-does not), `a11y-macos.ts` and `ocr.ts` (each dispatches to the OS's own reader), the
+does not), `a11y.ts` and `a11y-macos.ts` (the platform accessibility readers), the
 offline half of `providers/tts/system.ts`, the hotkey candidate lists, and the handful
 of sentences in Settings that name a key or a System Settings pane. Everything else —
 the capture algorithm, the click watcher, the transcript and caption rules, providers,
@@ -618,14 +611,12 @@ config written on one platform is already correct on the other.
 
 The honest asymmetries:
 
-- **macOS asks permission; Windows does not.** Synthetic input needs Accessibility, and
-  reading pixels needs Screen Recording. Both are one-time switches, both are checked
-  and reported rather than failing in silence, and the Accessibility grant is read only
-  at launch — so it takes a restart.
-- **Windows shells out where macOS does not.** The accessibility read and the OCR are
-  PowerShell scripts on Windows because UI Automation and `Windows.Media.Ocr` are .NET
-  and WinRT; on macOS both are C or scriptable, so the read runs in process and only
-  the screen capture and Vision call leave it.
+- **macOS asks permission; Windows does not.** Synthetic input and the accessibility
+  read need Accessibility permission. The app checks and reports it at launch, so
+  granting it takes a restart. Screen Recording is not needed.
+- **Windows shells out where macOS does not.** The accessibility read uses a
+  PowerShell script on Windows because UI Automation is .NET; on macOS the
+  Accessibility API is C, so the read runs in process.
 - **`type: 'panel'` is not usable.** The natural macOS home for a non-activating popup
   is an `NSPanel`, and Electron 44 does not actually produce one. What the popup relies
   on instead is described under [How it works](#how-it-works), and it is verified at
