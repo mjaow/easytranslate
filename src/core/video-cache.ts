@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { VideoAnalysis, VideoCacheClearResult } from '../shared/video.js'
+import type { VideoAnalysis, VideoCacheClearResult, VideoWatchPlan } from '../shared/video.js'
 
 export const VIDEO_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 export const VIDEO_CACHE_MAX_ENTRIES = 30
@@ -53,18 +53,22 @@ export function pruneVideoCache(directory: string, now = Date.now()): void {
   for (const entry of fresh.slice(VIDEO_CACHE_MAX_ENTRIES)) remove(entry.file)
 }
 
-export function readVideoCache(file: string): VideoAnalysis | null {
+export function readVideoCacheValue(file: string): unknown {
   try {
     const stat = lstatSync(file)
     if (!stat.isFile()) return null
     if (Date.now() - stat.mtimeMs >= VIDEO_CACHE_MAX_AGE_MS) { remove(file); return null }
-    const value = JSON.parse(readFileSync(file, 'utf8')) as VideoAnalysis
     // Reading never touches the timestamp: expiry is based on the save time.
-    return value && typeof value.overview === 'string' && Array.isArray(value.ideas) ? value : null
+    return JSON.parse(readFileSync(file, 'utf8'))
   } catch { return null }
 }
 
-export function writeVideoCache(file: string, value: VideoAnalysis): void {
+export function readVideoCache(file: string): VideoAnalysis | null {
+  const value = readVideoCacheValue(file) as VideoAnalysis | null
+  return value && typeof value.overview === 'string' && Array.isArray(value.ideas) ? value : null
+}
+
+export function writeVideoCache(file: string, value: VideoAnalysis | VideoWatchPlan): void {
   mkdirSync(dirname(file), { recursive: true })
   const temporary = `${file}.${randomUUID()}.tmp`
   try {

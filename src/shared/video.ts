@@ -2,6 +2,8 @@ export interface CaptionSegment { start: number; duration: number; text: string 
 export interface VideoTranscript {
   videoId: string
   title: string
+  /** Description from player metadata matched to this video; absent on older captures. */
+  description?: string
   language: string
   automatic: boolean
   duration: number
@@ -43,12 +45,30 @@ export interface VideoAnalysis {
   sections: number
 }
 export interface VideoAnswer { answer: string; sources: number[] }
+export type WatchRecommendation = 'focus' | 'skim' | 'skip' | 'check'
+export interface WatchSection {
+  firstCaption: number
+  lastCaption: number
+  title: string
+  recommendation: WatchRecommendation
+  reason: string
+  learningTarget: string
+  skipCondition: string
+  /** First-caption IDs of earlier sections that must be watched, even on a short route. */
+  prerequisites: number[]
+}
+export interface VideoWatchPlan {
+  overview: string
+  sections: WatchSection[]
+  model: string
+}
 export interface VideoCacheClearResult { cleared: number; failed: number }
 export type VideoRequest =
   | { id: string; action: 'ping' }
   | { id: string; action: 'cancel' }
   | { id: string; action: 'clear-cache' }
   | { id: string; action: 'analyze'; transcript: VideoTranscript; fresh?: boolean }
+  | { id: string; action: 'watch-plan'; transcript: VideoTranscript; fresh?: boolean }
   | { id: string; action: 'translate'; transcript: VideoTranscript }
   | { id: string; action: 'question'; transcript: VideoTranscript; question: string; history?: string }
 export interface VideoEvent {
@@ -56,7 +76,7 @@ export interface VideoEvent {
   type: 'status' | 'idea' | 'result' | 'error'
   message?: string
   idea?: VideoIdea
-  result?: VideoAnalysis | VideoAnswer | VideoCacheClearResult | { model: string }
+  result?: VideoAnalysis | VideoAnswer | VideoWatchPlan | VideoCacheClearResult | { model: string }
   cached?: boolean
   /** Current request only; never reuse generation time from a cached summary. */
   timing?: { modelMs: number }

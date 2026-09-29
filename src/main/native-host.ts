@@ -29,7 +29,7 @@ void app.whenReady().then(() => {
     try {
       for (const raw of decoder.feed(data)) {
         const r = raw as VideoRequest
-        if (!r || typeof r.id !== 'string' || !/^[\w-]{1,80}$/.test(r.id) || !['ping', 'analyze', 'translate', 'question', 'cancel', 'clear-cache'].includes(r.action)) throw new Error('Invalid native request.')
+        if (!r || typeof r.id !== 'string' || !/^[\w-]{1,80}$/.test(r.id) || !['ping', 'analyze', 'watch-plan', 'translate', 'question', 'cancel', 'clear-cache'].includes(r.action)) throw new Error('Invalid native request.')
         if (r.action === 'cancel') { active?.abort(); continue }
         if (active) { send({ id: r.id, type: 'error', message: 'Another request is still running. Cancel it first.' }); continue }
         const controller = new AbortController(); active = controller

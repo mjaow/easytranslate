@@ -37,7 +37,9 @@ app.whenReady().then(async () => {
         set: async values => { Object.assign(state.stored, values) }
       }, onChanged: { addListener: f => state.onChange = f } },
       tabs: { query: async () => [] },
-      scripting: { executeScript: async () => {
+      scripting: { executeScript: async options => {
+        if (options.args?.length === 1) return [{result:state.wrongVideo ? null : state.currentTime ?? 0}];
+        if (options.args?.length === 2) {state.seek=options.args;return [{result:!state.wrongVideo}]}
         state.captureStartedAt = performance.now();
         const snapshot = {...state.transcript};
         await new Promise(resolve => setTimeout(resolve, state.captureMs));
@@ -64,15 +66,19 @@ app.whenReady().then(async () => {
               if (r.action === 'clear-cache') {result={cleared:2,failed:0};state.mode='success'}
               if (r.action === 'translate') result = {...result,overview:'蒂尔认为，人工智能的风险需要与停滞带来的政治风险一起衡量。',takeaways:result.takeaways.map(x=>({...x,text:'停滞也有风险。'})),ideas:result.ideas.map(x=>({...x,title:'停滞也带来政治风险'})),evaluation:result.evaluation.map(x=>({...x,claim:'检验这个观点',support:'提出了一个机制。',limits:'还没有比较两种选择。',test:''}))};
               if (r.action === 'question') result = {answer:'He sees stagnation as another source of risk.',sources:[1]};
+              if (r.action === 'watch-plan') {
+                if (state.planFails) {listener({id:r.id,type:'error',message:'Fixture plan failure'});return}
+                result = {...state.plan,model:'gpt-6-luna'};
+              }
               listener({id:r.id,type:'result',result,cached,timing:r.action === 'analyze' ? {modelMs:cached?0:state.modelMs} : undefined});
             }, r.action === 'ping' ? state.pingMs : r.action === 'analyze' && !cached ? state.modelMs + 70 : 20);
           }
         };
       } }
     };
-    state.navigate = (videoId, start=true, token=crypto.randomUUID()) => {
+    state.navigate = (videoId, start=true, token=crypto.randomUUID(), action='analyze') => {
       state.transcript = {...state.transcript,videoId};
-      const next = {...state.stored['target:1'],videoId,start,token,clickedAt:performance.timeOrigin+performance.now()};
+      const next = {...state.stored['target:1'],videoId,start,token,action,clickedAt:performance.timeOrigin+performance.now()};
       state.stored['target:1'] = next;
       state.onChange({'target:1':{newValue:next}},'session');
     };
@@ -342,6 +348,64 @@ app.whenReady().then(async () => {
   await read('fixtureState.navigate("jNQXAC9IVRw",false)')
   assert.equal(await read('fixtureState.requests.length'), requestsBeforeWarmup, 'idle warmup sends no model or transcript request')
   console.log('Parallel caption/connection loading, failure cleanup, cancellation, retry, and request-free warmup passed.')
+
+  // Plan directly on a new video: no summary request or profile form is involved.
+  await read(`fixtureState.captureMs=0;fixtureState.pingMs=0;fixtureState.modelMs=0;fixtureState.requests=[];
+    fixtureState.transcript.description='A tutorial on mechanisms, with optional review and practical limitations.';
+    fixtureState.plan={overview:'Focus on the mechanism and its practical limits; skim repeated background.',sections:[
+      {firstCaption:1,lastCaption:1,title:'Repeated background',recommendation:'skip',reason:'Repeats the background without adding a new concept.',learningTarget:'',skipCondition:'You can explain the background; otherwise watch this section.',prerequisites:[]},
+      {firstCaption:2,lastCaption:2,title:'Mechanism and limitations',recommendation:'focus',reason:'These constraints change how the method applies.',learningTarget:'Explain when the mechanism applies.',skipCondition:'',prerequisites:[]}
+    ]};document.getElementById('plan-watch').click()`)
+  await finished()
+  assert.deepEqual(await read('fixtureState.requests.map(r=>r.action)'), ['ping','watch-plan'])
+  assert.equal(await read('document.getElementById("watch-result").hidden'), false)
+  assert.equal(await read('document.getElementById("summary-view").hidden'), true)
+  assert.equal(await read('document.getElementById("summary-timing-view").hidden'), true)
+  assert.equal(await read('document.querySelector("#watch-goal, #watch-known, #watch-budget, #watch-form")'), null)
+  assert.equal(await read('"preferences" in fixtureState.requests.at(-1)'), false)
+  assert.match(await read('fixtureState.requests.at(-1).transcript.description'), /practical limitations/)
+  assert.equal(await read('document.querySelector(".watch-skip details").open'), true, 'skip conditions are visible')
+  await read('fixtureState.currentTime=400;document.getElementById("next-focus").click()')
+  await waitFor('fixtureState.seek?.[1]===445')
+  assert.equal(await read('fixtureState.seek[0]'), 'jNQXAC9IVRw')
+  await read('fixtureState.currentTime=450;document.getElementById("next-focus").click()')
+  await waitFor('document.getElementById("watch-status").textContent.includes("No later focus")')
+  await read('fixtureState.wrongVideo=true;document.getElementById("next-focus").click()')
+  await waitFor('document.getElementById("error").textContent.includes("original video")')
+  await read('fixtureState.wrongVideo=false;document.getElementById("understand").click()')
+  await finished()
+  assert.equal(await read('fixtureState.requests.at(-1).action'), 'analyze')
+  assert.equal(await read('document.getElementById("watch-plan-section").hidden'), true)
+  assert.equal(await read('document.getElementById("summary-view").hidden'), false)
+  const summaryClock = await total()
+  await read('document.getElementById("plan-watch").click()')
+  await finished()
+  assert.equal(await read('fixtureState.requests.at(-1).fresh'), true)
+  assert.equal(await total(), summaryClock, 'planning preserves the completed summary clock')
+  assert.equal(await read('document.getElementById("error").hidden'), true)
+  await read('window.scrollTo(0,0);new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+  assert.equal(await read('document.documentElement.scrollWidth <= window.innerWidth'), true, 'watch plan fits the panel')
+  mkdirSync('out/verification', {recursive:true})
+  writeFileSync('out/verification/watch-plan-panel.png', (await win.webContents.capturePage()).toPNG())
+  await read('fixtureState.planFails=true;document.getElementById("plan-watch").click()')
+  await finished()
+  assert.match(await read('document.getElementById("watch-status").textContent'), /did not finish/)
+  await read('fixtureState.planFails=false;document.getElementById("plan-watch").click();document.getElementById("cancel").click()')
+  assert.match(await read('document.getElementById("watch-status").textContent'), /cancelled/)
+  await read('fixtureState.requests=[];fixtureState.navigate("lecturetest",true,crypto.randomUUID(),"watch-plan")')
+  await finished()
+  assert.deepEqual(await read('fixtureState.requests.map(r=>r.action)'), ['ping','watch-plan'], 'the YouTube Plan watch action starts planning on a new video')
+  await read('document.getElementById("plan-watch").click();fixtureState.navigate("jNQXAC9IVRw",false)')
+  await new Promise(resolve => setTimeout(resolve, 50))
+  assert.equal(await read('document.getElementById("watch-plan-section").hidden'), true, 'navigation removes the old plan and ignores late results')
+  // A new explicit page action can replace an in-progress summary with a plan.
+  await read('fixtureState.modelMs=150;fixtureState.requests=[];document.getElementById("understand").click()')
+  await waitFor('fixtureState.requests.at(-1)?.action==="analyze"')
+  await read('fixtureState.navigate("jNQXAC9IVRw",true,crypto.randomUUID(),"watch-plan")')
+  await finished()
+  assert.equal(await read('fixtureState.requests.at(-1).action'), 'watch-plan')
+  assert.equal(await read('document.getElementById("summary-view").hidden'), true)
+  console.log('Independent watch-plan actions, metadata capture, separate views, seeking, retry, cancellation, and navigation passed.')
 
   console.log('Summary, breakdown, separate critical assessment, 18px/narrow layout, full/translated copy, and existing timing/cache/cancel flows passed.')
   unlinkSync(resolve('out/extension/preview.html'))

@@ -7,7 +7,7 @@ import type { CaptionSegment, VideoTranscript } from '../src/shared/video.js'
 // extension APIs or credentials to the page; its only return value is caption data.
 interface Track { baseUrl: string; languageCode: string; kind?: string; name: unknown }
 interface PlayerData {
-  videoDetails?: { videoId?: string; title?: string; lengthSeconds?: string; isLiveContent?: boolean; isLive?: boolean }
+  videoDetails?: { videoId?: string; title?: string; shortDescription?: string; lengthSeconds?: string; isLiveContent?: boolean; isLive?: boolean }
   captions?: { playerCaptionsTracklistRenderer?: {
     captionTracks?: Track[]; defaultAudioTrackIndex?: number;
     audioTracks?: { defaultCaptionTrackIndex?: number }[]
@@ -24,7 +24,9 @@ async function collect(): Promise<{ transcript?: VideoTranscript; error?: string
   if (data?.videoDetails?.videoId !== videoId) throw new Error('The video is still loading. Try again in a moment.')
   const duration = Number(data.videoDetails.lengthSeconds || player?.getDuration?.())
   if (!Number.isFinite(duration) || duration <= 0 || data.videoDetails.isLive) throw new Error('Live streams are not supported. Try the recording after captions are available.')
-  const meta = { videoId, title: data.videoDetails.title ?? document.title, duration, complete: true as const }
+  const meta = { videoId, title: data.videoDetails.title ?? document.title,
+    description: typeof data.videoDetails.shortDescription === 'string' ? data.videoDetails.shortDescription : '',
+    duration, complete: true as const }
   const assertSameVideo = (): void => {
     if (new URL(location.href).searchParams.get('v') !== videoId || player?.getVideoData?.().video_id && player.getVideoData().video_id !== videoId) throw new Error('The video changed while captions were loading. Click Understand video again.')
   }

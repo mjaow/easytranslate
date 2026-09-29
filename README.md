@@ -77,6 +77,14 @@ becomes a bilingual explanation with vocabulary you can listen to.*
 4. Ask follow-up questions below the analysis, choose **Translate to Chinese**,
    or use **Copy summary + breakdown** to take the analysis with you.
 
+For a separate viewing guide, click **Plan watch** beside **Understand video** on
+YouTube or in the side panel. It collects the video directly, infers its learning
+purpose from the title and description, and uses the complete transcript to label
+**Focus**, **Skim**, **Skip**, and **Check visuals** sections. No summary or setup
+form is required. Click a timestamp or **Next focus section** to navigate. Planning
+uses the same video model and key, including an existing Azure OpenAI GPT-6 Luna
+deployment.
+
 ![YouTube with the Understand video button below the player and an arrow pointing to the EasyUnderstand summary in the browser side panel.](docs/images/youtube-understand-video-masked.png)
 
 *One click opens an analysis of the complete caption transcript. The panel also

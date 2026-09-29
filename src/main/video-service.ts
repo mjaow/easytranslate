@@ -7,7 +7,8 @@ import type { LlmProvider } from '../providers/llm/types.js'
 import { batchJsonValues, chunkCaptions, parseSummary, summaryPrompt, sourcesField, stringField, validateTranscript, VIDEO_PROMPT_VERSION } from '../core/video.js'
 import { generateVideoJson } from '../core/video-generation.js'
 import { resolveVideoConfig } from '../core/video-config.js'
-import { clearVideoCache, pruneVideoCache, readVideoCache as readCache, writeVideoCache as writeCache } from '../core/video-cache.js'
+import { clearVideoCache, pruneVideoCache, readVideoCacheValue, readVideoCache as readCache, writeVideoCache as writeCache } from '../core/video-cache.js'
+import { parseWatchPlan, watchPlanPrompt, WATCH_PLAN_VERSION } from '../core/watch-plan.js'
 import { createVideoProvider } from './video-model.js'
 import type { VideoAnalysis, VideoAnswer, VideoEvent, VideoRequest, VideoTranscript } from '../shared/video.js'
 
@@ -32,6 +33,28 @@ export async function handleVideo(request: VideoRequest, emit: Emit, signal: Abo
   if (request.action === 'ping') { emit({ type: 'result', result: { model } }); return }
   if (request.action === 'cancel') return
   const t = validateTranscript(request.transcript)
+  if (request.action === 'watch-plan') {
+    const planFile = cachePath(t, model, endpoint, 'watch-plan', [WATCH_PLAN_VERSION])
+    if (!request.fresh) {
+      const cached = readVideoCacheValue(planFile)
+      if (cached) {
+        try {
+          const plan = parseWatchPlan(cached, t, model)
+          emit({ type: 'result', result: plan, cached: true, timing: { modelMs: 0 } }); return
+        } catch { /* Invalid/old cached plans must pass the current validator or be regenerated. */ }
+      }
+    }
+    const provider = createVideoProvider(saved)
+    emit({ type: 'status', message: `Planning the complete lecture · ${model}` })
+    const started = performance.now()
+    const plan = await generateVideoJson(provider, watchPlanPrompt(t), signal,
+      value => parseWatchPlan(value, t, model), progress => {
+        emit({ type: 'status', message: `${progress.receivedChars ? 'Writing your watch plan' : 'Reading the lecture and its prerequisites'} · ${model}` })
+      }, { maxTokens: 16000, maxInputChars: 1400000, attempts: 1 })
+    signal.throwIfAborted()
+    writeCache(planFile, plan)
+    emit({ type: 'result', result: plan, timing: { modelMs: performance.now() - started } }); return
+  }
   const file = cachePath(t, model, endpoint, 'en')
   let analysis = readCache(file)
   if (request.action === 'analyze' && analysis && !request.fresh) { emit({ type: 'result', result: analysis, cached: true, timing: { modelMs: 0 } }); return }

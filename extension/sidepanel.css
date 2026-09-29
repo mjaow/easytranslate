@@ -59,6 +59,18 @@ summary::marker { color: var(--accent); }
 #connections-details { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
 label { display: block; font-size: 15px; color: var(--muted); margin-bottom: 5px; }
 textarea { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; resize: vertical; margin-bottom: 8px; }
+#watch-plan-section { padding: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 13px; border-top: 3px solid var(--accent); }
+#watch-heading { margin-top: 0; }
+#watch-overview, .watch-range { overflow-wrap: anywhere; white-space: pre-wrap; }
+#watch-estimate { font-weight: 650; font-size: 16px; }
+.watch-range { margin-top: 14px; padding: 12px 0 0 12px; border-top: 1px solid var(--line); border-left: 3px solid var(--line); }
+.watch-focus { border-left-color: var(--accent); }
+.watch-check { border-left-style: dashed; }
+.watch-range-heading { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.watch-badge { font-size: 13px; font-weight: 750; color: var(--accent); }
+.watch-range h3 { font-size: 17px; line-height: 1.45; margin: 8px 0; }
+.watch-range details { font-size: 15px; }
+.watch-range p { margin: 8px 0; }
 .question { font-weight: 600; margin: 18px 0 8px; overflow-wrap: anywhere; }
 .answer { padding: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
 footer { font-size: 14px; color: var(--muted); margin-top: 30px; padding-top: 15px; border-top: 1px solid var(--line); }

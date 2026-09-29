@@ -34,6 +34,7 @@ if (transcriptOption !== -1) {
   if (process.argv.includes('--neutral')) throw new Error('Choose --transcript or --neutral, not both.')
   transcript = JSON.parse(readFileSync(file, 'utf8')) // Production validates completeness.
 }
+const planning = process.argv.includes('--watch-plan')
 const child = spawn(process.execPath, ['out/native-host/bridge.cjs', `chrome-extension://${id}/`], { windowsHide: true })
 let buffer = Buffer.alloc(0), done = false, lastStatus = ''
 const started = performance.now()
@@ -49,7 +50,7 @@ child.stdout.on('data', bytes => {
     if (event.type === 'error') { console.error(event.message); console.log(JSON.stringify({ failedAfterMs: Math.round(performance.now() - started) })); process.exitCode = 1; clearTimeout(timer); child.stdin.end() }
     if (event.type === 'result') {
       mkdirSync('out/verification', { recursive: true })
-      writeFileSync(`out/verification/live-${transcriptOption !== -1 ? 'transcript' : process.argv.includes('--neutral') ? 'neutral' : 'video'}-analysis.json`, JSON.stringify(event.result, null, 2))
+      writeFileSync(`out/verification/live-${planning ? 'watch-plan' : transcriptOption !== -1 ? 'transcript' : process.argv.includes('--neutral') ? 'neutral' : 'video'}-analysis.json`, JSON.stringify(event.result, null, 2))
       console.log(JSON.stringify({ cached: event.cached === true, modelMs: event.timing?.modelMs, totalMs: Math.round(performance.now() - started) }))
       if (!process.argv.includes('--quiet')) console.log(JSON.stringify(event.result, null, 2))
       done = true; clearTimeout(timer); child.stdin.end()
@@ -57,5 +58,6 @@ child.stdout.on('data', bytes => {
   }
 })
 child.on('exit', code => { clearTimeout(timer); if (!done || code) process.exitCode = 1 })
-const body = Buffer.from(JSON.stringify({ id: 'live-excerpt', action: 'analyze', transcript, fresh: process.argv.includes('--fresh') })), header = Buffer.alloc(4)
+const body = Buffer.from(JSON.stringify({ id: 'live-excerpt', action: planning ? 'watch-plan' : 'analyze', transcript,
+  fresh: process.argv.includes('--fresh') })), header = Buffer.alloc(4)
 header.writeUInt32LE(body.length); child.stdin.write(Buffer.concat([header, body]))

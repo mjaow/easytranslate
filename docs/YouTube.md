@@ -133,6 +133,62 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
   leaves API keys, settings and everyday translation history intact. Saved results
   otherwise expire after 7 days, with at most 30 entries in total.
 
+## Plan a lecture
+
+Click **Plan watch** beside **Understand video**, either below the YouTube player
+or in the side panel. This starts a separate viewing-guide workflow directly:
+it collects the title, description, and complete captions, then requests a watch
+plan. You do not need a summary first, and there are no learning-goal, familiar-topic,
+or time-budget inputs. **Understand video** continues to generate summaries only.
+The panel shows the result for the action you chose.
+
+The model infers the video's learning objective, intended audience, and appropriate
+emphasis from its title and description, then checks that interpretation against
+what the captions actually teach. The description comes from the player metadata
+matched to the current video. If it is unavailable, planning uses the title and
+captions. Metadata is context, never instructions or evidence that advertised
+material was taught. The model does not infer your personal mastery or available
+time from a video's intended audience.
+
+The chronological plan labels sections **Focus**, **Skim**, **Skip**, or **Check
+visuals**. Expand **Why this section** for its reason, learning target, and needed
+earlier sections. Skip conditions and visual checks start expanded. Recommendations
+are learning advice, not statements made by the lecturer. They preserve whole
+explanations and required prerequisite chains. The model can still make a poor
+judgment, so read the reason before skipping.
+
+Time ranges come from caption boundaries. Every caption must belong to exactly
+one section; incomplete or overlapping model output fails instead of being shown
+as a complete route. Uncaptioned intervals longer than 15 seconds are separated
+as **Check visuals**, including gaps inside sections the model recommends skipping.
+Captions cannot establish what is shown in slides, equations, or silent demos.
+Shorter gaps are included with adjacent captioned material.
+
+Click a time range to seek, or **Next focus section** to jump to the next focus
+range after your current playback position. At the last focus section, use its
+timestamp to revisit it. Playback is never automatically skipped or sped up.
+Estimated viewing time counts focus and visual checks at 1×, skim at 1.5×, and
+excludes conditional skips. Pauses and practice add time.
+
+Planning uses the same video provider, endpoint, deployment, reasoning setting,
+and dedicated key as summaries, including Azure OpenAI GPT-6 Luna. It makes one
+explicit model request for the English plan. Summary translation does not translate
+watch plans. Saved plans are keyed by the title, description, complete transcript,
+model settings, and prompt version, sharing the summary cache's 7-day expiry and
+30-entry bound. **Plan again** makes a fresh request. **Clear cache** removes plans,
+summaries, and translations while retaining keys. Navigation and Cancel discard
+pending results. A new explicit YouTube action can replace a pending request.
+Planning preserves the completed summary timer, which is shown only in summary view.
+
+For an explicit live check with a captured transcript and the configured model:
+
+```powershell
+node scripts/verify-video-model.mjs --live --watch-plan --transcript path/to/transcript.json --fresh
+```
+
+The transcript may include a `description` string from the matching video's player
+metadata. This check uses the configured API and its applicable charges.
+
 ## Use an Azure GPT-6 deployment
 
 In **Settings → YouTube analysis**, select **Azure OpenAI — GPT-6 Luna · faster

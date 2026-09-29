@@ -58,6 +58,63 @@ afterEach(() => {
   rmSync(mocks.directory, { recursive: true, force: true })
 })
 describe('video workflow', () => {
+  const plan = { overview: 'Follow the reasoning through the ending.', sections: [{ firstCaption: 1, lastCaption: 2,
+    title: 'Risks of stagnation', recommendation: 'focus', reason: 'Contains the argument and its conclusion.',
+    learningTarget: 'Explain the proposed connection.', skipCondition: '', prerequisites: [] }] }
+  const planRequest = () => ({ id: 'plan', action: 'watch-plan' as const, transcript: t })
+
+  it('plans independently of the summary with the same video model/key, then caches by title and description', async () => {
+    mocks.replies.push(plan)
+    await handleVideo(planRequest(), emit, signal())
+    expect(events.at(-1)).toMatchObject({ result: { model: 'test-model', sections: plan.sections } })
+    expect(mocks.providerModels).toEqual(['test-model'])
+    expect(mocks.secretIds).toEqual(['video'])
+    expect(mocks.calls[0]).toContain(t.segments[1].text)
+    expect(mocks.calls).toHaveLength(1)
+    await handleVideo(planRequest(), emit, signal())
+    expect(events.at(-1)?.cached).toBe(true)
+    expect(mocks.calls).toHaveLength(1)
+    for (const change of [{ title: 'A new lecture title' }, { description: 'Theory and derivations' }, { description: 'Implementation tutorial' }]) {
+      mocks.replies.push(plan)
+      await handleVideo({ ...planRequest(), transcript: { ...t, ...change } }, emit, signal())
+      expect(events.at(-1)?.cached).not.toBe(true)
+    }
+    expect(mocks.calls).toHaveLength(4)
+    await analyze()
+    expect(mocks.calls).toHaveLength(5)
+    await handleVideo({ id: 'clear', action: 'clear-cache' }, emit, signal())
+    expect(events.at(-1)).toMatchObject({ result: { cleared: 5, failed: 0 } })
+  })
+
+  it('refreshes watch plans explicitly and isolates changed model settings', async () => {
+    mocks.replies.push(plan, plan, plan)
+    await handleVideo(planRequest(), emit, signal())
+    await handleVideo({ ...planRequest(), fresh: true }, emit, signal())
+    mocks.config.llm.videoModel = 'another-deployment'
+    await handleVideo(planRequest(), emit, signal())
+    expect(mocks.calls).toHaveLength(3)
+    expect(events.at(-1)).toMatchObject({ result: { model: 'another-deployment' } })
+  })
+
+  it('does not cache malformed or cancelled plans or retry model requests silently', async () => {
+    mocks.replies.push({ ...plan, sections: [{ ...plan.sections[0], lastCaption: 1 }] })
+    await expect(handleVideo(planRequest(), emit, signal())).rejects.toThrow(/end of the lecture/)
+    expect(mocks.calls).toHaveLength(1)
+    expect(existsSync(join(mocks.directory, 'video-cache'))).toBe(false)
+    mocks.replies.push(plan); mocks.delayMs = 30
+    const controller = new AbortController()
+    const pending = handleVideo(planRequest(), emit, controller.signal)
+    controller.abort()
+    await expect(pending).rejects.toThrow()
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(existsSync(join(mocks.directory, 'video-cache'))).toBe(false)
+  })
+
+  it('rejects oversized descriptions before retrieving a secret or making a model request', async () => {
+    await expect(handleVideo({ ...planRequest(), transcript: { ...t, description: 'x'.repeat(20001) } }, emit, signal())).rejects.toThrow(/complete caption transcript/)
+    expect(mocks.secretIds).toEqual([])
+    expect(mocks.calls).toEqual([])
+  })
   it('clears video cache without credentials or a model call, then regenerates the next summary', async () => {
     const result = await analyze()
     const cache = join(mocks.directory, 'video-cache')
