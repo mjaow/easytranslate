@@ -24,6 +24,7 @@ vi.mock('../src/providers/llm/registry.js', () => ({ createLlmProvider: (config:
   }
 } } }))
 import { handleVideo } from '../src/main/video-service.js'
+import { DEFAULT_WATCH_PREFERENCES } from '../src/shared/watch-plan.js'
 const t: VideoTranscript = { videoId: 'B7yl7fEHeKM', title: 'Interview', language: 'en', automatic: true,
   duration: 3921, source: 'caption-track', complete: true,
   segments: [{ start: 327, duration: 3, text: 'Stagnation has risks too.' }, { start: 3880, duration: 5, text: 'My closing view is about totalitarianism.' }] }
@@ -58,6 +59,63 @@ afterEach(() => {
   rmSync(mocks.directory, { recursive: true, force: true })
 })
 describe('video workflow', () => {
+  const plan = { overview: 'Follow the reasoning through the ending.', sections: [{ firstCaption: 1, lastCaption: 2,
+    title: 'Risks of stagnation', recommendation: 'focus', reason: 'Contains the argument and its conclusion.',
+    learningTarget: 'Explain the proposed connection.', skipCondition: '', prerequisites: [] }] }
+  const planRequest = () => ({ id: 'plan', action: 'watch-plan' as const, transcript: t, preferences: { ...DEFAULT_WATCH_PREFERENCES } })
+
+  it('plans independently of the summary with the same video model/key, then caches by preferences', async () => {
+    mocks.replies.push(plan)
+    await handleVideo(planRequest(), emit, signal())
+    expect(events.at(-1)).toMatchObject({ result: { model: 'test-model', sections: plan.sections } })
+    expect(mocks.providerModels).toEqual(['test-model'])
+    expect(mocks.secretIds).toEqual(['video'])
+    expect(mocks.calls[0]).toContain(t.segments[1].text)
+    expect(mocks.calls).toHaveLength(1)
+    await handleVideo(planRequest(), emit, signal())
+    expect(events.at(-1)?.cached).toBe(true)
+    expect(mocks.calls).toHaveLength(1)
+    for (const change of [{ goal: 'implement' as const }, { knownTopics: 'Python' }, { budgetMinutes: 10 }]) {
+      mocks.replies.push(plan)
+      await handleVideo({ ...planRequest(), preferences: { ...DEFAULT_WATCH_PREFERENCES, ...change } }, emit, signal())
+      expect(events.at(-1)?.cached).not.toBe(true)
+    }
+    expect(mocks.calls).toHaveLength(4)
+    await analyze()
+    expect(mocks.calls).toHaveLength(5)
+    await handleVideo({ id: 'clear', action: 'clear-cache' }, emit, signal())
+    expect(events.at(-1)).toMatchObject({ result: { cleared: 5, failed: 0 } })
+  })
+
+  it('refreshes watch plans explicitly and isolates changed model settings', async () => {
+    mocks.replies.push(plan, plan, plan)
+    await handleVideo(planRequest(), emit, signal())
+    await handleVideo({ ...planRequest(), fresh: true }, emit, signal())
+    mocks.config.llm.videoModel = 'another-deployment'
+    await handleVideo(planRequest(), emit, signal())
+    expect(mocks.calls).toHaveLength(3)
+    expect(events.at(-1)).toMatchObject({ result: { model: 'another-deployment' } })
+  })
+
+  it('does not cache malformed or cancelled plans or retry model requests silently', async () => {
+    mocks.replies.push({ ...plan, sections: [{ ...plan.sections[0], lastCaption: 1 }] })
+    await expect(handleVideo(planRequest(), emit, signal())).rejects.toThrow(/end of the lecture/)
+    expect(mocks.calls).toHaveLength(1)
+    expect(existsSync(join(mocks.directory, 'video-cache'))).toBe(false)
+    mocks.replies.push(plan); mocks.delayMs = 30
+    const controller = new AbortController()
+    const pending = handleVideo(planRequest(), emit, controller.signal)
+    controller.abort()
+    await expect(pending).rejects.toThrow()
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(existsSync(join(mocks.directory, 'video-cache'))).toBe(false)
+  })
+
+  it('rejects invalid preferences before retrieving a secret or making a model request', async () => {
+    await expect(handleVideo({ ...planRequest(), preferences: { ...DEFAULT_WATCH_PREFERENCES, budgetMinutes: -1 } }, emit, signal())).rejects.toThrow(/time budget/)
+    expect(mocks.secretIds).toEqual([])
+    expect(mocks.calls).toEqual([])
+  })
   it('clears video cache without credentials or a model call, then regenerates the next summary', async () => {
     const result = await analyze()
     const cache = join(mocks.directory, 'video-cache')

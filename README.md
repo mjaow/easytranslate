@@ -76,6 +76,13 @@ becomes a bilingual explanation with vocabulary you can listen to.*
    Click timestamp sources to jump to the supporting moments.
 4. Ask follow-up questions below the analysis, choose **Translate to Chinese**,
    or use **Copy summary + breakdown** to take the analysis with you.
+5. For a lecture or tutorial, open **Your watch plan** above the summary. Choose
+   a learning goal, list topics you already know, and optionally set available
+   minutes. **Create watch plan** gives chronological **Focus**, **Skim**, **Skip**,
+   and **Check visuals** sections with reasons, learning targets, and timestamp
+   jumps. **Next focus section** jumps forward from your current playback position.
+   The plan uses the same video model and key, including an existing Azure OpenAI
+   GPT-6 Luna deployment. It makes a separate request when you click Create.
 
 ![YouTube with the Understand video button below the player and an arrow pointing to the EasyUnderstand summary in the browser side panel.](docs/images/youtube-understand-video-masked.png)
 
