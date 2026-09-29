@@ -2,9 +2,8 @@
  * Reading what sits under a screen point from the application's own accessibility
  * tree, to recognise a click on a transcript line.
  *
- * This is exact where OCR is a guess: the text comes from the app itself, so there is
- * nothing to misread. It only works where an app exposes its text, which rules out
- * video frames and images — that is what reading the screen is for.
+ * Text comes only from captions or transcript lines exposed by the app itself.
+ * Video frames and images are never read as text.
  *
  * Two trees, one answer. Windows goes through UI Automation in a PowerShell script
  * (resources/transcript-at-point.ps1); macOS goes through the Accessibility API in
@@ -17,16 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { normalize } from './capture.js'
 import { readPointMac } from './a11y-macos.js'
-import { readScreenRegion } from './ocr.js'
-import { assessReadability } from '../core/readable.js'
-import {
-  captionBandAround,
-  captionLinesNear,
-  parsePointRead,
-  transcriptLineAt,
-  type Box,
-  type PointRead
-} from '../core/transcript.js'
+import { parsePointRead, transcriptLineAt, type PointRead } from '../core/transcript.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -86,38 +76,4 @@ export async function readTranscriptAtPoint(x: number, y: number): Promise<Trans
   if (!read) return { text: null, read }
   const line = transcriptLineAt(read)
   return { text: line ? normalize(line) : null, read }
-}
-
-export interface CaptionRead {
-  /** The caption line that was double-clicked, or null when nothing legible was there. */
-  text: string | null
-  /** What was tried, for the log: the band read and every line OCR found in it. */
-  band: Box
-  lines: string[]
-  /** Why nothing came back, when nothing did — the only record of a missing permission. */
-  reason?: string
-}
-
-/**
- * The caption on a video, read off the pixels around the double-clicked point.
- *
- * For players that draw captions natively — X does — nothing in the accessibility
- * tree carries the words, so the row of pixels the user pointed at is read with OCR
- * instead. Null text when nothing legible is there: captions off, or a frame with
- * no line showing.
- */
-export async function readCaptionFromVideo(
-  point: { x: number; y: number },
-  video: Box | null,
-  screen: Box
-): Promise<CaptionRead> {
-  const band = captionBandAround(point, video, screen)
-  const result = await readScreenRegion(band)
-  if (!result.ok) return { text: null, band, lines: [], reason: result.reason }
-  const lines = result.lines.map((l) => `${l.x},${l.y} ${l.width}x${l.height}  ${l.text}`)
-  const caption = captionLinesNear(result.lines, point)
-  if (!caption || !assessReadability(caption).readable) {
-    return { text: null, band, lines, reason: 'nothing on that row read as a caption' }
-  }
-  return { text: normalize(caption), band, lines }
 }

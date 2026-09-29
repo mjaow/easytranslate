@@ -110,8 +110,8 @@ export async function readPointMac(x: number, y: number): Promise<PointRead | nu
       chain.push(node)
 
       if (isVideoNode(node)) {
-        // The innermost video is the picture itself, and its rectangle is what the
-        // caller needs when the captions have to be read off the pixels.
+        // Mark video clicks so the caller can reject unrelated player text when
+        // no caption is exposed by the page.
         videoRect ??= node.rect
         // The captions are not inside the <video> element — they are siblings of it
         // inside the player container — so the hunt starts from the outermost

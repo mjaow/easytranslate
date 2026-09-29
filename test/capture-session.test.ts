@@ -44,8 +44,8 @@ vi.mock('../src/main/native/index.js', () => ({
     return 4
   })
 }))
-vi.mock('../src/main/coords.js', () => ({ dipToScreenRect: vi.fn(), screenToDip: vi.fn() }))
-vi.mock('../src/main/a11y.js', () => ({ readTranscriptAtPoint: vi.fn(), readCaptionFromVideo: vi.fn() }))
+vi.mock('../src/main/coords.js', () => ({ screenToDip: vi.fn() }))
+vi.mock('../src/main/a11y.js', () => ({ readTranscriptAtPoint: vi.fn() }))
 vi.mock('../src/main/popup.js', () => ({
   showPopup: (value: ExplainState) => fixture.shown.push(structuredClone(value)),
   updatePopup: (value: ExplainState) => fixture.shown.push(structuredClone(value)),

@@ -22,8 +22,8 @@ vi.mock('electron', () => ({
   }
 }))
 vi.mock('../src/main/capture.js', () => ({ captureSelection: vi.fn() }))
-vi.mock('../src/main/coords.js', () => ({ dipToScreenRect: vi.fn(), screenToDip: vi.fn() }))
-vi.mock('../src/main/a11y.js', () => ({ readTranscriptAtPoint: vi.fn(), readCaptionFromVideo: vi.fn() }))
+vi.mock('../src/main/coords.js', () => ({ screenToDip: vi.fn() }))
+vi.mock('../src/main/a11y.js', () => ({ readTranscriptAtPoint: vi.fn() }))
 vi.mock('../src/main/native/index.js', () => ({
   IS_MACOS: true,
   copyChordLabel: () => '⌘C',

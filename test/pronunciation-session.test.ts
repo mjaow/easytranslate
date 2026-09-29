@@ -15,8 +15,8 @@ vi.mock('electron', () => ({ app: { getPath: () => '/unused' }, BrowserWindow: {
 vi.mock('../src/main/capture.js', () => ({
   captureSelection: async () => ({ ok: true, text: 'debit', raw: 'debit', elapsedMs: 1 })
 }))
-vi.mock('../src/main/coords.js', () => ({ dipToScreenRect: vi.fn(), screenToDip: vi.fn() }))
-vi.mock('../src/main/a11y.js', () => ({ readTranscriptAtPoint: vi.fn(), readCaptionFromVideo: vi.fn() }))
+vi.mock('../src/main/coords.js', () => ({ screenToDip: vi.fn() }))
+vi.mock('../src/main/a11y.js', () => ({ readTranscriptAtPoint: vi.fn() }))
 vi.mock('../src/main/native/index.js', () => ({
   IS_MACOS: false, copyChordLabel: () => 'Ctrl+C', foregroundWindowTitle: vi.fn(), inputPermission: vi.fn()
 }))
