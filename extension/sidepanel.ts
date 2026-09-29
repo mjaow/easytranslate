@@ -1,5 +1,5 @@
-import { clockTime, type VideoAnalysis, type VideoAnswer, type VideoCacheClearResult, type VideoEvent, type VideoIdea, type VideoRequest, type VideoTranscript } from '../src/shared/video.js'
-import type { PanelTarget } from './background.js'
+import { clockTime, type VideoAnalysis, type VideoAnswer, type VideoCacheClearResult, type VideoEvent, type VideoIdea, type VideoRequest, type VideoTranscript, type VideoWatchPlan } from '../src/shared/video.js'
+import type { PanelTarget, VideoAction } from './background.js'
 import { VideoNativeClient } from './native-client.js'
 import { SummaryTiming } from './summary-timing.js'
 import { analysisText, hasDetail } from '../src/shared/video-export.js'
@@ -15,6 +15,7 @@ const nativeClient = new VideoNativeClient()
 let generation = 0
 let busy = false
 let refreshNext = false
+let activeView: VideoAction = 'analyze'
 let lastStartToken = ''
 const timing = new SummaryTiming()
 const history: { question: string; answer: string }[] = []
@@ -31,6 +32,8 @@ function setBusy(value: boolean): void {
   busy = value
   for (const id of ['chinese', 'ask', 'clear-cache']) get<HTMLButtonElement>(id).disabled = value
   get<HTMLButtonElement>('understand').disabled = value || !target?.videoId
+  get<HTMLButtonElement>('plan-watch').disabled = value || !target?.videoId
+  get('plan-watch').textContent = watchPanel?.hasPlan ? 'Plan again' : 'Plan watch'
   get('understand').textContent = refreshNext ? 'Summarize again' : 'Understand video'
   get('understand').title = refreshNext ? 'Make a fresh model request to compare speed.' : 'Summarize the complete transcript.'
   get('cancel').hidden = !value
@@ -43,6 +46,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', class
 function stop(releaseHelper = true): void {
   generation++
   timing.stop('Cancelled')
+  if (busy && activeView === 'watch-plan') get('watch-status').textContent = 'Watch plan cancelled. You can try again.'
   if (releaseHelper) nativeClient.disconnect()
   else nativeClient.cancelPending()
   setBusy(false)
@@ -199,15 +203,76 @@ function afterDisplay(): Promise<void> {
     frame = requestAnimationFrame(() => { frame = requestAnimationFrame(finish) })
   })
 }
+function selectView(view: VideoAction): void {
+  activeView = view
+  get('summary-view').hidden = view !== 'analyze'
+  get('summary-timing-view').hidden = view !== 'analyze'
+  get('watch-plan-section').hidden = view !== 'watch-plan'
+}
+
+/** Both buttons collect metadata/captions directly, without calling the other workflow. */
+async function loadVideo(capturedTarget: PanelTarget, revision: number,
+  onModel: (model: string) => void = () => {}, onCaptured: () => void = () => {}): Promise<VideoTranscript | undefined> {
+  let failed = false, selectedModel = ''
+  try {
+    const connection = native({ id: crypto.randomUUID(), action: 'ping' }, revision).then(event => {
+      if (failed || revision !== generation) return
+      selectedModel = (event.result as { model: string }).model
+      onModel(selectedModel)
+    })
+    const capture = (async () => {
+      const result = await chrome.scripting.executeScript({ target: { tabId: capturedTarget.tabId }, world: 'MAIN', files: ['collector.js'] })
+      if (failed || revision !== generation) return
+      const captured = result[0]?.result as { transcript?: VideoTranscript; error?: string } | undefined
+      if (!captured?.transcript) throw new Error(captured?.error ?? 'YouTube did not return a readable transcript.')
+      if (captured.transcript.videoId !== capturedTarget.videoId) throw new Error('The video changed during capture. Try again.')
+      transcript = captured.transcript
+      renderTranscript(); onCaptured()
+      if (!selectedModel) status('Captions ready. Waiting for EasyUnderstand to connect…')
+      return captured.transcript
+    })()
+    const [, capturedTranscript] = await Promise.all([connection, capture])
+    if (revision !== generation || !capturedTranscript) return
+    get('source-meta').textContent = `${capturedTranscript.language} · ${capturedTranscript.segments.length} caption segments · ${clockTime(capturedTranscript.duration)} video · ${selectedModel}`
+    return capturedTranscript
+  } catch (e) { failed = true; throw e }
+}
+
+async function planVideo(): Promise<void> {
+  if (!target?.videoId || busy) return
+  const revision = ++generation, capturedTarget = target
+  selectView('watch-plan'); setBusy(true); get('error').hidden = true
+  get('watch-status').textContent = 'Reading the title, description, and complete captions…'
+  status('Loading video information for the watch plan…')
+  try {
+    const capturedTranscript = await loadVideo(capturedTarget, revision)
+    if (revision !== generation || !capturedTranscript) return
+    status('Planning what to focus on, skim, or skip…')
+    const event = await native({ id: crypto.randomUUID(), action: 'watch-plan', transcript: capturedTranscript, fresh: watchPanel.hasPlan }, revision,
+      message => { get('watch-status').textContent = message })
+    if (revision !== generation) return
+    const plan = event.result as VideoWatchPlan
+    watchPanel.show(plan, capturedTranscript, capturedTarget.tabId)
+    get('watch-status').textContent = `${event.cached ? 'Saved plan' : 'Watch plan ready'} · ${plan.model}`
+    status('Watch plan ready. Click a time range to jump to that section.')
+  } catch (e) {
+    if (revision === generation) {
+      nativeClient.disconnect(); error(e instanceof Error ? e.message : String(e))
+      get('watch-status').textContent = 'Watch plan did not finish. You can retry.'
+      status('Watch planning did not finish. Click Plan watch to retry.')
+    }
+  } finally { if (revision === generation) setBusy(false) }
+}
+
 async function analyze(clickedAt?: number): Promise<void> {
   if (!target?.videoId || busy) return
   const revision = ++generation; const capturedTarget = target
+  selectView('analyze')
   timing.start(clickedAt)
   get('error').hidden = true; setBusy(true)
   english = null; chinese = null; displayedAnalysis = null
   get('copy-status').textContent = ''
   transcript = null
-  watchPanel.setContext(null)
   get('transcript-section').hidden = true; get('transcript-size').hidden = true
   get('source-meta').replaceChildren(); get('transcript-size').replaceChildren()
   history.length = 0; get('conversation').replaceChildren()
@@ -217,34 +282,11 @@ async function analyze(clickedAt?: number): Promise<void> {
   get('evaluation-section').hidden = true; get<HTMLDetailsElement>('evaluation-section').open = false
   get('evaluation').replaceChildren()
   get('questions-section').hidden = true; get('unanswered-section').hidden = true
-  let failed = false
   try {
     status('Loading captions and connecting to EasyUnderstand… YouTube may open its transcript panel.')
-    let selectedModel = ''
     timing.loadingTranscript()
-    // Both prerequisites can run together. Always observe both promises, and
-    // discard late capture/model-check results after failure, cancellation or navigation.
-    const connection = native({ id: crypto.randomUUID(), action: 'ping' }, revision).then(event => {
-      if (failed || revision !== generation) return
-      selectedModel = (event.result as { model: string }).model
-      timing.model(selectedModel)
-    })
-    const capture = (async () => {
-      const result = await chrome.scripting.executeScript({ target: { tabId: capturedTarget.tabId }, world: 'MAIN', files: ['collector.js'] })
-      if (failed || revision !== generation) return
-      const captured = result[0]?.result as { transcript?: VideoTranscript; error?: string } | undefined
-      if (!captured?.transcript) throw new Error(captured?.error ?? 'YouTube did not return a readable transcript.')
-      if (captured.transcript.videoId !== capturedTarget.videoId) throw new Error('The video changed during capture. Try again.')
-      transcript = captured.transcript
-      watchPanel.setContext(transcript, capturedTarget.tabId)
-      renderTranscript()
-      timing.loadedTranscript()
-      if (!selectedModel) status('Captions ready. Waiting for EasyUnderstand to connect…')
-      return captured.transcript
-    })()
-    const [, capturedTranscript] = await Promise.all([connection, capture])
+    const capturedTranscript = await loadVideo(capturedTarget, revision, model => timing.model(model), () => timing.loadedTranscript())
     if (revision !== generation || !capturedTranscript) return
-    get('source-meta').textContent = `${capturedTranscript.language} · ${capturedTranscript.segments.length} caption segments · ${clockTime(capturedTranscript.duration)} video · ${selectedModel}`
     timing.requestingModel()
     const event = await native({ id: crypto.randomUUID(), action: 'analyze', transcript: capturedTranscript, fresh: refreshNext }, revision)
     if (revision !== generation) return
@@ -256,7 +298,7 @@ async function analyze(clickedAt?: number): Promise<void> {
     timing.finish(event)
     refreshNext = true
     status(`${event.cached ? 'Saved summary' : 'Summary ready'} · Based on the whole caption transcript. Open the breakdown to explore further.`)
-  } catch (e) { failed = true; if (revision === generation) { nativeClient.disconnect(); timing.stop('Failed'); error(e instanceof Error ? e.message : String(e)); status('Analysis did not finish. You can retry.'); get('ideas').replaceChildren(); get('ideas-section').hidden = true } }
+  } catch (e) { if (revision === generation) { nativeClient.disconnect(); timing.stop('Failed'); error(e instanceof Error ? e.message : String(e)); status('Analysis did not finish. You can retry.'); get('ideas').replaceChildren(); get('ideas-section').hidden = true } }
   finally { if (revision === generation) setBusy(false) }
 }
 async function translate(): Promise<void> {
@@ -281,7 +323,7 @@ async function clearCache(): Promise<void> {
     const result = event.result as VideoCacheClearResult
     if (!Number.isInteger(result?.cleared) || !Number.isInteger(result?.failed)) throw new Error('The helper did not confirm whether the video cache was cleared.')
     english = null; chinese = null; displayedAnalysis = null; transcript = null; history.length = 0
-    watchPanel.setContext(null)
+    watchPanel.reset()
     timing.reset(); refreshNext = false
     for (const id of ['overview-card', 'ideas-section', 'evaluation-section', 'unanswered-section', 'transcript-section', 'transcript-size', 'questions-section', 'languages']) get(id).hidden = true
     for (const id of ['overview', 'takeaways', 'copy-status', 'connections', 'ideas', 'evaluation', 'unanswered', 'transcript', 'transcript-size', 'conversation', 'source-meta']) get(id).replaceChildren()
@@ -312,11 +354,13 @@ async function ask(event: Event): Promise<void> {
   finally { if (revision === generation) setBusy(false) }
 }
 function startTarget(next: PanelTarget): void {
-  if (!next.start || !next.videoId || busy || english || next.token === lastStartToken) return
+  if (!next.start || !next.videoId || next.token === lastStartToken) return
+  if (busy) stop(false)
   lastStartToken = next.token
   // Do not reuse an old button-click timestamp when the panel is reopened.
   void chrome.storage.session.set({ [startedKey]: lastStartToken })
-  void analyze(next.clickedAt)
+  if (next.action === 'watch-plan') void planVideo()
+  else void analyze(next.clickedAt)
 }
 function setTarget(next: PanelTarget): void {
   if (target?.videoId === next.videoId && target?.tabId === next.tabId) {
@@ -326,7 +370,7 @@ function setTarget(next: PanelTarget): void {
     return
   }
   stop(!next.videoId); target = next; transcript = null; english = null; chinese = null; displayedAnalysis = null; history.length = 0
-  watchPanel.setContext(null)
+  watchPanel.reset()
   timing.reset(); refreshNext = false; setBusy(false)
   for (const id of ['overview-card', 'ideas-section', 'evaluation-section', 'unanswered-section', 'transcript-section', 'transcript-size', 'questions-section', 'languages', 'error']) get(id).hidden = true
   for (const id of ['ideas', 'evaluation', 'takeaways', 'copy-status', 'conversation', 'source-meta']) get(id).replaceChildren()
@@ -334,21 +378,20 @@ function setTarget(next: PanelTarget): void {
   get<HTMLButtonElement>('understand').disabled = !next.videoId
   get<HTMLDetailsElement>('ideas-section').open = false
   get<HTMLDetailsElement>('evaluation-section').open = false
-  status('One complete transcript. A thorough summary, with the breakdown below.')
+  status('Choose Understand video for a summary, or Plan watch for a viewing guide.')
   if (next.videoId) nativeClient.warmup()
   startTarget(next)
 }
 get('understand').addEventListener('click', () => void analyze())
+get('plan-watch').addEventListener('click', () => void planVideo())
 window.addEventListener('pagehide', () => nativeClient.disconnect())
 get('clear-cache').addEventListener('click', () => void clearCache())
-get('cancel').addEventListener('click', () => { stop(); status(english ? 'Stopped. Your summary is still available.' : 'Cancelled. Click Understand video to try again.') })
+get('cancel').addEventListener('click', () => { stop(); status(activeView === 'watch-plan' ? 'Watch planning cancelled. Click Plan watch to try again.' : english ? 'Stopped. Your summary is still available.' : 'Cancelled. Click Understand video to try again.') })
 get('english').addEventListener('click', () => { if (english) renderAnalysis(english, 'en') })
 get('chinese').addEventListener('click', () => void translate())
 get('copy-summary').addEventListener('click', () => void copyAnalysis())
 get('question-form').addEventListener('submit', e => void ask(e))
-watchPanel = new WatchPlanPanel({ request: (request, revision) => native(request, revision, message => { get('watch-status').textContent = message }),
-  generation: () => generation, setBusy, isBusy: () => busy,
-  error: message => error(message) })
+watchPanel = new WatchPlanPanel({ generation: () => generation, isBusy: () => busy, error })
 
 const currentWindow = await chrome.windows.getCurrent()
 const key = `target:${currentWindow.id}`

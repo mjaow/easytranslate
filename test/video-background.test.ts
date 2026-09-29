@@ -34,6 +34,14 @@ function click(sender: chrome.runtime.MessageSender = { tab, url: tab.url }) {
 }
 
 describe('video panel target updates', () => {
+  it('preserves a separate watch-plan request through delayed metadata updates', async () => {
+    const respond = vi.fn()
+    message({ action: 'watch-plan', clickedAt: 1234 }, { tab, url: tab.url }, respond)
+    updated(tab.id!, { title: 'Agent lecture - YouTube' }, { ...tab, title: 'Agent lecture - YouTube' })
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    expect(stored['target:1']).toMatchObject({ start: true, action: 'watch-plan', clickedAt: 1234, title: 'Agent lecture - YouTube' })
+    expect(respond).toHaveBeenCalledWith({ ok: true })
+  })
   it('publishes a title-only update after YouTube changes the URL before its title', async () => {
     updated(tab.id!, { url: tab.url }, tab)
     await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1))

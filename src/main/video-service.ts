@@ -9,7 +9,6 @@ import { generateVideoJson } from '../core/video-generation.js'
 import { resolveVideoConfig } from '../core/video-config.js'
 import { clearVideoCache, pruneVideoCache, readVideoCacheValue, readVideoCache as readCache, writeVideoCache as writeCache } from '../core/video-cache.js'
 import { parseWatchPlan, watchPlanPrompt, WATCH_PLAN_VERSION } from '../core/watch-plan.js'
-import { watchPreferences } from '../shared/watch-plan.js'
 import { createVideoProvider } from './video-model.js'
 import type { VideoAnalysis, VideoAnswer, VideoEvent, VideoRequest, VideoTranscript } from '../shared/video.js'
 
@@ -35,13 +34,12 @@ export async function handleVideo(request: VideoRequest, emit: Emit, signal: Abo
   if (request.action === 'cancel') return
   const t = validateTranscript(request.transcript)
   if (request.action === 'watch-plan') {
-    const preferences = watchPreferences(request.preferences)
-    const planFile = cachePath(t, model, endpoint, 'watch-plan', [WATCH_PLAN_VERSION, preferences])
+    const planFile = cachePath(t, model, endpoint, 'watch-plan', [WATCH_PLAN_VERSION])
     if (!request.fresh) {
       const cached = readVideoCacheValue(planFile)
       if (cached) {
         try {
-          const plan = parseWatchPlan(cached, t, preferences, model)
+          const plan = parseWatchPlan(cached, t, model)
           emit({ type: 'result', result: plan, cached: true, timing: { modelMs: 0 } }); return
         } catch { /* Invalid/old cached plans must pass the current validator or be regenerated. */ }
       }
@@ -49,8 +47,8 @@ export async function handleVideo(request: VideoRequest, emit: Emit, signal: Abo
     const provider = createVideoProvider(saved)
     emit({ type: 'status', message: `Planning the complete lecture · ${model}` })
     const started = performance.now()
-    const plan = await generateVideoJson(provider, watchPlanPrompt(t, preferences), signal,
-      value => parseWatchPlan(value, t, preferences, model), progress => {
+    const plan = await generateVideoJson(provider, watchPlanPrompt(t), signal,
+      value => parseWatchPlan(value, t, model), progress => {
         emit({ type: 'status', message: `${progress.receivedChars ? 'Writing your watch plan' : 'Reading the lecture and its prerequisites'} · ${model}` })
       }, { maxTokens: 16000, maxInputChars: 1400000, attempts: 1 })
     signal.throwIfAborted()

@@ -9,6 +9,7 @@ export const VIDEO_SYSTEM = `You explain videos from supplied caption evidence. 
 export function validateTranscript(value: unknown): VideoTranscript {
   const t = value as VideoTranscript
   if (!t || !/^[\w-]{11}$/.test(t.videoId) || typeof t.title !== 'string' || t.title.length > 1000 ||
+      (t.description !== undefined && (typeof t.description !== 'string' || t.description.length > 20000)) ||
       typeof t.language !== 'string' || t.language.length > 150 || typeof t.automatic !== 'boolean' ||
       !Number.isFinite(t.duration) || t.duration <= 0 || t.duration > 43200 ||
       !['caption-track', 'transcript-panel'].includes(t.source) || t.complete !== true ||

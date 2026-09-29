@@ -3,10 +3,10 @@
 <body>
 <header><div class="brand"><span class="mark">e</span> EasyUnderstand <span class="tag">VIDEO</span></div><h1>Go beyond the highlights.</h1><p id="video-title">Open a YouTube video to get started.</p></header>
 <main>
-  <div class="toolbar"><button id="understand" class="primary">Understand video</button><button id="cancel" hidden>Cancel</button><button id="clear-cache" title="Delete all locally saved video summaries, translations, and watch plans and clear this panel.">Clear cache</button></div>
-  <p id="status" role="status" aria-live="polite">One complete transcript. A thorough summary, with the breakdown below.</p>
+  <div class="toolbar"><button id="understand" class="primary">Understand video</button><button id="plan-watch" title="Plan what to focus on or skip from the title, description, and captions.">Plan watch</button><button id="cancel" hidden>Cancel</button><button id="clear-cache" title="Delete all locally saved video summaries, translations, and watch plans and clear this panel.">Clear cache</button></div>
+  <p id="status" role="status" aria-live="polite">Choose Understand video for a summary, or Plan watch for a viewing guide.</p>
   <div id="error" role="alert" hidden></div>
-  <section id="timing" hidden aria-label="Summary timing"><div class="timing-heading"><span id="timing-label">Elapsed</span><strong id="timing-total"></strong></div>
+  <div id="summary-timing-view"><section id="timing" hidden aria-label="Summary timing"><div class="timing-heading"><span id="timing-label">Elapsed</span><strong id="timing-total"></strong></div>
     <p class="meta"><span id="timing-model"></span><span id="timing-source" hidden></span></p>
     <dl>
       <div><dt>Transcript loading</dt><dd id="timing-transcript"></dd></div>
@@ -22,39 +22,29 @@
     </details>
     <p id="timing-note" class="meta"></p>
   </section>
+  </div>
   <div id="source-meta" class="meta"></div>
   <div id="transcript-size" class="meta" hidden></div>
   <section id="watch-plan-section" hidden aria-labelledby="watch-heading">
     <div class="eyebrow">YOUR WATCH PLAN</div>
     <h2 id="watch-heading">Spend your attention where it matters.</h2>
-    <form id="watch-form">
-      <details id="watch-settings" open><summary id="watch-settings-summary">Your learning preferences</summary>
-      <label for="watch-goal">Learning goal</label>
-      <select id="watch-goal"><option value="understand">Understand the theory</option><option value="implement">Put it into practice</option><option value="review">Review what I know</option></select>
-      <label for="watch-known">Topics I already know <span class="meta">(optional)</span></label>
-      <textarea id="watch-known" rows="2" maxlength="2000" placeholder="For example: Python, matrix multiplication, basic gradients"></textarea>
-      <label for="watch-budget">Available minutes <span class="meta">(optional)</span></label>
-      <input id="watch-budget" type="number" min="1" max="720" step="1" placeholder="No time limit">
-      </details>
-      <button id="create-watch-plan" class="primary" type="submit">Create watch plan</button>
-    </form>
-    <p id="watch-status" class="meta" role="status" aria-live="polite">Uses your video model. Preferences are saved on this device.</p>
+    <p id="watch-status" class="meta" role="status" aria-live="polite"></p>
     <div id="watch-result" hidden>
       <p id="watch-overview"></p>
       <p id="watch-estimate"></p>
-      <p id="watch-budget-note" class="meta" hidden></p>
-      <p class="meta">Learning recommendations based on captions. Check visuals for equations, slides, and demonstrations. Skips are conditional.</p>
+      <p class="meta">Purpose inferred from the title and description; section recommendations grounded in captions. Check visuals for equations, slides, and demonstrations. Skips are conditional.</p>
       <button id="next-focus" type="button">Next focus section</button>
       <div id="watch-ranges"></div>
     </div>
   </section>
-  <nav id="languages" hidden aria-label="Analysis actions"><button id="english" aria-pressed="true">English</button><button id="chinese" aria-pressed="false">Translate to Chinese</button><button id="copy-summary" disabled title="Copy the current language: summary, every breakdown, critical assessment and timestamp links, including collapsed sections.">Copy summary + breakdown</button><p id="copy-status" role="status" aria-live="polite"></p></nav>
+  <div id="summary-view"><nav id="languages" hidden aria-label="Analysis actions"><button id="english" aria-pressed="true">English</button><button id="chinese" aria-pressed="false">Translate to Chinese</button><button id="copy-summary" disabled title="Copy the current language: summary, every breakdown, critical assessment and timestamp links, including collapsed sections.">Copy summary + breakdown</button><p id="copy-status" role="status" aria-live="polite"></p></nav>
   <section id="overview-card" hidden><div class="eyebrow">SUMMARY</div><div id="overview"></div><div id="takeaways-section" hidden><h2>Key takeaways</h2><ul id="takeaways"></ul></div><details id="connections-details" hidden><summary>How the ideas connect</summary><p id="connections"></p></details></section>
   <details id="ideas-section" hidden><summary>Explore the breakdown <span id="idea-count" class="meta"></span></summary><div id="ideas"></div></details>
   <details id="evaluation-section" hidden><summary>Critical assessment <span id="evaluation-count" class="meta"></span></summary><p class="meta">Model assessment of the transcript's evidence and reasoning. External facts have not been checked.</p><div id="evaluation"></div></details>
   <section id="unanswered-section" hidden><h2>Left unresolved</h2><ul id="unanswered"></ul></section>
-  <details id="transcript-section" hidden><summary>Inspect the source transcript</summary><p class="meta">Captions can contain recognition errors. Only spoken content is analyzed.</p><div id="transcript"></div></details>
   <section id="questions-section" hidden><h2>Explore further</h2><div id="conversation" aria-live="polite"></div><form id="question-form"><label for="question">Ask about this video</label><textarea id="question" rows="2" maxlength="4000" placeholder="Ask about a concept, example, method or argument from the video."></textarea><button id="ask" class="primary" type="submit">Ask the transcript</button></form></section>
-  <footer>Analysis uses the captions and your video model. Optional Chinese translation uses your everyday model. <a href="help.html" target="_blank" rel="noreferrer">Setup &amp; help</a></footer>
+  </div>
+  <details id="transcript-section" hidden><summary>Inspect the source transcript</summary><p class="meta">Captions can contain recognition errors. Visual content is not analyzed.</p><div id="transcript"></div></details>
+  <footer>Summaries use captions; watch plans also use the title and description. Both use your video model. Optional Chinese translation uses your everyday model. <a href="help.html" target="_blank" rel="noreferrer">Setup &amp; help</a></footer>
 </main><script type="module" src="sidepanel.js"></script>
 </body></html>

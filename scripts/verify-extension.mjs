@@ -12,7 +12,7 @@ function page(response, withPanel = false) {
   w.setTimeout = (callback, ms) => schedule(() => { now += ms; w.onCollectorTick?.(now); callback() }, 0)
   w.AbortSignal = AbortSignal
   w.fetch = async () => ({ ok: true, text: async () => response })
-  w.document.getElementById('movie_player').getPlayerResponse = () => ({ videoDetails: { videoId: 'B7yl7fEHeKM', title: 'Interview', lengthSeconds: '3921' }, captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ baseUrl: 'https://www.youtube.com/api/timedtext?v=B7yl7fEHeKM', languageCode: 'en', kind: 'asr' }] } } })
+  w.document.getElementById('movie_player').getPlayerResponse = () => ({ videoDetails: { videoId: 'B7yl7fEHeKM', title: 'Interview', shortDescription: 'A discussion of the risks of progress and stagnation.', lengthSeconds: '3921' }, captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ baseUrl: 'https://www.youtube.com/api/timedtext?v=B7yl7fEHeKM', languageCode: 'en', kind: 'asr' }] } } })
   if (withPanel) {
     const panel = w.document.querySelector('ytd-transcript-renderer')
     panel.getClientRects = () => [{ width: 400 }]
@@ -25,9 +25,11 @@ function page(response, withPanel = false) {
 }
 let dom = page(JSON.stringify({ events: [{ tStartMs: 327000, dDurationMs: 2000, segs: [{ utf8: 'Stagnation is also risky.' }] }, { tStartMs: 3880000, dDurationMs: 5000, segs: [{ utf8: 'The closing philosophical argument.' }] }] }))
 let result = await dom.window.eval(code)
+assert.equal(result.transcript.description, 'A discussion of the risks of progress and stagnation.')
 assert.equal(result.transcript.source, 'caption-track'); assert.equal(result.transcript.segments.at(-1).start, 3880); dom.window.close()
 console.log('Caption-track capture retains the closing section.')
 dom = page('', true); result = await dom.window.eval(code)
+assert.equal(result.transcript.description, 'A discussion of the risks of progress and stagnation.')
 assert.equal(result.transcript.source, 'transcript-panel'); assert.equal(result.transcript.segments.length, 2); dom.window.close()
 console.log('Empty caption download falls back to full transcript renderer data.')
 

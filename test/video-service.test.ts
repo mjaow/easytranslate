@@ -24,7 +24,6 @@ vi.mock('../src/providers/llm/registry.js', () => ({ createLlmProvider: (config:
   }
 } } }))
 import { handleVideo } from '../src/main/video-service.js'
-import { DEFAULT_WATCH_PREFERENCES } from '../src/shared/watch-plan.js'
 const t: VideoTranscript = { videoId: 'B7yl7fEHeKM', title: 'Interview', language: 'en', automatic: true,
   duration: 3921, source: 'caption-track', complete: true,
   segments: [{ start: 327, duration: 3, text: 'Stagnation has risks too.' }, { start: 3880, duration: 5, text: 'My closing view is about totalitarianism.' }] }
@@ -62,9 +61,9 @@ describe('video workflow', () => {
   const plan = { overview: 'Follow the reasoning through the ending.', sections: [{ firstCaption: 1, lastCaption: 2,
     title: 'Risks of stagnation', recommendation: 'focus', reason: 'Contains the argument and its conclusion.',
     learningTarget: 'Explain the proposed connection.', skipCondition: '', prerequisites: [] }] }
-  const planRequest = () => ({ id: 'plan', action: 'watch-plan' as const, transcript: t, preferences: { ...DEFAULT_WATCH_PREFERENCES } })
+  const planRequest = () => ({ id: 'plan', action: 'watch-plan' as const, transcript: t })
 
-  it('plans independently of the summary with the same video model/key, then caches by preferences', async () => {
+  it('plans independently of the summary with the same video model/key, then caches by title and description', async () => {
     mocks.replies.push(plan)
     await handleVideo(planRequest(), emit, signal())
     expect(events.at(-1)).toMatchObject({ result: { model: 'test-model', sections: plan.sections } })
@@ -75,9 +74,9 @@ describe('video workflow', () => {
     await handleVideo(planRequest(), emit, signal())
     expect(events.at(-1)?.cached).toBe(true)
     expect(mocks.calls).toHaveLength(1)
-    for (const change of [{ goal: 'implement' as const }, { knownTopics: 'Python' }, { budgetMinutes: 10 }]) {
+    for (const change of [{ title: 'A new lecture title' }, { description: 'Theory and derivations' }, { description: 'Implementation tutorial' }]) {
       mocks.replies.push(plan)
-      await handleVideo({ ...planRequest(), preferences: { ...DEFAULT_WATCH_PREFERENCES, ...change } }, emit, signal())
+      await handleVideo({ ...planRequest(), transcript: { ...t, ...change } }, emit, signal())
       expect(events.at(-1)?.cached).not.toBe(true)
     }
     expect(mocks.calls).toHaveLength(4)
@@ -111,8 +110,8 @@ describe('video workflow', () => {
     expect(existsSync(join(mocks.directory, 'video-cache'))).toBe(false)
   })
 
-  it('rejects invalid preferences before retrieving a secret or making a model request', async () => {
-    await expect(handleVideo({ ...planRequest(), preferences: { ...DEFAULT_WATCH_PREFERENCES, budgetMinutes: -1 } }, emit, signal())).rejects.toThrow(/time budget/)
+  it('rejects oversized descriptions before retrieving a secret or making a model request', async () => {
+    await expect(handleVideo({ ...planRequest(), transcript: { ...t, description: 'x'.repeat(20001) } }, emit, signal())).rejects.toThrow(/complete caption transcript/)
     expect(mocks.secretIds).toEqual([])
     expect(mocks.calls).toEqual([])
   })

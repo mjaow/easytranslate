@@ -1,9 +1,10 @@
-export interface PanelTarget { tabId: number; windowId: number; videoId: string | null; title: string; start: boolean; token: string; clickedAt?: number }
+export type VideoAction = 'analyze' | 'watch-plan'
+export interface PanelTarget { tabId: number; windowId: number; videoId: string | null; title: string; start: boolean; token: string; clickedAt?: number; action?: VideoAction }
 export type UnderstandResponse = { ok: true } | { ok: false; error: string }
-function targetFor(tab: chrome.tabs.Tab, start: boolean, clickedAt?: number): PanelTarget {
+function targetFor(tab: chrome.tabs.Tab, start: boolean, clickedAt?: number, action: VideoAction = 'analyze'): PanelTarget {
   let videoId: string | null = null
   try { const u = new URL(tab.url ?? ''); if (u.origin === 'https://www.youtube.com' && u.pathname === '/watch') videoId = u.searchParams.get('v') } catch { /* non-web tab */ }
-  return { tabId: tab.id!, windowId: tab.windowId, videoId, title: tab.title ?? '', start, token: crypto.randomUUID(), clickedAt }
+  return { tabId: tab.id!, windowId: tab.windowId, videoId, title: tab.title ?? '', start, token: crypto.randomUUID(), clickedAt, action }
 }
 const updates = new Map<number, Promise<void>>()
 function publishTarget(next: PanelTarget, ready: Promise<void> = Promise.resolve()): Promise<void> {
@@ -26,20 +27,21 @@ function publishTarget(next: PanelTarget, ready: Promise<void> = Promise.resolve
   void update.then(cleanup, cleanup)
   return update
 }
-async function open(tab: chrome.tabs.Tab, clickedAt = performance.timeOrigin + performance.now()): Promise<void> {
+async function open(tab: chrome.tabs.Tab, clickedAt = performance.timeOrigin + performance.now(), action: VideoAction = 'analyze'): Promise<void> {
   // Call open synchronously in the user gesture; async work can lose that gesture.
   const opened = chrome.sidePanel.open({ windowId: tab.windowId })
-  await publishTarget(targetFor(tab, true, clickedAt), opened)
+  await publishTarget(targetFor(tab, true, clickedAt, action), opened)
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse: (response: UnderstandResponse) => void) => {
-  if (message?.action !== 'understand') return
+  if (message?.action !== 'understand' && message?.action !== 'watch-plan') return
   let youtube = false
   try { youtube = new URL(sender.url ?? '').origin === 'https://www.youtube.com' } catch { /* no page URL */ }
   if (!youtube || sender.tab?.id === undefined || !targetFor(sender.tab, false).videoId) {
     sendResponse({ ok: false, error: 'Open a YouTube video, refresh the page, and try again.' })
     return
   }
-  void open(sender.tab, typeof message.clickedAt === 'number' && Number.isFinite(message.clickedAt) ? message.clickedAt : undefined)
+  void open(sender.tab, typeof message.clickedAt === 'number' && Number.isFinite(message.clickedAt) ? message.clickedAt : undefined,
+    message.action === 'watch-plan' ? 'watch-plan' : 'analyze')
     .then(() => sendResponse({ ok: true }), e => sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) }))
   // Keep the response channel open until the browser confirms the panel opened
   // and its start request was saved. Sending a message alone is not success.

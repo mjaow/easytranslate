@@ -1,20 +1,8 @@
-import type { VideoTranscript, VideoWatchPlan, WatchPreferences, WatchSection } from './video.js'
+import type { VideoTranscript, VideoWatchPlan, WatchSection } from './video.js'
 
-export const DEFAULT_WATCH_PREFERENCES: WatchPreferences = { goal: 'understand', knownTopics: '', budgetMinutes: null }
 export const WATCH_LABELS = { focus: 'Focus', skim: 'Skim', skip: 'Skip', check: 'Check visuals' } as const
 export interface WatchRange extends WatchSection { start: number; end: number }
 const GAP_SECONDS = 15
-
-/** Validate on both sides of native messaging; never silently clamp user inputs. */
-export function watchPreferences(value: unknown): WatchPreferences {
-  const p = value as WatchPreferences
-  if (!p || !['understand', 'implement', 'review'].includes(p.goal) ||
-      typeof p.knownTopics !== 'string' || p.knownTopics.length > 2000 ||
-      (p.budgetMinutes !== null && (!Number.isInteger(p.budgetMinutes) || p.budgetMinutes < 1 || p.budgetMinutes > 720))) {
-    throw new Error('Choose a learning goal, up to 2,000 characters of familiar topics, and an optional time budget from 1 to 720 minutes.')
-  }
-  return { goal: p.goal, knownTopics: p.knownTopics.trim(), budgetMinutes: p.budgetMinutes }
-}
 
 /** Times come from captions, never model-generated seconds. Uncaptioned gaps stay visible. */
 export function watchRanges(plan: VideoWatchPlan, transcript: VideoTranscript): WatchRange[] {

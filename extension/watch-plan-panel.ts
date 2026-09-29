@@ -1,12 +1,9 @@
-import { clockTime, type VideoEvent, type VideoRequest, type VideoTranscript, type VideoWatchPlan, type WatchPreferences } from '../src/shared/video.js'
-import { DEFAULT_WATCH_PREFERENCES, nextFocusRange, watchEstimate, watchPreferences, watchRanges, WATCH_LABELS, type WatchRange } from '../src/shared/watch-plan.js'
+import { clockTime, type VideoTranscript, type VideoWatchPlan } from '../src/shared/video.js'
+import { nextFocusRange, watchEstimate, watchRanges, WATCH_LABELS, type WatchRange } from '../src/shared/watch-plan.js'
 
 const get = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T
-const preferenceKey = 'watchPreferences'
 interface Hooks {
-  request: (request: VideoRequest, revision: number) => Promise<VideoEvent>
   generation: () => number
-  setBusy: (busy: boolean) => void
   isBusy: () => boolean
   error: (message: string) => void
 }
@@ -20,107 +17,39 @@ export class WatchPlanPanel {
   private tabId = 0
   private plan: VideoWatchPlan | null = null
   private ranges: WatchRange[] = []
-  private dirty = false
-  private pending = false
-  private ready: Promise<void>
-
   constructor(private readonly hooks: Hooks) {
-    this.ready = this.loadPreferences()
-    get('watch-form').addEventListener('submit', e => { e.preventDefault(); void this.generate() })
-    for (const id of ['watch-goal', 'watch-known', 'watch-budget']) get(id).addEventListener('input', () => {
-      this.dirty = true
-      this.clearPlan()
-      get('watch-settings-summary').textContent = 'Your learning preferences'
-      get('watch-status').textContent = 'Preferences changed. Create a new plan for this goal.'
-    })
     get('next-focus').addEventListener('click', () => void this.nextFocus())
   }
 
-  private async loadPreferences(): Promise<void> {
-    try {
-      const stored = await chrome.storage.local.get(preferenceKey)
-      const preferences = stored[preferenceKey] ? watchPreferences(stored[preferenceKey]) : DEFAULT_WATCH_PREFERENCES
-      if (this.dirty) return
-      get<HTMLSelectElement>('watch-goal').value = preferences.goal
-      get<HTMLTextAreaElement>('watch-known').value = preferences.knownTopics
-      get<HTMLInputElement>('watch-budget').value = preferences.budgetMinutes?.toString() ?? ''
-    } catch { /* Missing/invalid saved preferences never prevent planning. */ }
-  }
+  get hasPlan(): boolean { return this.plan !== null }
 
-  setContext(transcript: VideoTranscript | null, tabId = 0): void {
-    this.transcript = transcript; this.tabId = tabId; this.pending = false
-    this.clearPlan()
-    get('watch-plan-section').hidden = !transcript
-    get('watch-status').textContent = 'Uses your video model. Preferences are saved on this device.'
-    this.setBusy(this.hooks.isBusy())
+  reset(): void {
+    this.transcript = null; this.plan = null; this.ranges = []
+    get('watch-plan-section').hidden = true
+    get('watch-result').hidden = true
+    get('watch-ranges').replaceChildren()
+    get('watch-status').textContent = ''
   }
 
   setBusy(busy: boolean): void {
-    for (const id of ['watch-goal', 'watch-known', 'watch-budget', 'create-watch-plan', 'next-focus']) {
-      get<HTMLInputElement>(id).disabled = busy || !this.transcript
-    }
-    if (!busy && this.pending) {
-      this.pending = false
-      get('watch-status').textContent = 'Watch plan cancelled. You can try again.'
-    }
+    get<HTMLButtonElement>('next-focus').disabled = busy || !this.plan
   }
 
-  private clearPlan(): void {
-    this.plan = null; this.ranges = []
-    get('watch-result').hidden = true
-    get('watch-ranges').replaceChildren()
-    get('create-watch-plan').textContent = 'Create watch plan'
-  }
-
-  private preferences(): WatchPreferences {
-    const budget = get<HTMLInputElement>('watch-budget').value
-    return watchPreferences({ goal: get<HTMLSelectElement>('watch-goal').value,
-      knownTopics: get<HTMLTextAreaElement>('watch-known').value, budgetMinutes: budget === '' ? null : Number(budget) })
-  }
-
-  private async generate(): Promise<void> {
-    if (!this.transcript || this.hooks.isBusy()) return
-    const transcript = this.transcript, revision = this.hooks.generation()
-    const fresh = !!this.plan
-    this.hooks.setBusy(true); this.pending = true
-    get('error').hidden = true
-    get('watch-status').textContent = 'Reading the whole lecture to plan your route…'
-    try {
-      await this.ready
-      if (revision !== this.hooks.generation()) return
-      const preferences = this.preferences()
-      let saved = true
-      try { await chrome.storage.local.set({ [preferenceKey]: preferences }) } catch { saved = false }
-      if (revision !== this.hooks.generation()) return
-      const event = await this.hooks.request({ id: crypto.randomUUID(), action: 'watch-plan', transcript, preferences, fresh }, revision)
-      if (revision !== this.hooks.generation() || transcript !== this.transcript) return
-      this.plan = event.result as VideoWatchPlan
-      this.render()
-      get('watch-status').textContent = `${event.cached ? 'Saved plan' : 'Watch plan ready'} · ${this.plan.model}${saved ? '' : ' · Preferences could not be saved on this device.'}`
-    } catch (e) {
-      if (revision !== this.hooks.generation()) return
-      get('watch-status').textContent = 'Watch plan did not finish. You can retry.'
-      this.hooks.error(e instanceof Error ? e.message : String(e))
-    } finally {
-      if (revision === this.hooks.generation()) { this.pending = false; this.hooks.setBusy(false) }
-    }
+  show(plan: VideoWatchPlan, transcript: VideoTranscript, tabId: number): void {
+    this.plan = plan; this.transcript = transcript; this.tabId = tabId
+    this.render()
+    get('watch-plan-section').hidden = false
   }
 
   private render(): void {
     if (!this.plan || !this.transcript) return
     const plan = this.plan
-    get<HTMLDetailsElement>('watch-settings').open = false
-    const goals = { understand: 'Understand the theory', implement: 'Put it into practice', review: 'Review what I know' }
-    get('watch-settings-summary').textContent = `${goals[plan.preferences.goal]} · ${plan.preferences.budgetMinutes ? `${plan.preferences.budgetMinutes} min available` : 'No time limit'}`
     this.ranges = watchRanges(plan, this.transcript)
     const estimate = watchEstimate(this.ranges)
     get('watch-overview').textContent = plan.overview
     const minutes = Math.ceil(estimate.routeSeconds / 60)
     get('watch-estimate').textContent = `≈${minutes} min route · ${Math.ceil(estimate.focusSeconds / 60)} min focus · ${Math.ceil(this.transcript.duration / 60)} min full video`
     get('watch-estimate').title = 'Focus and visual checks at 1×, skim at 1.5×, skipped sections excluded. Pauses and practice add time. Playback speed is unchanged.'
-    const budget = plan.preferences.budgetMinutes
-    get('watch-budget-note').hidden = !budget || estimate.routeSeconds <= budget * 60
-    get('watch-budget-note').textContent = `This route exceeds your ${budget}-minute budget. Keep the prerequisites and continue in another session.`
     const estimates = element('p', 'Estimate: focus and visual checks at 1×, skim at 1.5×. Pauses and practice add time.', 'meta')
     get('watch-ranges').replaceChildren(estimates, ...this.ranges.map(range => {
       const card = element('article', '', `watch-range watch-${range.recommendation}`)
@@ -148,7 +77,6 @@ export class WatchPlanPanel {
       return card
     }))
     get('watch-result').hidden = false
-    get('create-watch-plan').textContent = 'Rebuild watch plan'
   }
 
   private async seek(seconds: number): Promise<void> {

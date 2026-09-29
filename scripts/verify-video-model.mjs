@@ -35,12 +35,6 @@ if (transcriptOption !== -1) {
   transcript = JSON.parse(readFileSync(file, 'utf8')) // Production validates completeness.
 }
 const planning = process.argv.includes('--watch-plan')
-const preferences = { goal: 'understand', knownTopics: '', budgetMinutes: null }
-const preferencesOption = process.argv.indexOf('--preferences')
-if (preferencesOption !== -1) {
-  if (!planning || !process.argv[preferencesOption + 1]) throw new Error('--preferences needs a JSON file and --watch-plan.')
-  Object.assign(preferences, JSON.parse(readFileSync(process.argv[preferencesOption + 1], 'utf8')))
-}
 const child = spawn(process.execPath, ['out/native-host/bridge.cjs', `chrome-extension://${id}/`], { windowsHide: true })
 let buffer = Buffer.alloc(0), done = false, lastStatus = ''
 const started = performance.now()
@@ -65,5 +59,5 @@ child.stdout.on('data', bytes => {
 })
 child.on('exit', code => { clearTimeout(timer); if (!done || code) process.exitCode = 1 })
 const body = Buffer.from(JSON.stringify({ id: 'live-excerpt', action: planning ? 'watch-plan' : 'analyze', transcript,
-  ...(planning ? { preferences } : {}), fresh: process.argv.includes('--fresh') })), header = Buffer.alloc(4)
+  fresh: process.argv.includes('--fresh') })), header = Buffer.alloc(4)
 header.writeUInt32LE(body.length); child.stdin.write(Buffer.concat([header, body]))

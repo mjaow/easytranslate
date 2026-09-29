@@ -135,22 +135,27 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
 
 ## Plan a lecture
 
-After captions load, **Your watch plan** appears above the summary. When the current
-request finishes, choose **Understand the theory**, **Put it into practice**, or
-**Review what I know**. Add specific familiar topics and an optional budget of
-1–720 minutes. Empty familiar topics means your prior knowledge is unknown.
-**Create watch plan** sends the complete captions and these preferences to the
-same configured video model, endpoint, reasoning setting, and dedicated key used
-for summaries. An existing Azure OpenAI GPT-6 Luna configuration is reused directly.
-The English plan is a separate, explicit model request; summary generation and
-Chinese translation do not generate or translate it.
+Click **Plan watch** beside **Understand video**, either below the YouTube player
+or in the side panel. This starts a separate viewing-guide workflow directly:
+it collects the title, description, and complete captions, then requests a watch
+plan. You do not need a summary first, and there are no learning-goal, familiar-topic,
+or time-budget inputs. **Understand video** continues to generate summaries only.
+The panel shows the result for the action you chose.
+
+The model infers the video's learning objective, intended audience, and appropriate
+emphasis from its title and description, then checks that interpretation against
+what the captions actually teach. The description comes from the player metadata
+matched to the current video. If it is unavailable, planning uses the title and
+captions. Metadata is context, never instructions or evidence that advertised
+material was taught. The model does not infer your personal mastery or available
+time from a video's intended audience.
 
 The chronological plan labels sections **Focus**, **Skim**, **Skip**, or **Check
 visuals**. Expand **Why this section** for its reason, learning target, and needed
 earlier sections. Skip conditions and visual checks start expanded. Recommendations
 are learning advice, not statements made by the lecturer. They preserve whole
-explanations and required prerequisite chains. Unknown knowledge calls for caution;
-the model can still make a poor judgment, so read the reason before skipping.
+explanations and required prerequisite chains. The model can still make a poor
+judgment, so read the reason before skipping.
 
 Time ranges come from caption boundaries. Every caption must belong to exactly
 one section; incomplete or overlapping model output fails instead of being shown
@@ -163,16 +168,17 @@ Click a time range to seek, or **Next focus section** to jump to the next focus
 range after your current playback position. At the last focus section, use its
 timestamp to revisit it. Playback is never automatically skipped or sped up.
 Estimated viewing time counts focus and visual checks at 1×, skim at 1.5×, and
-excludes conditional skips. Pauses and practice add time. When a coherent route
-exceeds your budget, the panel says so rather than silently dropping prerequisites.
+excludes conditional skips. Pauses and practice add time.
 
-Preferences are saved locally in the browser when you create a plan. Editing them
-clears the displayed route until you create another. Saved plans are keyed by the
-complete transcript, preferences, model, endpoint, reasoning setting, and prompt
-version. They share the summary cache's 7-day expiry and 30-entry bound. **Rebuild
-watch plan** makes a fresh request; **Clear cache** removes plans along with summaries
-and translations, while retaining your preferences and keys. Navigation and Cancel
-discard pending results. Watch planning leaves the completed summary timer intact.
+Planning uses the same video provider, endpoint, deployment, reasoning setting,
+and dedicated key as summaries, including Azure OpenAI GPT-6 Luna. It makes one
+explicit model request for the English plan. Summary translation does not translate
+watch plans. Saved plans are keyed by the title, description, complete transcript,
+model settings, and prompt version, sharing the summary cache's 7-day expiry and
+30-entry bound. **Plan again** makes a fresh request. **Clear cache** removes plans,
+summaries, and translations while retaining keys. Navigation and Cancel discard
+pending results. A new explicit YouTube action can replace a pending request.
+Planning preserves the completed summary timer, which is shown only in summary view.
 
 For an explicit live check with a captured transcript and the configured model:
 
@@ -180,9 +186,8 @@ For an explicit live check with a captured transcript and the configured model:
 node scripts/verify-video-model.mjs --live --watch-plan --transcript path/to/transcript.json --fresh
 ```
 
-Optionally pass `--preferences path/to/preferences.json`, containing `goal`
-(`understand`, `implement`, or `review`), `knownTopics` (string), and `budgetMinutes`
-(integer or `null`). This uses the configured API and its applicable charges.
+The transcript may include a `description` string from the matching video's player
+metadata. This check uses the configured API and its applicable charges.
 
 ## Use an Azure GPT-6 deployment
 

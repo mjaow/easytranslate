@@ -2,6 +2,8 @@ export interface CaptionSegment { start: number; duration: number; text: string 
 export interface VideoTranscript {
   videoId: string
   title: string
+  /** Description from player metadata matched to this video; absent on older captures. */
+  description?: string
   language: string
   automatic: boolean
   duration: number
@@ -43,11 +45,6 @@ export interface VideoAnalysis {
   sections: number
 }
 export interface VideoAnswer { answer: string; sources: number[] }
-export interface WatchPreferences {
-  goal: 'understand' | 'implement' | 'review'
-  knownTopics: string
-  budgetMinutes: number | null
-}
 export type WatchRecommendation = 'focus' | 'skim' | 'skip' | 'check'
 export interface WatchSection {
   firstCaption: number
@@ -63,7 +60,6 @@ export interface WatchSection {
 export interface VideoWatchPlan {
   overview: string
   sections: WatchSection[]
-  preferences: WatchPreferences
   model: string
 }
 export interface VideoCacheClearResult { cleared: number; failed: number }
@@ -72,7 +68,7 @@ export type VideoRequest =
   | { id: string; action: 'cancel' }
   | { id: string; action: 'clear-cache' }
   | { id: string; action: 'analyze'; transcript: VideoTranscript; fresh?: boolean }
-  | { id: string; action: 'watch-plan'; transcript: VideoTranscript; preferences: WatchPreferences; fresh?: boolean }
+  | { id: string; action: 'watch-plan'; transcript: VideoTranscript; fresh?: boolean }
   | { id: string; action: 'translate'; transcript: VideoTranscript }
   | { id: string; action: 'question'; transcript: VideoTranscript; question: string; history?: string }
 export interface VideoEvent {

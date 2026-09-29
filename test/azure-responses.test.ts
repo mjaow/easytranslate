@@ -11,7 +11,6 @@ import { createLlmProvider } from '../src/providers/llm/registry.js'
 import { probeProvider } from '../src/providers/llm/probe.js'
 import { SectionParser, systemPrompt } from '../src/core/explain.js'
 import { parseWatchPlan, watchPlanPrompt } from '../src/core/watch-plan.js'
-import { DEFAULT_WATCH_PREFERENCES } from '../src/shared/watch-plan.js'
 import type { VideoTranscript } from '../src/shared/video.js'
 const secrets = vi.hoisted(() => ({ ids: [] as string[] }))
 vi.mock('../src/core/config.js', () => ({ getSecret: (id: string) => { secrets.ids.push(id); return 'azure-video-fixture-key' } }))
@@ -77,8 +76,8 @@ describe('Azure Responses adapter', () => {
     const plan = { overview: 'Understand the chain rule.', sections: [{ firstCaption: 1, lastCaption: 1, title: 'Chain rule',
       recommendation: 'focus', reason: 'The central method.', learningTarget: 'Explain why local derivatives multiply.', skipCondition: '', prerequisites: [] }] }
     events = [{ type: 'response.output_text.delta', delta: JSON.stringify(plan) }, { type: 'response.completed', response: { status: 'completed' } }]
-    const result = await generateVideoJson(createVideoProvider(c), watchPlanPrompt(transcript, DEFAULT_WATCH_PREFERENCES), new AbortController().signal,
-      value => parseWatchPlan(value, transcript, DEFAULT_WATCH_PREFERENCES, c.llm.videoModel), () => {}, { attempts: 1 })
+    const result = await generateVideoJson(createVideoProvider(c), watchPlanPrompt(transcript), new AbortController().signal,
+      value => parseWatchPlan(value, transcript, c.llm.videoModel), () => {}, { attempts: 1 })
     expect(result.model).toBe('gpt-6-luna')
     expect(calls).toHaveLength(1)
     expect(calls[0]).toMatchObject({ key: 'azure-video-fixture-key', path: '/openai/responses?api-version=2025-04-01-preview',
