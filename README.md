@@ -80,7 +80,8 @@ becomes a bilingual explanation with vocabulary you can listen to.*
    or use **Copy summary + breakdown** to take the analysis with you.
 
 For a separate viewing guide, click **Plan watch** beside **Understand video** on
-YouTube or in the side panel. It collects the video directly, infers its learning
+YouTube. Each button opens its own dedicated sidebar view and starts immediately;
+there is no second start click inside the panel. Planning collects the video directly, infers its learning
 purpose from the title and description, and uses the complete transcript to label
 **Focus**, **Skim**, **Skip**, and **Check visuals** sections. No summary or setup
 form is required. Click a timestamp or **Next focus section** to navigate. Planning

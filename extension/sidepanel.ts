@@ -205,9 +205,19 @@ function afterDisplay(): Promise<void> {
 }
 function selectView(view: VideoAction): void {
   activeView = view
+  const planning = view === 'watch-plan'
+  const label = planning ? 'Plan watch' : 'Understand video'
+  document.title = `${label} · EasyUnderstand`
+  get('panel-heading').textContent = label
+  get('panel-tag').textContent = planning ? 'WATCH PLAN' : 'SUMMARY'
+  get('understand').hidden = planning
+  get('plan-watch').hidden = !planning
   get('summary-view').hidden = view !== 'analyze'
   get('summary-timing-view').hidden = view !== 'analyze'
   get('watch-plan-section').hidden = view !== 'watch-plan'
+  get('panel-note').textContent = planning
+    ? 'Your viewing guide uses the title, description, and complete captions with your video model.'
+    : 'Your summary uses the complete captions with your video model. Optional Chinese translation uses your everyday model.'
 }
 
 /** Both buttons collect metadata/captions directly, without calling the other workflow. */
@@ -324,13 +334,14 @@ async function clearCache(): Promise<void> {
     if (!Number.isInteger(result?.cleared) || !Number.isInteger(result?.failed)) throw new Error('The helper did not confirm whether the video cache was cleared.')
     english = null; chinese = null; displayedAnalysis = null; transcript = null; history.length = 0
     watchPanel.reset()
+    selectView(activeView)
     timing.reset(); refreshNext = false
     for (const id of ['overview-card', 'ideas-section', 'evaluation-section', 'unanswered-section', 'transcript-section', 'transcript-size', 'questions-section', 'languages']) get(id).hidden = true
     for (const id of ['overview', 'takeaways', 'copy-status', 'connections', 'ideas', 'evaluation', 'unanswered', 'transcript', 'transcript-size', 'conversation', 'source-meta']) get(id).replaceChildren()
     status(result.failed
       ? `Cleared ${result.cleared} saved entries. Some entries could not be removed.`
-      : result.cleared ? `Cache cleared · ${result.cleared} saved ${result.cleared === 1 ? 'entry' : 'entries'} removed. The next summary will use your model.`
-      : 'Video cache is already empty. The next summary will use your model.')
+      : result.cleared ? `Cache cleared · ${result.cleared} saved ${result.cleared === 1 ? 'entry' : 'entries'} removed. The next ${activeView === 'watch-plan' ? 'plan' : 'summary'} will use your model.`
+      : `Video cache is already empty. The next ${activeView === 'watch-plan' ? 'plan' : 'summary'} will use your model.`)
     if (result.failed) error(`${result.failed} saved ${result.failed === 1 ? 'entry could' : 'entries could'} not be removed. Close other EasyUnderstand video panels and retry.`)
   } catch (e) {
     if (revision === generation) { error(e instanceof Error ? e.message : String(e)); status('Could not confirm that the video cache was cleared. You can retry.') }
@@ -357,8 +368,9 @@ function startTarget(next: PanelTarget): void {
   if (!next.start || !next.videoId || next.token === lastStartToken) return
   if (busy) stop(false)
   lastStartToken = next.token
-  // Do not reuse an old button-click timestamp when the panel is reopened.
-  void chrome.storage.session.set({ [startedKey]: lastStartToken })
+  // This receipt is only for timing. A new panel has no displayed result, so it
+  // must load the requested action even if an earlier panel started that click.
+  void chrome.storage.session.set({ [startedKey]: lastStartToken }).catch(() => {})
   if (next.action === 'watch-plan') void planVideo()
   else void analyze(next.clickedAt)
 }
@@ -371,6 +383,7 @@ function setTarget(next: PanelTarget): void {
   }
   stop(!next.videoId); target = next; transcript = null; english = null; chinese = null; displayedAnalysis = null; history.length = 0
   watchPanel.reset()
+  selectView(next.action ?? activeView)
   timing.reset(); refreshNext = false; setBusy(false)
   for (const id of ['overview-card', 'ideas-section', 'evaluation-section', 'unanswered-section', 'transcript-section', 'transcript-size', 'questions-section', 'languages', 'error']) get(id).hidden = true
   for (const id of ['ideas', 'evaluation', 'takeaways', 'copy-status', 'conversation', 'source-meta']) get(id).replaceChildren()
@@ -378,7 +391,7 @@ function setTarget(next: PanelTarget): void {
   get<HTMLButtonElement>('understand').disabled = !next.videoId
   get<HTMLDetailsElement>('ideas-section').open = false
   get<HTMLDetailsElement>('evaluation-section').open = false
-  status('Choose Understand video for a summary, or Plan watch for a viewing guide.')
+  status(activeView === 'watch-plan' ? 'Plan what to focus on, skim, or skip in this video.' : 'Understand the ideas and arguments in this video.')
   if (next.videoId) nativeClient.warmup()
   startTarget(next)
 }
@@ -405,12 +418,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 })
 const stored = await chrome.storage.session.get([key, startedKey])
-lastStartToken = typeof stored[startedKey] === 'string' ? stored[startedKey] : ''
+// Deduplicate within this document, not across panel lifetimes: a panel that
+// closed during startup may have recorded a click without ever showing a result.
+const initialTarget = (pendingTarget ?? stored[key]) as PanelTarget | undefined
 initializing = false
-if (pendingTarget ?? stored[key]) setTarget((pendingTarget ?? stored[key]) as PanelTarget)
+if (initialTarget) setTarget(initialTarget.token === stored[startedKey] ? { ...initialTarget, clickedAt: undefined } : initialTarget)
 else {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  let videoId: string | null = null
-  try { const u = new URL(tab.url ?? ''); if (u.origin === 'https://www.youtube.com' && u.pathname === '/watch') videoId = u.searchParams.get('v') } catch { /* no video */ }
-  setTarget({ tabId: tab.id!, windowId: tab.windowId, videoId, title: tab.title ?? '', start: false, token: '' })
+  // A page click can arrive while the tab lookup is pending. Never replace it
+  // with this older, non-starting snapshot (or cancel its in-flight request).
+  if (!target && tab?.id !== undefined) {
+    let videoId: string | null = null
+    try { const u = new URL(tab.url ?? ''); if (u.origin === 'https://www.youtube.com' && u.pathname === '/watch') videoId = u.searchParams.get('v') } catch { /* no video */ }
+    setTarget({ tabId: tab.id, windowId: tab.windowId, videoId, title: tab.title ?? '', start: false, token: '' })
+  }
 }

@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Understand video · EasyUnderstand</title><link rel="stylesheet" href="sidepanel.css"></head>
 <body>
-<header><div class="brand"><span class="mark">e</span> EasyUnderstand <span class="tag">VIDEO</span></div><h1>Go beyond the highlights.</h1><p id="video-title">Open a YouTube video to get started.</p></header>
+<header><div class="brand"><span class="mark">e</span> EasyUnderstand <span id="panel-tag" class="tag">VIDEO</span></div><h1 id="panel-heading">Understand video</h1><p id="video-title">Open a YouTube video to get started.</p></header>
 <main>
-  <div class="toolbar"><button id="understand" class="primary">Understand video</button><button id="plan-watch" title="Plan what to focus on or skip from the title, description, and captions.">Plan watch</button><button id="cancel" hidden>Cancel</button><button id="clear-cache" title="Delete all locally saved video summaries, translations, and watch plans and clear this panel.">Clear cache</button></div>
-  <p id="status" role="status" aria-live="polite">Choose Understand video for a summary, or Plan watch for a viewing guide.</p>
+  <div class="toolbar"><button id="understand" class="primary" disabled hidden>Understand video</button><button id="plan-watch" class="primary" disabled hidden title="Plan what to focus on or skip from the title, description, and captions.">Plan watch</button><button id="cancel" hidden>Cancel</button><button id="clear-cache" title="Delete all locally saved video summaries, translations, and watch plans and clear this panel.">Clear cache</button></div>
+  <p id="status" role="status" aria-live="polite">Opening your video…</p>
   <div id="error" role="alert" hidden></div>
   <div id="summary-timing-view"><section id="timing" hidden aria-label="Summary timing"><div class="timing-heading"><span id="timing-label">Elapsed</span><strong id="timing-total"></strong></div>
     <p class="meta"><span id="timing-model"></span><span id="timing-source" hidden></span></p>
@@ -45,6 +45,6 @@
   <section id="questions-section" hidden><h2>Explore further</h2><div id="conversation" aria-live="polite"></div><form id="question-form"><label for="question">Ask about this video</label><textarea id="question" rows="2" maxlength="4000" placeholder="Ask about a concept, example, method or argument from the video."></textarea><button id="ask" class="primary" type="submit">Ask the transcript</button></form></section>
   </div>
   <details id="transcript-section" hidden><summary>Inspect the source transcript</summary><p class="meta">Captions can contain recognition errors. Visual content is not analyzed.</p><div id="transcript"></div></details>
-  <footer>Summaries use captions; watch plans also use the title and description. Both use your video model. Optional Chinese translation uses your everyday model. <a href="help.html" target="_blank" rel="noreferrer">Setup &amp; help</a></footer>
+  <footer><span id="panel-note"></span> <a href="help.html" target="_blank" rel="noreferrer">Setup &amp; help</a></footer>
 </main><script type="module" src="sidepanel.js"></script>
 </body></html>
