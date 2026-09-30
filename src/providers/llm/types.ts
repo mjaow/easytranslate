@@ -36,3 +36,27 @@ export class ProviderError extends Error {
     this.name = 'ProviderError'
   }
 }
+
+/** What a reader needs to know when the answer stopped early. */
+export const CUT_SHORT = 'The answer was cut short — this selection is longer than one reply can hold.'
+/** What to do about it. The same advice whichever provider ran out of room. */
+export const SELECT_LESS = 'Select fewer paragraphs to get the whole answer.'
+
+/**
+ * The model ran out of output tokens part-way through.
+ *
+ * Its own class because this one is not like the others: everything streamed before
+ * it is real and useful. Throwing a plain error here threw away a translation that
+ * was three-quarters finished and showed the user nothing at all, so the caller
+ * treats this as "done, but cut short" and keeps what arrived.
+ *
+ * A provider may word the message itself — Azure has to, because the same call serves
+ * the video workflow, where a truncated JSON response is not recoverable and the
+ * failure needs to be attributable.
+ */
+export class OutputLimitError extends ProviderError {
+  constructor(message: string = CUT_SHORT, hint?: string) {
+    super(message, hint)
+    this.name = 'OutputLimitError'
+  }
+}

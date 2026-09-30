@@ -99,6 +99,11 @@ export interface ExplainState {
   explanation: Explanation
   status: 'streaming' | 'done' | 'error'
   error?: string
+  /**
+   * Something is off, but there is still an answer worth reading — a translation cut
+   * short by the output limit, say. Shown alongside the sections, not instead of them.
+   */
+  warning?: string
   /** Which model produced this answer, shown in the popup so it is never a mystery. */
   model?: string
   /** True when the answer came from the cache rather than a fresh request. */

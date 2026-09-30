@@ -1,7 +1,7 @@
 import { AzureOpenAI } from 'openai'
 import type { ExplainRequest, VideoReasoningEffort } from '../../shared/types.js'
-import { systemPrompt, userPrompt } from '../../core/explain.js'
-import { ProviderError, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
+import { outputBudget, systemPrompt, userPrompt } from '../../core/explain.js'
+import { OutputLimitError, ProviderError, SELECT_LESS, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
 
 export function parseAzureResponsesEndpoint(value: string): { baseURL: string; apiVersion: string } {
   let url: URL
@@ -38,7 +38,8 @@ export class AzureResponsesProvider implements LlmProvider {
   }
 
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
-    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: 3000 }, signal)
+    // Reasoning tokens come out of the same budget here, so Azure gets extra room.
+    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: outputBudget(req) + 2000 }, signal)
   }
 
   async *generate(req: GenerationRequest, signal: AbortSignal): AsyncIterable<string> {
@@ -65,9 +66,14 @@ export class AzureResponsesProvider implements LlmProvider {
       }
       if (event.type === 'response.incomplete') {
         const reason = event.response.incomplete_details?.reason
-        throw new ProviderError(reason === 'max_output_tokens'
-          ? 'Azure reached the response token limit, which includes reasoning tokens. No complete analysis was generated.'
-          : reason === 'content_filter' ? 'Azure declined this content. No complete analysis was generated.'
+        if (reason === 'max_output_tokens') {
+          throw new OutputLimitError(
+            'Azure reached the response token limit, which counts its reasoning tokens too.',
+            SELECT_LESS
+          )
+        }
+        throw new ProviderError(reason === 'content_filter'
+          ? 'Azure declined this content. No complete analysis was generated.'
           : 'Azure returned an incomplete response. No complete analysis was generated.')
       }
       if (event.type === 'error') throw new ProviderError('Azure response error.', event.message)

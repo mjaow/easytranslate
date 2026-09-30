@@ -1,5 +1,5 @@
 import type { ExplainRequest } from '../../shared/types.js'
-import { systemPrompt, userPrompt } from '../../core/explain.js'
+import { outputBudget, systemPrompt, userPrompt } from '../../core/explain.js'
 import { ProviderError, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
 
 /**
@@ -38,7 +38,7 @@ export class OllamaProvider implements LlmProvider {
   }
 
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
-    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: 1024 }, signal)
+    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: outputBudget(req) }, signal)
   }
 
   async *generate(req: GenerationRequest, signal: AbortSignal): AsyncIterable<string> {

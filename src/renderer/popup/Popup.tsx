@@ -235,7 +235,10 @@ export function Popup(): React.ReactElement | null {
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
-    const report = (): void => window.easytranslate.resize(el.getBoundingClientRect().height + 2)
+    // scrollHeight, not the bounding box: the card is clamped to the window, so its
+    // own height stops growing at the limit and would report the window back to
+    // itself. scrollHeight keeps reporting what the content actually needs.
+    const report = (): void => window.easytranslate.resize(el.scrollHeight + 2)
     report()
     const ro = new ResizeObserver(report)
     ro.observe(el)
@@ -261,20 +264,31 @@ export function Popup(): React.ReactElement | null {
   const empty = Object.keys(ex).length === 0
 
   return (
-    // The window is sized to the content up to a limit; past it, this scrolls.
-    <div className="p-1.5" style={{ maxHeight: '100vh', overflowY: 'auto' }}>
+    // The card itself scrolls, not this wrapper, which only supplies the margin the
+    // shadow needs. It has to be this way round: `position: sticky` sticks within its
+    // nearest scrolling ancestor, and an `overflow: hidden` card in between — which is
+    // what used to clip the corners — stopped the header sticking to anything at all.
+    // `overflow-y: auto` clips to the rounded corners just as well.
+    <div className="p-1.5" style={{ maxHeight: '100vh' }}>
       <div
         ref={contentRef}
-        className="overflow-hidden rounded-xl border"
+        className="rounded-xl border"
         style={{
           background: 'var(--surface)',
           borderColor: 'var(--border)',
-          boxShadow: 'var(--shadow)'
+          boxShadow: 'var(--shadow)',
+          // 12px is this wrapper's own padding, top and bottom.
+          maxHeight: 'calc(100vh - 12px)',
+          overflowY: 'auto'
         }}
       >
         {/* ---------------------------------------------------------- header */}
+        {/* Sticky, because a long answer scrolls and this row carries both the words
+            being explained and the only way to close the popup. Scrolling them off the
+            top left the reader unable to see what was asked or to dismiss the answer —
+            Escape still works, but a close button you cannot reach is a broken one. */}
         <div
-          className="flex items-start gap-1.5 border-b px-3 py-2"
+          className="sticky top-0 z-10 flex items-start gap-1.5 border-b px-3 py-2"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-muted)' }}
         >
           <div className="et-selectable min-w-0 flex-1">
@@ -346,13 +360,22 @@ export function Popup(): React.ReactElement | null {
                 </button>
               )}
 
-              {ex.zh && <div className="text-[15px] font-medium leading-snug">{ex.zh}</div>}
+              {/* pre-line, because a multi-paragraph selection gets a multi-paragraph
+                  answer and HTML would otherwise run them all together. */}
+              {ex.zh && (
+                <div
+                  className="text-[15px] font-medium leading-snug"
+                  style={{ whiteSpace: 'pre-line' }}
+                >
+                  {ex.zh}
+                </div>
+              )}
               {ex.en && (
                 <Section
                   label="in plain english"
                   action={<SpeakButton text={ex.en} compact onStatus={setStatus} />}
                 >
-                  <span style={{ color: 'var(--text-muted)' }}>{ex.en}</span>
+                  <span style={{ color: 'var(--text-muted)', whiteSpace: 'pre-line' }}>{ex.en}</span>
                 </Section>
               )}
               {ex.here && (
@@ -480,6 +503,17 @@ export function Popup(): React.ReactElement | null {
                 </Section>
               )}
             </>
+          )}
+
+          {/* An answer that was cut short is still an answer. The caveat goes beside
+              it, never in place of it. */}
+          {state.warning && state.status !== 'error' && (
+            <div
+              className="rounded-md px-2 py-1 text-[11px] leading-snug"
+              style={{ background: 'var(--surface-muted)', color: 'var(--text-muted)' }}
+            >
+              {state.warning}
+            </div>
           )}
 
           {status && (

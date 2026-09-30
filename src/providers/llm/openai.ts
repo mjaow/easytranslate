@@ -1,9 +1,7 @@
 import OpenAI from 'openai'
 import type { ExplainRequest } from '../../shared/types.js'
-import { systemPrompt, userPrompt } from '../../core/explain.js'
-import { ProviderError, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
-
-const MAX_TOKENS = 1024
+import { outputBudget, systemPrompt, userPrompt } from '../../core/explain.js'
+import { CUT_SHORT, OutputLimitError, ProviderError, SELECT_LESS, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
 
 export class OpenAiProvider implements LlmProvider {
   readonly id = 'openai' as const
@@ -26,7 +24,7 @@ export class OpenAiProvider implements LlmProvider {
   }
 
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
-    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: MAX_TOKENS }, signal)
+    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: outputBudget(req) }, signal)
   }
 
   async *generate(req: GenerationRequest, signal: AbortSignal): AsyncIterable<string> {
@@ -52,7 +50,7 @@ export class OpenAiProvider implements LlmProvider {
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content
       if (delta) yield delta
-      if (chunk.choices[0]?.finish_reason === 'length') throw new ProviderError('The model stopped at its output limit. Choose a model with a larger output limit in Settings.')
+      if (chunk.choices[0]?.finish_reason === 'length') throw new OutputLimitError(CUT_SHORT, SELECT_LESS)
       if (chunk.choices[0]?.finish_reason === 'content_filter') throw new ProviderError('The model provider declined this content. No complete analysis was generated.')
     }
   }
