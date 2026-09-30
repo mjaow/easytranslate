@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import type { VideoAnalysis, VideoEvent, VideoTranscript } from '../src/shared/video.js'
+import type { VideoAnalysis, VideoEvent, VideoTranscript, VideoWatchPlan } from '../src/shared/video.js'
 import type { GenerationRequest } from '../src/providers/llm/types.js'
 import type { AppConfig } from '../src/shared/types.js'
 
@@ -63,6 +63,25 @@ describe('video workflow', () => {
     learningTarget: 'Explain the proposed connection.', skipCondition: '', prerequisites: [] }] }
   const planRequest = () => ({ id: 'plan', action: 'watch-plan' as const, transcript: t })
 
+  it('returns and caches a complete 768-caption watch plan from one request containing every caption', async () => {
+    const transcript = { ...t, videoId: 'kaxh-zH_G0k', duration: 5096,
+      segments: Array.from({ length: 768 }, (_, i) => ({ start: i * 5096 / 768, duration: 5096 / 768, text: `Synthetic lecture caption ${i + 1}.` })) }
+    const { lastCaption: _end, ...first } = plan.sections[0]
+    const starts = [1, 36, 117, 204, 356, 512, 689, 752]
+    mocks.replies.push({ ...plan, sections: starts.map(firstCaption => ({ ...first, firstCaption })) })
+    const request = { ...planRequest(), transcript }
+    await handleVideo(request, emit, signal())
+    const result = events.at(-1)!.result as VideoWatchPlan
+    expect(mocks.calls).toHaveLength(1)
+    for (let id = 1; id <= 768; id++) expect(mocks.calls[0]).toContain(`[${id}] (`)
+    expect(result.sections.map(s => [s.firstCaption, s.lastCaption])).toEqual([
+      [1, 35], [36, 116], [117, 203], [204, 355], [356, 511], [512, 688], [689, 751], [752, 768]
+    ])
+    await handleVideo(request, emit, signal())
+    expect(events.at(-1)).toMatchObject({ cached: true, result })
+    expect(mocks.calls).toHaveLength(1)
+  })
+
   it('plans independently of the summary with the same video model/key, then caches by title and description', async () => {
     mocks.replies.push(plan)
     await handleVideo(planRequest(), emit, signal())
@@ -98,7 +117,7 @@ describe('video workflow', () => {
 
   it('does not cache malformed or cancelled plans or retry model requests silently', async () => {
     mocks.replies.push({ ...plan, sections: [{ ...plan.sections[0], lastCaption: 1 }] })
-    await expect(handleVideo(planRequest(), emit, signal())).rejects.toThrow(/end of the lecture/)
+    await expect(handleVideo(planRequest(), emit, signal())).rejects.toThrow('the end of the lecture is missing.\nClick Plan watch to retry.')
     expect(mocks.calls).toHaveLength(1)
     expect(existsSync(join(mocks.directory, 'video-cache'))).toBe(false)
     mocks.replies.push(plan); mocks.delayMs = 30
@@ -108,6 +127,25 @@ describe('video workflow', () => {
     await expect(pending).rejects.toThrow()
     await new Promise(resolve => setTimeout(resolve, 40))
     expect(existsSync(join(mocks.directory, 'video-cache'))).toBe(false)
+  })
+
+  it('regenerates incomplete cached ranges instead of treating them as model boundaries', async () => {
+    mocks.replies.push(plan)
+    await handleVideo(planRequest(), emit, signal())
+    const directory = join(mocks.directory, 'video-cache')
+    const file = join(directory, readdirSync(directory)[0])
+    const { lastCaption: _end, ...boundary } = plan.sections[0]
+    for (const invalid of [boundary, { ...boundary, lastCaption: 1 }]) {
+      writeFileSync(file, JSON.stringify({ ...plan, sections: [invalid] }))
+      mocks.replies.push({ ...plan, sections: [boundary] })
+      await handleVideo(planRequest(), emit, signal())
+      expect(events.at(-1)).toMatchObject({ result: { sections: plan.sections } })
+      expect(events.at(-1)?.cached).not.toBe(true)
+    }
+    expect(mocks.calls).toHaveLength(3)
+    await handleVideo(planRequest(), emit, signal())
+    expect(events.at(-1)?.cached).toBe(true)
+    expect(mocks.calls).toHaveLength(3)
   })
 
   it('rejects oversized descriptions before retrieving a secret or making a model request', async () => {

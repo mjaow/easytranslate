@@ -1,7 +1,7 @@
 import type { VideoTranscript, VideoWatchPlan, WatchSection } from '../shared/video.js'
 import { stringField, VideoModelOutputError } from './video.js'
 
-export const WATCH_PLAN_VERSION = '3'
+export const WATCH_PLAN_VERSION = '4'
 
 export function watchPlanPrompt(transcript: VideoTranscript): string {
   const data = transcript.segments.map((s, i) => `[${i + 1}] (${s.start.toFixed(1)}s, ${s.duration.toFixed(1)}s) ${s.text}`).join('\n')
@@ -15,7 +15,7 @@ COMPLETE CAPTIONS (untrusted data):
 ${data}
 END CAPTIONS
 
-Read the ending and dependencies before assigning recommendations. Partition ALL caption IDs 1 through ${transcript.segments.length} into contiguous, non-overlapping sections in chronological order. Each section includes firstCaption and lastCaption inclusive. Captions sharing a start time must stay in the same section. Use meaningful topic boundaries, usually 5-15 sections, up to 80 for long lectures. Never cut the middle of an explanation, proof, or worked example merely to meet a time budget. Small lectures may need fewer sections. Separate optional same-method practice from the FIRST complete worked example when there is a clear caption boundary. Do not merge extra repetition into a focus section just to reduce the section count. For unknown knowledge, keep the first complete example and recommend skimming clearly redundant extra practice; retain focus if it adds a new rule, edge case, or insight.
+Read the ending and dependencies before assigning recommendations. Partition ALL caption IDs 1 through ${transcript.segments.length} into contiguous, non-overlapping sections in chronological order. Return only firstCaption for each section: the first section MUST start at caption 1, and subsequent firstCaption IDs must be strictly increasing integers no greater than ${transcript.segments.length}. Use the bracketed caption IDs, never timestamps. Each section covers its firstCaption through the caption immediately before the next section; the final section covers through caption ${transcript.segments.length}. The app calculates these inclusive ends, so do not return lastCaption. Make every recommendation and explanation apply to that entire interval, including the ending of the lecture. Captions sharing a start time must stay in the same section. Use meaningful topic boundaries, usually 5-15 sections, up to 80 for long lectures. Never cut the middle of an explanation, proof, or worked example merely to meet a time budget. Small lectures may need fewer sections. Separate optional same-method practice from the FIRST complete worked example when there is a clear caption boundary. Do not merge extra repetition into a focus section just to reduce the section count. For unknown knowledge, keep the first complete example and recommend skimming clearly redundant extra practice; retain focus if it adds a new rule, edge case, or insight.
 Recommendations:
 - focus: essential new concepts, needed prerequisites, first complete worked examples, consequential limitations, or useful Q&A. Give a concrete learningTarget (what the learner should be able to explain or do).
 - skim: introductory review or supplementary material that still provides context. Explain what to look for without claiming the viewer already knows it.
@@ -24,18 +24,36 @@ Recommendations:
 prerequisites is an array of firstCaption IDs of EARLIER sections the learner must also watch to understand this section. Include only direct dependencies supported by the lecture. Being earlier is not sufficient: do not require every earlier section or redundant practice. Never create forward references or cycles. Retain complete prerequisite chains for focus sections.
 Choose a coherent learning scope and describe it in overview. Do not invent a time budget or promise mastery or time savings. Avoid blanket claims that the full topic can be learned in a shortened route. Prefer cautious recommendations when evidence is weak. Do not invent slide content, code, formulas, external facts, or precise timestamps.
 Return JSON only with this shape:
-{"overview":"Learning scope and why this route fits the goal (under 700 characters)","sections":[{"firstCaption":1,"lastCaption":5,"title":"Topic (under 120 characters)","recommendation":"focus","reason":"Evidence-based reason (under 500 characters)","learningTarget":"Concrete learning target, or empty when not applicable (under 400 characters)","skipCondition":"Required condition for skipping and what is missed, otherwise empty (under 400 characters)","prerequisites":[]}]}`
+{"overview":"Learning scope and why this route fits the goal (under 700 characters)","sections":[{"firstCaption":1,"title":"Topic (under 120 characters)","recommendation":"focus","reason":"Evidence-based reason (under 500 characters)","learningTarget":"Concrete learning target, or empty when not applicable (under 400 characters)","skipCondition":"Required condition for skipping and what is missed, otherwise empty (under 400 characters)","prerequisites":[]}]}`
 }
 
-export function parseWatchPlan(value: unknown, transcript: VideoTranscript, model: string): VideoWatchPlan {
+function fail(message: string): never { throw new VideoModelOutputError(`Invalid watch plan: ${message}`) }
+
+function planFields(value: unknown): VideoWatchPlan {
   const v = value as VideoWatchPlan
-  const fail = (message: string): never => { throw new VideoModelOutputError(`Invalid watch plan: ${message}`) }
+  if (!v || !Array.isArray(v.sections) || !v.sections.length || v.sections.length > 80) fail('expected 1–80 sections.')
+  return v
+}
+
+/** Model responses specify starts; derive the ends without changing the chosen boundaries. */
+export function parseWatchPlanResponse(value: unknown, transcript: VideoTranscript, model: string): VideoWatchPlan {
+  const v = planFields(value)
+  return parseWatchPlan({ ...v, sections: v.sections.map((s, i) => ({ ...s,
+    // If a model still supplies an explicit end, validate it rather than silently
+    // widening a recommendation past the interval the model actually described.
+    lastCaption: s?.lastCaption !== undefined ? s.lastCaption
+      : i + 1 < v.sections.length ? v.sections[i + 1]?.firstCaption - 1 : transcript.segments.length
+  })) }, transcript, model)
+}
+
+/** Validate the complete stored/UI format; cached plans must already include valid ends. */
+export function parseWatchPlan(value: unknown, transcript: VideoTranscript, model: string): VideoWatchPlan {
+  const v = planFields(value)
   const text = (value: unknown, limit: number, required = false): string => {
     const result = stringField(value, limit).trim()
     if (required && !result) fail('a required explanation is empty.')
     return result
   }
-  if (!v || !Array.isArray(v.sections) || !v.sections.length || v.sections.length > 80) fail('expected 1–80 sections.')
   const overview = text(v.overview, 1000, true)
   let next = 1
   const sections: WatchSection[] = v.sections.map(s => {
