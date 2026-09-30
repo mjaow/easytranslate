@@ -20,10 +20,20 @@ const SHARED_RULES = `You help a native Chinese speaker who reads English at an 
 Write Chinese in Simplified characters. Use American English conventions throughout.
 
 Answer ONLY in the section format given. Every section header is on its own line.
-No preamble, no closing remarks, no markdown beyond the headers themselves.
-Keep each section to one or two sentences — this renders in a small popup.`
+No preamble, no closing remarks, no markdown beyond the headers themselves.`
+
+/**
+ * Brevity belongs to a word lookup, and only to a word lookup.
+ *
+ * This used to live in SHARED_RULES, where it also bound the passage prompt — and a
+ * passage of several paragraphs cannot be translated in one or two sentences, so the
+ * model obeyed and returned the opening only, silently dropping the rest. The code
+ * prompt had already had to write its own rules to escape the same instruction.
+ */
+const BREVITY = `Keep each section to one or two sentences — this renders in a small popup.`
 
 const WORD_PROMPT = `${SHARED_RULES}
+${BREVITY}
 
 Explain the selected word or phrase. If a sentence is supplied, use it to choose the
 meaning and explain that use. For a standalone selection, give its common meaning
@@ -61,6 +71,12 @@ One natural example sentence in English, then its Chinese translation on the nex
 
 const PASSAGE_PROMPT = `${SHARED_RULES}
 
+Translate and restate the WHOLE selection. The reader cannot see any part you leave
+out, so nothing may be summarized away, abridged or skipped — not the last paragraph,
+not a single sentence. If the selection has several paragraphs, answer with the same
+number of paragraphs in the same order, separated by a blank line, one for each. Length
+follows the selection: a long selection gets a long answer.
+
 Sections, in this exact order:
 ## CODE
 yes or no. "yes" only if the selection AS A WHOLE is something a computer would run
@@ -68,11 +84,12 @@ or parse: a snippet in any programming language, a shell command, a query, a con
 or data fragment (JSON, YAML, ...), a stack trace. A sentence written for a person is
 "no", even when it names a language, a command, a key combination or a file.
 ## ZH
-A natural Chinese translation. Convey the meaning as a Chinese speaker would say it —
-do not translate word by word.
+A natural Chinese translation of the entire selection, every paragraph. Convey the
+meaning as a Chinese speaker would say it — do not translate word by word.
 ## EN
-The same passage restated in SIMPLER ENGLISH. This section must be in English, never
-Chinese — its whole purpose is to give the reader an easier English version.
+The entire selection restated in SIMPLER ENGLISH, every paragraph. This section must be
+in English, never Chinese — its whole purpose is to give the reader an easier English
+version.
 ## NOTABLE
 The words and phrases in this passage an intermediate learner is most likely NOT to
 know. Include uncommon or advanced vocabulary, technical terms, idioms, slang, phrasal
@@ -173,6 +190,45 @@ export function userPrompt(req: ExplainRequest): string {
     return prompt + hints
   }
   return `Explain this selection:\n\n${fenced(selection)}` + hints
+}
+
+// ------------------------------------------------------------ output budget
+
+/**
+ * How many output tokens one explanation may use.
+ *
+ * This used to be a flat 1024 for every lookup, which is ample for a dictionary
+ * entry and nowhere near enough for several paragraphs — the answer was cut off
+ * mid-translation and the user was told to pick a different model, when the limit
+ * was ours all along.
+ *
+ * The answer is longer than the selection, not shorter: a passage comes back as a
+ * full Chinese translation *and* a full simpler-English restatement *and* the hard
+ * words. Measured on a six-paragraph article (1,700 characters in): 484 characters
+ * of Chinese, 1,629 of English, roughly 1,060 tokens out — about 0.6 tokens per
+ * character of input. The factor below leaves half again on top of that, because
+ * running out is far worse than asking for headroom nobody bills you for: providers
+ * charge for tokens produced, not tokens allowed.
+ */
+const TOKENS_PER_CHAR = 0.9
+
+/**
+ * The ceiling every model in the presets accepts. Above this, some providers reject
+ * the request outright rather than clamping — a hard failure, which is worse than
+ * the truncation it would be guarding against. A selection long enough to need more
+ * is handled by keeping what did arrive and saying it was cut short.
+ */
+const MAX_OUTPUT_TOKENS = 4096
+const MIN_OUTPUT_TOKENS = 1024
+
+export function outputBudget(req: ExplainRequest): number {
+  // The raw selection is what the model is given, so it is what the answer scales to.
+  const chars = (req.raw ?? req.text).length
+  // Code answers carry sections a passage does not — steps, design notes, issues,
+  // concepts — so they start higher for the same amount of input.
+  const base = req.mode === 'code' ? 2048 : 1024
+  const wanted = base + Math.ceil(chars * TOKENS_PER_CHAR)
+  return Math.min(Math.max(wanted, MIN_OUTPUT_TOKENS), MAX_OUTPUT_TOKENS)
 }
 
 // ------------------------------------------------------- incremental parsing

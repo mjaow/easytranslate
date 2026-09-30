@@ -1,10 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ExplainRequest } from '../../shared/types.js'
-import { systemPrompt, userPrompt } from '../../core/explain.js'
-import { ProviderError, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
-
-/** A dictionary entry is short; this is ample and keeps latency down. */
-const MAX_TOKENS = 1024
+import { outputBudget, systemPrompt, userPrompt } from '../../core/explain.js'
+import { CUT_SHORT, OutputLimitError, ProviderError, SELECT_LESS, type GenerationRequest, type LlmProvider, type ProviderOptions } from './types.js'
 
 export class ClaudeProvider implements LlmProvider {
   readonly id = 'claude' as const
@@ -26,7 +23,7 @@ export class ClaudeProvider implements LlmProvider {
   }
 
   async *explain(req: ExplainRequest, signal: AbortSignal): AsyncIterable<string> {
-    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: MAX_TOKENS }, signal)
+    yield* this.generate({ system: systemPrompt(req.mode), user: userPrompt(req), maxTokens: outputBudget(req) }, signal)
   }
 
   async *generate(req: GenerationRequest, signal: AbortSignal): AsyncIterable<string> {
@@ -53,7 +50,7 @@ export class ClaudeProvider implements LlmProvider {
     // A policy decline arrives as HTTP 200 with stop_reason 'refusal', so it has to
     // be checked explicitly rather than caught.
     const final = await stream.finalMessage()
-    if (final.stop_reason === 'max_tokens') throw new ProviderError('The model stopped at its output limit. Try a model with a larger output limit.')
+    if (final.stop_reason === 'max_tokens') throw new OutputLimitError(CUT_SHORT, SELECT_LESS)
     if (final.stop_reason === 'refusal') {
       throw new ProviderError('Claude declined to explain this text.')
     }

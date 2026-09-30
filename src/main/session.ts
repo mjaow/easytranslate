@@ -19,6 +19,7 @@ import {
 import { loadConfig, getSecret } from '../core/config.js'
 import { JsonLruCache, AudioCache, cacheKey } from '../core/cache.js'
 import { createLlmProvider, describeError } from '../providers/llm/registry.js'
+import { OutputLimitError } from '../providers/llm/types.js'
 import { speak } from '../providers/tts/registry.js'
 import type { Explanation } from '../shared/types.js'
 
@@ -255,6 +256,21 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
     updatePopup(state)
   } catch (err) {
     if (controller.signal.aborted) return
+
+    // Running out of output tokens is not like the other failures: everything that
+    // streamed before it is a real, readable answer. Replacing it with an error
+    // threw away a translation that had got most of the way there.
+    const partial = parser.end()
+    if (err instanceof OutputLimitError && Object.keys(partial).length > 0) {
+      state.explanation = withDictionaryPronunciations(req, partial)
+      state.status = 'done'
+      state.warning = [err.message, err.hint].filter(Boolean).join(' ')
+      // Deliberately not cached. A truncated answer stored under this key would be
+      // served for this selection for ever, with no way for the user to tell.
+      updatePopup(state)
+      return
+    }
+
     const e = describeError(config.llm.provider, err)
     state.status = 'error'
     state.error = [e.message, e.hint].filter(Boolean).join(' ')
