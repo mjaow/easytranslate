@@ -32,6 +32,12 @@ describe('video model requests', () => {
     await expect(generateVideoJson(provider(failure), 'Evidence', signal(), validate, () => {})).rejects.toThrow(/Provider rejected/)
     expect(failure).toHaveBeenCalledTimes(1)
   })
+  it('uses the requested retry action for invalid JSON without adding a model call', async () => {
+    const bad = vi.fn(async function* () { yield '{"sections":' })
+    await expect(generateVideoJson(provider(bad), 'Evidence', signal(), validate, () => {},
+      { attempts: 1, retryMessage: 'Click Plan watch to retry.' })).rejects.toThrow('The model returned incomplete or invalid JSON.\nClick Plan watch to retry.')
+    expect(bad).toHaveBeenCalledTimes(1)
+  })
   it('shows waiting progress and aborts a stream that never produces text', async () => {
     vi.useFakeTimers()
     let upstream!: AbortSignal

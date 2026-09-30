@@ -10,7 +10,7 @@ import { generateVideoJson } from '../src/core/video-generation.js'
 import { createLlmProvider } from '../src/providers/llm/registry.js'
 import { probeProvider } from '../src/providers/llm/probe.js'
 import { SectionParser, systemPrompt } from '../src/core/explain.js'
-import { parseWatchPlan, watchPlanPrompt } from '../src/core/watch-plan.js'
+import { parseWatchPlanResponse, watchPlanPrompt } from '../src/core/watch-plan.js'
 import type { VideoTranscript } from '../src/shared/video.js'
 const secrets = vi.hoisted(() => ({ ids: [] as string[] }))
 vi.mock('../src/core/config.js', () => ({ getSecret: (id: string) => { secrets.ids.push(id); return 'azure-video-fixture-key' } }))
@@ -73,12 +73,13 @@ describe('Azure Responses adapter', () => {
     c.llm.videoModel = 'gpt-6-luna'; c.llm.videoReasoningEffort = 'none'
     const transcript: VideoTranscript = { videoId: 'lecturetest', title: 'Chain rule', language: 'en', automatic: false,
       duration: 30, complete: true, source: 'caption-track', segments: [{ start: 0, duration: 30, text: 'Multiply local derivatives along the computation path.' }] }
-    const plan = { overview: 'Understand the chain rule.', sections: [{ firstCaption: 1, lastCaption: 1, title: 'Chain rule',
+    const plan = { overview: 'Understand the chain rule.', sections: [{ firstCaption: 1, title: 'Chain rule',
       recommendation: 'focus', reason: 'The central method.', learningTarget: 'Explain why local derivatives multiply.', skipCondition: '', prerequisites: [] }] }
     events = [{ type: 'response.output_text.delta', delta: JSON.stringify(plan) }, { type: 'response.completed', response: { status: 'completed' } }]
     const result = await generateVideoJson(createVideoProvider(c), watchPlanPrompt(transcript), new AbortController().signal,
-      value => parseWatchPlan(value, transcript, c.llm.videoModel), () => {}, { attempts: 1 })
+      value => parseWatchPlanResponse(value, transcript, c.llm.videoModel), () => {}, { attempts: 1 })
     expect(result.model).toBe('gpt-6-luna')
+    expect(result.sections[0]).toMatchObject({ firstCaption: 1, lastCaption: 1 })
     expect(calls).toHaveLength(1)
     expect(calls[0]).toMatchObject({ key: 'azure-video-fixture-key', path: '/openai/responses?api-version=2025-04-01-preview',
       body: { model: 'gpt-6-luna', reasoning: { effort: 'none' }, store: false, text: { format: { type: 'json_object' } } } })

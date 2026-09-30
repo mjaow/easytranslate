@@ -8,7 +8,7 @@ import { batchJsonValues, chunkCaptions, parseSummary, summaryPrompt, sourcesFie
 import { generateVideoJson } from '../core/video-generation.js'
 import { resolveVideoConfig } from '../core/video-config.js'
 import { clearVideoCache, pruneVideoCache, readVideoCacheValue, readVideoCache as readCache, writeVideoCache as writeCache } from '../core/video-cache.js'
-import { parseWatchPlan, watchPlanPrompt, WATCH_PLAN_VERSION } from '../core/watch-plan.js'
+import { parseWatchPlan, parseWatchPlanResponse, watchPlanPrompt, WATCH_PLAN_VERSION } from '../core/watch-plan.js'
 import { createVideoProvider } from './video-model.js'
 import type { VideoAnalysis, VideoAnswer, VideoEvent, VideoRequest, VideoTranscript } from '../shared/video.js'
 
@@ -48,9 +48,9 @@ export async function handleVideo(request: VideoRequest, emit: Emit, signal: Abo
     emit({ type: 'status', message: `Planning the complete lecture · ${model}` })
     const started = performance.now()
     const plan = await generateVideoJson(provider, watchPlanPrompt(t), signal,
-      value => parseWatchPlan(value, t, model), progress => {
+      value => parseWatchPlanResponse(value, t, model), progress => {
         emit({ type: 'status', message: `${progress.receivedChars ? 'Writing your watch plan' : 'Reading the lecture and its prerequisites'} · ${model}` })
-      }, { maxTokens: 16000, maxInputChars: 1400000, attempts: 1 })
+      }, { maxTokens: 16000, maxInputChars: 1400000, attempts: 1, retryMessage: 'Click Plan watch to retry.' })
     signal.throwIfAborted()
     writeCache(planFile, plan)
     emit({ type: 'result', result: plan, timing: { modelMs: performance.now() - started } }); return

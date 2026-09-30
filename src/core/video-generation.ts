@@ -11,6 +11,7 @@ interface CallOptions {
   maxTokens?: number
   maxInputChars?: number
   attempts?: 1 | 2
+  retryMessage?: string
   firstTextMs?: number
   idleMs?: number
   totalMs?: number
@@ -87,7 +88,7 @@ export async function generateVideoJson<T>(provider: LlmProvider, user: string, 
       return validate(value)
     } catch (error) {
       if (!(error instanceof VideoModelOutputError)) throw error
-      if (attempt === attempts) throw new Error(`${error.message}\n${attempts === 1 ? 'Please retry the summary.' : 'One automatic correction attempt also failed. Choose another video model in EasyUnderstand Settings → YouTube analysis.'}`)
+      if (attempt === attempts) throw new Error(`${error.message}\n${attempts === 1 ? options.retryMessage ?? 'Please retry the summary.' : 'One automatic correction attempt also failed. Choose another video model in EasyUnderstand Settings → YouTube analysis.'}`)
       correction = error.message
       // Keep the complete source prompt. A large invalid draft is optional, never
       // grounds for truncating source evidence to make a correction request fit.
