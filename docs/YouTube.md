@@ -135,12 +135,16 @@ installation, not a Chrome Web Store or Edge Add-ons publication.
 
 ## Plan a lecture
 
-Click **Plan watch** beside **Understand video**, either below the YouTube player
-or in the side panel. This starts a separate viewing-guide workflow directly:
+Click **Plan watch** beside **Understand video** below the YouTube player.
+One click opens the dedicated **Plan watch** sidebar view and starts planning:
 it collects the title, description, and complete captions, then requests a watch
 plan. You do not need a summary first, and there are no learning-goal, familiar-topic,
 or time-budget inputs. **Understand video** continues to generate summaries only.
-The panel shows the result for the action you chose.
+Each view shows only the controls and result for the action you chose. Use the
+buttons below the video to switch views and start that action immediately.
+**Plan again** and **Summarize again** request fresh results in their respective views.
+If the browser recreates the panel, it loads the requested result again, using the
+saved result when available. An earlier startup cannot leave the new panel idle.
 
 The model infers the video's learning objective, intended audience, and appropriate
 emphasis from its title and description, then checks that interpretation against

@@ -97,6 +97,14 @@ describe('video panel target updates', () => {
     await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2))
     expect(stored['target:1']).toMatchObject({ tabId: 3, videoId: 'jNQXAC9IVRw', start: false })
   })
+
+  it('keeps the selected panel on another video without starting it automatically', async () => {
+    stored['target:1'] = { tabId: 2, windowId: 1, videoId: 'jNQXAC9IVRw', title: tab.title!, start: true, token: 'plan-click', action: 'watch-plan' }
+    updated(tab.id!, { url: 'https://www.youtube.com/watch?v=B7yl7fEHeKM' }, { ...tab, url: 'https://www.youtube.com/watch?v=B7yl7fEHeKM' })
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    expect(stored['target:1']).toMatchObject({ videoId: 'B7yl7fEHeKM', action: 'watch-plan', start: false })
+    expect(openPanel).not.toHaveBeenCalled()
+  })
 })
 
 describe('Understand video acknowledgement', () => {

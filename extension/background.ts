@@ -18,6 +18,8 @@ function publishTarget(next: PanelTarget, ready: Promise<void> = Promise.resolve
       const previous = stored[key] as PanelTarget | undefined
       if (previous?.tabId === next.tabId && previous.videoId === next.videoId) {
         next = { ...previous, title: next.title }
+      } else if (previous?.action) {
+        next = { ...next, action: previous.action }
       }
     }
     await chrome.storage.session.set({ [key]: next })
