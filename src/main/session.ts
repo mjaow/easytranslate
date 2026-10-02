@@ -188,6 +188,9 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   lastRequest = req
   const config = loadConfig()
   const { explanations } = caches()
+  // Whether a word the dictionary lacks may show the model's reading instead of
+  // nothing. Off unless the user asked for it — see the setting's own note.
+  const unverifiedIpa = config.unverifiedPronunciations
   // Code may go to a stronger model; everything else stays on the everyday one.
   const model =
     (req.mode === 'code' && config.llm.codeModel.trim()) || config.llm.models[config.llm.provider]
@@ -195,7 +198,11 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   // produced it, and an improved prompt must not keep serving the old answer.
   const key = cacheKey(
     config.llm.provider, model, req.mode, systemPrompt(req.mode), req.text, req.context,
-    req.mode === 'code' ? undefined : PRONUNCIATION_CACHE_VERSION
+    req.mode === 'code' ? undefined : PRONUNCIATION_CACHE_VERSION,
+    // The stored answer is already filtered by this setting, so the two policies have
+    // to cache apart — otherwise turning it on would keep serving answers saved with
+    // the pronunciation stripped out.
+    req.mode === 'code' || !unverifiedIpa ? undefined : 'unverified-ipa'
   )
 
   const cached = explanations.get(key)
@@ -206,7 +213,7 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
         text: req.text,
         raw: req.raw,
         context: req.context,
-        explanation: withDictionaryPronunciations(req, cached),
+        explanation: withDictionaryPronunciations(req, cached, true, unverifiedIpa),
         status: 'done',
         model,
         cached: true
@@ -243,11 +250,11 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
   try {
     for await (const chunk of provider.explain(req, controller.signal)) {
       if (controller.signal.aborted) return
-      state.explanation = withDictionaryPronunciations(req, parser.push(chunk), false)
+      state.explanation = withDictionaryPronunciations(req, parser.push(chunk), false, unverifiedIpa)
       updatePopup(state)
     }
     const parsed = parser.end()
-    state.explanation = withDictionaryPronunciations(req, parsed)
+    state.explanation = withDictionaryPronunciations(req, parsed, true, unverifiedIpa)
     state.status = 'done'
 
     // Only cache a result that actually parsed — caching an empty or malformed
@@ -262,7 +269,7 @@ async function run(req: ExplainRequest, isNew: boolean): Promise<void> {
     // threw away a translation that had got most of the way there.
     const partial = parser.end()
     if (err instanceof OutputLimitError && Object.keys(partial).length > 0) {
-      state.explanation = withDictionaryPronunciations(req, partial)
+      state.explanation = withDictionaryPronunciations(req, partial, true, unverifiedIpa)
       state.status = 'done'
       state.warning = [err.message, err.hint].filter(Boolean).join(' ')
       // Deliberately not cached. A truncated answer stored under this key would be

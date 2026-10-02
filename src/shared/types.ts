@@ -36,6 +36,12 @@ export interface PronunciationCandidate {
   usage?: string
 }
 
+/** A related word the dictionary does know, to anchor a transcription it does not. */
+export interface PronunciationAnchor {
+  term: string
+  ipa: string
+}
+
 export interface ExplainRequest {
   mode: ExplainMode
   /** The word, or the whole passage, tidied for display and for the cache key. */
@@ -49,6 +55,8 @@ export interface ExplainRequest {
   context?: string
   /** Local dictionary candidates supplied to the model for contextual selection. */
   pronunciationHints?: Record<string, readonly PronunciationCandidate[]>
+  /** Set only when the selection itself is absent from the dictionary. */
+  pronunciationAnchor?: PronunciationAnchor
 }
 
 /**
@@ -62,6 +70,19 @@ export interface Explanation {
   en?: string
   /** WORD only: dictionary IPA after enrichment; alternatives are separated by "or". */
   ipa?: string
+  /**
+   * Terms whose shown IPA is the model's reading rather than a dictionary entry.
+   *
+   * The bundled CMU wordlist is conservative — it has no entry for "reproducible",
+   * and neither does Wiktionary, because a word built from parts gets left out of
+   * hand-written dictionaries. Showing nothing taught the reader nothing; showing a
+   * guess as though it were attested would be worse. So an unattested pronunciation
+   * is shown and labelled, and this is the list of terms it applies to.
+   *
+   * Holds display terms exactly as `ipa` and `notable` spell them, so the popup can
+   * match without needing the dictionary in the renderer bundle.
+   */
+  unverifiedIpa?: string[]
   /** WORD only: part of speech. */
   pos?: string
   /** Why it means that *here*, given the context. */
@@ -131,6 +152,17 @@ export interface AppConfig {
   }
   /** Double-clicking a line in a YouTube transcript explains it — no shortcut at all. */
   doubleClickTranscripts: boolean
+  /**
+   * Show a pronunciation for words the bundled dictionary has no entry for, taken
+   * from the model and labelled as unverified.
+   *
+   * Off by default, and that is a measurement rather than caution: asked for six
+   * words the wordlist lacks, qwen-flash got three right even when anchored to the
+   * attested stem. Half-wrong IPA is worse than none for a reader who cannot tell
+   * which half, and 🔊 already says the word correctly. A stronger model may do
+   * better, which is why this is a switch and not a deletion.
+   */
+  unverifiedPronunciations: boolean
   llm: {
     provider: LlmProviderId
     /** Per-provider model id. Keys are LlmProviderId. */

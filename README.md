@@ -268,9 +268,55 @@ For a word with multiple pronunciations, such as **read**, the explanation model
 select an exact dictionary candidate when the selected passage or supplied sentence
 provides context. Otherwise the alternatives are shown with **or**. Dictionary
 candidates prevent invented IPA, but a model can still select the wrong valid
-variant. Words and phrases without an entry have no IPA; their explanations and
-read-aloud still work. Existing answers with model-generated IPA are refreshed on
-the next lookup after this update.
+variant. Existing answers with model-generated IPA are refreshed on the next lookup
+after this update.
+
+**Words the bundled wordlist does not have.** CMU's is from the 1990s and covers
+little derived or technical vocabulary — no **reproducible**, no **maintainable**, no
+**idempotent**.
+
+On **macOS** those words are looked up in the dictionary the system already ships, the
+New Oxford American Dictionary, through Dictionary Services in CoreServices. It is the
+same dictionary behind Dictionary.app and the Look Up menu: offline, no API key, no new
+dependency, and no permission to grant. So **reproducible** shows
+**/ˌɹipɹəˈdusəbəɫ/** with nothing to configure. The bundled wordlist still wins wherever
+it has an entry, so **read** keeps both of its pronunciations.
+
+NOAD writes pronunciations in its own respelling rather than IPA
+(`ˌrēprəˈdo͞osəb(ə)l`), which is a closed set of 56 symbols, so the conversion is a
+lookup table and not a guess — and it is checked three ways. Anything that does not
+convert completely is discarded, because a stray `ē` reaching the popup would be worse
+than no pronunciation. The word must match the entry exactly: a lookup for
+**maintainable** returns the entry for **maintain**, and showing that pronunciation
+would be plainly wrong, so it is instead found under its own name in that entry's
+DERIVATIVES list. And an entry with no pronunciation at all is refused rather than
+allowed to leak definition prose. Measured against 817 real respellings from the
+dictionary on a Mac, 816 converted with no leftover symbol; the one rejection was an
+entry that had no pronunciation.
+
+The two dictionaries follow different traditions, so they disagree on words both have —
+NOAD reduces unstressed vowels (**abhor** /əbˈhɔɹ/ against CMU's /æbˈhɔɹ/) and writes a
+flapped *t* as *d*. Both are accurate; they are never consulted for the same word.
+
+**Where neither has the word.** Settings → *Show an unverified pronunciation for words
+the dictionary lacks* turns the remaining blanks into the model's own reading, shown
+dimmed and marked with a degree sign (**°**) so it can never be mistaken for an
+attested one. It is **off by default**, and that is a measurement rather than caution:
+asked for six such words a cheap model got about half wrong, even when given the
+nearest attested stem to work from, and half-wrong IPA is worse than none for a reader
+who cannot tell which half. A stronger model may do better — the switch is there so you
+can judge for yourself. 🔊 says the word correctly either way.
+
+On **Windows** the bundled wordlist is the only attested source; there is no system
+dictionary to fall back on, so that switch matters more there.
+
+Two other approaches were measured and rejected. A larger wordlist does not help:
+upstream CMUdict (135,166 entries) lacks all of these words too, and Wiktionary has no
+IPA for **reproducible** either, because a word built from parts gets left out of
+hand-written dictionaries. Composing one from the stem plus the suffix's own phonemes
+is worse — checked against every `-able`, `-ible`, `-ly` and `-ness` word the wordlist
+*does* have, it agrees only 46–74% of the time, because `-able` moves the stress in
+**comparable** and **preferable** and leaves it alone in **deployable**.
 
 The speaker button reads the original text using your configured voice, separately
 from the displayed IPA. Changing pronunciation data does not change your explanation
