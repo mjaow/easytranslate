@@ -634,6 +634,25 @@ export function Settings(): React.ReactElement {
             })
           }
         />
+        <label className="flex items-start gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={config.unverifiedPronunciations}
+            onChange={(e) => void patch({ unverifiedPronunciations: e.target.checked })}
+          />
+          <span>
+            Show an unverified pronunciation for words the dictionary lacks
+            <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: 'var(--text-subtle)' }}>
+              The bundled CMU wordlist has no entry for much derived vocabulary —
+              “reproducible”, “maintainable”, “idempotent” — so those words normally show no
+              IPA at all. Switch this on and the model supplies one, shown dimmed and marked
+              with a degree sign. Worth knowing before you do: asked for six such words, the
+              cheap models got about half wrong. 🔊 always says the word correctly, whatever
+              this is set to.
+            </span>
+          </span>
+        </label>
       </Card>
 
       <Card title="YouTube analysis">

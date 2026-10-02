@@ -54,7 +54,8 @@ beforeEach(async () => {
 afterEach(async () => { vi.unstubAllEnvs(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())) })
 function config(): AppConfig {
   const c: AppConfig = {
-    hotkeys: { explain: '' }, doubleClickTranscripts: false, launchAtLogin: false,
+    hotkeys: { explain: '' }, doubleClickTranscripts: false,
+  unverifiedPronunciations: false, launchAtLogin: false,
     tts: { provider: 'system', systemVoice: '', azureRegion: '', azureVoice: '', slowRate: -40, autoPlay: false },
     llm: { provider: 'openai', models: { openai: 'qwen-flash' }, baseUrls: { openai: 'https://everyday.example.invalid/v1' }, codeModel: '',
       videoProvider: 'openai', videoProtocol: 'azure-responses', videoBaseUrl: endpoint, videoModel: 'gpt-6-astra' }

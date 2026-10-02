@@ -87,6 +87,43 @@ function SpeakButton({
   )
 }
 
+/** What the reader is told about where a pronunciation came from. */
+const ATTESTED_TITLE = 'American English · CMU pronunciation dictionary'
+const UNVERIFIED_TITLE =
+  'American English · the model’s reading — this word is not in the bundled dictionary, so it is unverified'
+
+/**
+ * A pronunciation, and an honest account of where it came from.
+ *
+ * The bundled CMU wordlist has no entry for most derived vocabulary — no
+ * "reproducible", no "maintainable" — and neither does Wiktionary, because a word
+ * built from its parts gets left out of hand-written dictionaries. Showing nothing
+ * taught the reader nothing. Showing a guess as though the dictionary vouched for it
+ * would be worse. So an unattested reading is shown dimmed and followed by a degree
+ * sign, the notation convention for "approximate", with the difference spelled out on
+ * hover.
+ */
+function Ipa({
+  ipa,
+  verified,
+  className = ''
+}: {
+  ipa: string
+  verified: boolean
+  className?: string
+}): React.ReactElement {
+  return (
+    <span
+      className={`font-mono ${className}`}
+      title={verified ? ATTESTED_TITLE : UNVERIFIED_TITLE}
+      style={verified ? undefined : { opacity: 0.65, fontStyle: 'italic' }}
+    >
+      {ipa}
+      {!verified && <span aria-label="unverified">°</span>}
+    </span>
+  )
+}
+
 function Section({
   label,
   action,
@@ -262,6 +299,8 @@ export function Popup(): React.ReactElement | null {
       ? state.text
       : `${state.text.slice(0, 90)}…`
   const empty = Object.keys(ex).length === 0
+  // Matched on the display term, so the renderer never needs the 126k-entry wordlist.
+  const unverifiedIpa = new Set(ex.unverifiedIpa ?? [])
 
   return (
     // The card itself scrolls, not this wrapper, which only supplies the margin the
@@ -305,9 +344,7 @@ export function Popup(): React.ReactElement | null {
               >
                 {isCode && ex.lang && <span className="italic">{ex.lang}</span>}
                 {isWord && ex.ipa && (
-                  <span className="font-mono" title="American English · CMU pronunciation dictionary">
-                    {ex.ipa}
-                  </span>
+                  <Ipa ipa={ex.ipa} verified={!unverifiedIpa.has(state.text)} />
                 )}
                 {isWord && ex.pos && <span className="italic">{ex.pos}</span>}
                 {state.model && (
@@ -475,13 +512,11 @@ export function Popup(): React.ReactElement | null {
                               {t.term}
                             </span>
                             {t.ipa && (
-                              <span
-                                className="font-mono text-[11px]"
-                                title="American English · CMU pronunciation dictionary"
-                                style={{ color: 'var(--text-subtle)' }}
-                              >
-                                {t.ipa}
-                              </span>
+                              <Ipa
+                                ipa={t.ipa}
+                                verified={!unverifiedIpa.has(t.term)}
+                                className="text-[11px]"
+                              />
                             )}
                             <SpeakButton text={t.term} compact onStatus={setStatus} />
                             {t.gloss && (
